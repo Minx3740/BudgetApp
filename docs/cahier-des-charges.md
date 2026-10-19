@@ -31,11 +31,12 @@ Environnement du développeur : Windows 10, PowerShell, VS Code, Git, Node 22.14
 ## 1. Contexte et objectif
 
 Application de gestion de budget permettant, dans une même application :
+
 - un **budget personnel** (créé automatiquement) ;
 - des **budgets partagés** (colocation, famille, projet) rejoints **par invitation** ;
 - une saisie des dépenses **très rapide**, qui **fonctionne hors-ligne** et se synchronise ensuite.
 
-Promesse utilisateur : *« Savoir en un coup d'œil combien il me reste à dépenser ce mois-ci. »*
+Promesse utilisateur : _« Savoir en un coup d'œil combien il me reste à dépenser ce mois-ci. »_
 
 ## 2. Utilisateurs et contexte d'usage
 
@@ -47,78 +48,90 @@ Promesse utilisateur : *« Savoir en un coup d'œil combien il me reste à dépe
 
 ## 3. Décisions techniques
 
-| # | Décision | Statut |
-|---|----------|--------|
-| D1 | Application **web installable (PWA)**, mobile-first, responsive | Verrouillée |
-| D2 | **Offline-first** : l'interface lit et écrit toujours dans la base locale ; le réseau n'est qu'une synchronisation en arrière-plan | Verrouillée |
-| D3 | Front : **Vite + React + TypeScript strict** (SPA). Pas de rendu serveur : l'app est pilotée par la base locale | Verrouillée (19/10/2026) |
-| D4 | UI : **Tailwind CSS 4** (plugin Vite) + **shadcn/ui** (ajouté en M3) | Validée |
-| D5 | Backend : **Supabase** (Postgres + Auth + RLS). À vérifier avant M1 : limites du plan gratuit, notamment la mise en pause des projets inactifs | Validée, à vérifier |
-| D6 | Stockage local : **IndexedDB via Dexie** | Validée |
-| D7 | PWA / service worker : **vite-plugin-pwa** (Workbox) | Validée |
-| D8 | Validation des données : **Zod** (même schéma côté client et serveur) | Validée |
-| D9 | Tests : **Vitest** (unitaire), **Playwright** (e2e, y compris mode hors-ligne), tests SQL pour la RLS avec `supabase test db` (pgTAP) | Validée |
-| D10 | Montants : **entiers** (jamais de flottants). Solde = **calculé** à partir des transactions, jamais stocké | Verrouillée |
-| D11 | Identifiants : **UUID générés côté client** (permet la création hors-ligne et l'idempotence) | Verrouillée |
-| D12 | Suppression : **soft delete** (`deleted_at`) pour que la synchronisation puisse propager les suppressions | Verrouillée |
-| D13 | Conflits de synchronisation : **dernière écriture gagne, au niveau de la ligne**, selon l'horodatage serveur ; une **suppression l'emporte** sur une modification | Verrouillée |
+| #   | Décision                                                                                                                                                                                        | Statut                     |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| D1  | Application **web installable (PWA)**, mobile-first, responsive                                                                                                                                 | Verrouillée                |
+| D2  | **Offline-first** : l'interface lit et écrit toujours dans la base locale ; le réseau n'est qu'une synchronisation en arrière-plan                                                              | Verrouillée                |
+| D3  | Front : **Vite + React + TypeScript strict** (SPA). Pas de rendu serveur : l'app est pilotée par la base locale                                                                                 | Verrouillée (19/10/2026)   |
+| D4  | UI : **Tailwind CSS 4** (plugin Vite) + **shadcn/ui** (ajouté en M3)                                                                                                                            | Validée                    |
+| D5  | Backend : **Supabase** (Postgres + Auth + RLS). À vérifier avant M1 : limites du plan gratuit, notamment la mise en pause des projets inactifs                                                  | Validée, à vérifier        |
+| D6  | Stockage local : **IndexedDB via Dexie**                                                                                                                                                        | Validée                    |
+| D7  | PWA / service worker : **vite-plugin-pwa** (Workbox)                                                                                                                                            | Validée                    |
+| D8  | Validation des données : **Zod** (même schéma côté client et serveur)                                                                                                                           | Validée                    |
+| D9  | Tests : **Vitest** (unitaire), **Playwright** (e2e, y compris mode hors-ligne), tests SQL pour la RLS avec `supabase test db` (pgTAP)                                                           | Validée                    |
+| D10 | Montants : **entiers** (jamais de flottants). Solde = **calculé** à partir des transactions, jamais stocké                                                                                      | Verrouillée                |
+| D11 | Identifiants : **UUID générés côté client** (permet la création hors-ligne et l'idempotence)                                                                                                    | Verrouillée                |
+| D12 | Suppression : **soft delete** (`deleted_at`) pour que la synchronisation puisse propager les suppressions                                                                                       | Verrouillée                |
+| D13 | Conflits de synchronisation : **dernière écriture gagne, au niveau de la ligne**, selon l'horodatage serveur ; une **suppression l'emporte** sur une modification                               | Verrouillée                |
 | D14 | TypeScript fixé à **~6.0.3** dans `package.json`, car `typescript-eslint` 8.71.2 n'accepte que les versions inférieures à 6.1.0. À réexaminer quand `typescript-eslint` supportera TypeScript 7 | Verrouillée (dette connue) |
-| D15 | Authentification : **email + mot de passe uniquement** en v1 (pas de Google) | Verrouillée |
-| D16 | Moteur de synchronisation **écrit à la main** (pas de PowerSync ou équivalent), le modèle étant simple (lignes indépendantes, dernière écriture gagne) | Validée |
+| D15 | Authentification : **email + mot de passe uniquement** en v1 (pas de Google)                                                                                                                    | Verrouillée                |
+| D16 | Moteur de synchronisation **écrit à la main** (pas de PowerSync ou équivalent), le modèle étant simple (lignes indépendantes, dernière écriture gagne)                                          | Validée                    |
 
 Options TypeScript strictes activées (M0) : `strict`, `noUncheckedIndexedAccess`, `noImplicitReturns`, `noImplicitOverride`. `exactOptionalPropertyTypes` est volontairement désactivé (il casse régulièrement les bibliothèques).
 
 ## 4. Fonctionnalités v1 et critères d'acceptation
 
 **F-01 Authentification**
+
 - Inscription/connexion par email + mot de passe.
 - La première connexion nécessite le réseau ; ensuite l'app s'ouvre **hors-ligne** avec la session en cache.
 - Critère : après connexion, mode avion + fermeture/réouverture de l'app → l'app s'ouvre et affiche les données locales.
 
 **F-02 Espace personnel automatique**
+
 - À l'inscription, un espace « Perso » est créé (avec comptes et catégories par défaut).
 - Critère : un nouvel utilisateur peut saisir une dépense moins de 30 secondes après l'inscription.
 
 **F-03 Espaces partagés**
+
 - Créer un espace partagé ; le créateur en est propriétaire.
 - Rôles : `owner` (tout, gère les membres), `member` (lit/écrit les données), `viewer` (lecture seule).
 - Critère : un `viewer` ne peut ni créer ni modifier (vérifié par un test RLS, pas seulement par l'UI).
 
 **F-04 Invitations**
+
 - Le propriétaire génère un lien/code : rôle choisi, expiration (défaut 7 jours), usage unique par défaut, révocable.
 - Le jeton est aléatoire (32 octets minimum), **stocké haché** côté base.
 - L'acceptation se fait via une fonction serveur atomique (RPC) ; elle nécessite d'être en ligne.
 - Critère : un jeton expiré, révoqué ou déjà utilisé est refusé avec un message clair.
 
 **F-05 Comptes/portefeuilles**
+
 - Créer/modifier/archiver (espèces, mobile money, banque…). Solde calculé.
 
 **F-06 Catégories**
+
 - Dépense ou revenu ; nom, icône, couleur ; modifiables ; archivage plutôt que suppression si utilisée.
 
 **F-07 Transactions**
+
 - Types : dépense, revenu, transfert entre comptes.
 - Saisie : montant, catégorie, compte, date (défaut aujourd'hui), note optionnelle.
 - Critère : saisie d'une dépense en moins de 5 secondes et 4 interactions maximum depuis l'écran d'accueil ; fonctionne hors-ligne ; visible immédiatement.
 - Modification et suppression (soft delete). Dans un espace partagé, l'auteur est enregistré et affiché.
 
 **F-08 Budgets mensuels**
+
 - Un plafond par catégorie et par mois.
 - Affichage : dépensé, restant, barre de progression, dépassement signalé visuellement.
 
 **F-09 Écran d'accueil**
+
 - Montre, pour l'espace actif et le mois en cours : **reste à dépenser** (budget total − dépensé), reste par jour, dernières transactions, catégories les plus consommées.
 - Sélecteur d'espace toujours accessible.
 
 **F-10 Historique**
+
 - Liste des transactions avec filtres (période, catégorie, compte, membre) et recherche texte ; défilement fluide sur plusieurs milliers de lignes (virtualisation si nécessaire).
 
 **F-11 Synchronisation et état réseau**
+
 - Indicateur discret : « Synchronisé » / « n modifications en attente » / « Hors-ligne ».
 - Synchronisation au retour du réseau, à l'ouverture de l'app, au retour au premier plan, et périodiquement.
 - Ne jamais perdre une écriture locale : si la synchro échoue, l'opération reste dans la file d'attente et sera retentée.
 
 **F-12 Installation PWA**
+
 - Installable (manifest, icônes, `display: standalone`), démarrage instantané grâce à l'app shell en cache.
 
 ## 5. Hors périmètre v1 (interdit sans accord explicite)
@@ -190,51 +203,62 @@ Contraintes à imposer en base : montants strictement positifs, cohérence works
 Chaque jalon a : **livrables**, **critère de validation**, **interdits**. L'IA s'arrête à la fin du jalon et attend « jalon N validé ».
 
 **M0 — Cadrage et dépôt**
+
 - Livrables : projet Vite + React + TypeScript strict + Tailwind 4 + ESLint/Prettier + Vitest (un test minimal temporaire), scripts `lint`, `typecheck`, `test`, `format`, `format:check`, `README.md`, `PROGRESS.md`, `.env.example`, `.gitignore` qui ignore `.env`, ce cahier des charges dans `docs/`, dépôt GitHub privé, CI simple (lint + typecheck + tests).
 - Validation : `npm run lint`, `typecheck`, `test`, `format:check` et `build` passent ; l'app démarre ; la CI est au vert sur GitHub.
 - Interdit : toute fonctionnalité, Supabase, shadcn/ui.
 
 **M1 — Base de données et sécurité (AVANT toute interface)**
+
 - Prérequis : compte Supabase créé, limites du plan gratuit vérifiées.
 - Livrables : migrations SQL du schéma (section 6), triggers `updated_at`, fonctions `is_member`/`has_role`, politiques RLS, fonction RPC d'acceptation d'invitation, **tests SQL des politiques**.
 - Validation : tous les tests RLS passent (A ne voit pas B ; viewer en lecture seule ; invitation expirée/révoquée refusée). Le développeur relit le schéma.
 - Interdit : UI.
 
 **M2 — Authentification et espace personnel**
+
 - Livrables : inscription/connexion/déconnexion, création automatique du profil + espace « Perso » + comptes/catégories par défaut (trigger ou RPC), garde de routes.
 - Validation : un nouvel utilisateur arrive sur un espace prêt à l'emploi.
 
 **M3 — Coquille d'application (app shell) et PWA**
+
 - Livrables : installation de shadcn/ui, layout mobile-first, barre de navigation basse, thème (variables CSS), manifest, icônes, service worker pour l'app shell (vite-plugin-pwa), page « hors-ligne » de secours.
 - Validation : installable sur Android ; l'app shell s'ouvre en mode avion ; Lighthouse PWA OK.
 
 **M4 — Couche de données locale**
+
 - Livrables : schéma Dexie miroir du serveur + table `outbox`, « repositories » typés (create/update/softDelete/list) qui écrivent local + outbox, hooks de lecture réactifs (liveQuery), tests unitaires (le test temporaire de M0 est supprimé).
 - Validation : tests unitaires ; l'UI ne contient AUCUN appel direct à Supabase pour les données métier.
 - Interdit : moteur de synchro.
 
 **M5 — Comptes, catégories, transactions (100 % local)**
+
 - Livrables : écrans et formulaires F-05, F-06, F-07, panneau de saisie rapide, calcul local des soldes.
 - Validation : critère de saisie < 5 s ; tout fonctionne en mode avion.
 
 **M6 — Moteur de synchronisation**
+
 - Livrables : push de l'outbox (idempotent, ordonné, avec reprise), pull par curseur avec chevauchement, gestion des erreurs (réseau, 401, 403, conflit), indicateur de synchro (F-11), tests d'intégration.
 - Validation : scénarios obligatoires — (1) saisie hors-ligne puis retour du réseau ; (2) coupure au milieu d'un push, sans doublon ni perte ; (3) deux appareils modifient la même ligne (règle D13) ; (4) suppression propagée ; (5) retrait d'un membre → purge locale.
 - C'est le jalon le plus risqué : prévoir du temps et ne pas le bâcler.
 
 **M7 — Budgets et écran d'accueil**
+
 - Livrables : F-08 et F-09, calculs locaux testés (cas limites : changement de mois, catégorie sans budget, dépassement).
 - Validation : le « reste à dépenser » est exact sur un jeu de données de test.
 
 **M8 — Espaces partagés, invitations, rôles**
+
 - Livrables : création d'espace partagé, sélecteur d'espace, génération/révocation d'invitation, page d'acceptation, gestion des membres et rôles, affichage de l'auteur.
 - Validation : scénario complet à deux comptes (A invite B, B saisit, A voit la dépense) y compris avec B hors-ligne pendant la saisie.
 
 **M9 — Historique, finitions, robustesse**
+
 - Livrables : F-10 (filtres, recherche, virtualisation), états vides, erreurs, accessibilité de base, polissage des animations.
 - Validation : fluidité sur 5 000 transactions de test.
 
 **M10 — Qualité et mise en bêta privée**
+
 - Livrables : tests e2e Playwright (dont hors-ligne), revue de sécurité (RLS, secrets, CORS, en-têtes), mesure de performance, déploiement (hébergement statique), procédure de sauvegarde de la base, guide d'installation pour les testeurs.
 - Validation : checklist de la section 12 entièrement cochée.
 
@@ -254,3 +278,5 @@ Chaque jalon a : **livrables**, **critère de validation**, **interdits**. L'IA 
 ## Annexe A — Modèle de `PROGRESS.md`
 
 ```mark
+
+```

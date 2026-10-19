@@ -4,9 +4,9 @@ import { defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(),tailwindcss()],
-  test:{
+  plugins: [react(), tailwindcss()],
+  test: {
     environment: 'node',
-    include : ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })

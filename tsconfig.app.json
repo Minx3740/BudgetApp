@@ -18,8 +18,8 @@
 
     /* Linting */
     "strict": true,
-    "noUncheckedIndexedAccess":true,
-    "noImplicitReturns":true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
     "noImplicitOverride": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

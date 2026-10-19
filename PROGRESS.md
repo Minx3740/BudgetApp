@@ -8,11 +8,11 @@
 
 ## Jalons
 
-| Jalon    | Statut                                                                                            | Date       |
-| -------- | 
+| Jalon | Statut | Date |
+| -------- |
 ------------------------------------------------------------------------------------------------- | ---------- |
-| M0       | à valider (étapes 1 à 9 faites, push GitHub reporté, CI jamais exécutée donc pas encore vérifiée) | 2026-10-19 |
-| M1 à M10 | à faire                                                                                           |            |
+| M0 | à valider (étapes 1 à 9 faites, push GitHub reporté, CI jamais exécutée donc pas encore vérifiée) | 2026-10-19 |
+| M1 à M10 | à faire | |
 
 ## Décisions prises
 

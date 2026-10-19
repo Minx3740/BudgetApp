@@ -24,16 +24,16 @@ Sous PowerShell, remplace la deuxième commande par `Copy-Item .env.example .env
 
 ## Scripts
 
-| Commande               | Rôle                                  |
-| ---------------------- | ------------------------------------- |
-| `npm run dev`          | serveur de développement              |
-| `npm run build`        | typecheck puis build de production    |
-| `npm run lint`         | ESLint                                |
-| `npm run typecheck`    | vérification des types                |
-| `npm run test`         | tests Vitest (une exécution)          |
-| `npm run test:watch`   | tests Vitest en continu               |
-| `npm run format`       | formate le code avec Prettier         |
-| `npm run format:check` | vérifie le formatage sans modifier    |
+| Commande               | Rôle                               |
+| ---------------------- | ---------------------------------- |
+| `npm run dev`          | serveur de développement           |
+| `npm run build`        | typecheck puis build de production |
+| `npm run lint`         | ESLint                             |
+| `npm run typecheck`    | vérification des types             |
+| `npm run test`         | tests Vitest (une exécution)       |
+| `npm run test:watch`   | tests Vitest en continu            |
+| `npm run format`       | formate le code avec Prettier      |
+| `npm run format:check` | vérifie le formatage sans modifier |
 
 ## Sécurité
 
