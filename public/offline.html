@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#075b45" />
+    <title>Hors connexion — cashFlow+</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+        background: #f7f7f2;
+        color: #252820;
+      }
+
+      body {
+        display: grid;
+        min-height: 100svh;
+        margin: 0;
+        padding: 1.5rem;
+        place-items: center;
+        box-sizing: border-box;
+      }
+
+      main {
+        width: min(100%, 30rem);
+        padding: 2rem;
+        border: 1px solid #e6e4dc;
+        border-radius: 1.5rem;
+        background: white;
+        box-shadow: 0 12px 35px #2528200d;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.75rem;
+      }
+
+      p {
+        color: #5b6057;
+        line-height: 1.7;
+      }
+
+      button {
+        min-height: 3rem;
+        padding: 0 1.25rem;
+        border: 0;
+        border-radius: 0.75rem;
+        background: #075b45;
+        color: white;
+        font: inherit;
+        font-weight: 650;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Tu es hors connexion</h1>
+      <p>
+        Cette page de secours n’a pas pu charger l’application. Vérifie ta connexion puis réessaie.
+      </p>
+      <button type="button" onclick="window.location.reload()">Réessayer</button>
+    </main>
+  </body>
+</html>

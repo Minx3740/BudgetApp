@@ -2,19 +2,24 @@
 
 ## État actuel
 
-- Jalon en cours : aucun (M0 validé, M1 à démarrer)
-- Dernier jalon validé : M0 (2026-10-19)
-- Prochaine action : démarrer M1. D'abord relire et valider le schéma de la section 6 du cahier des charges, avant d'écrire la moindre migration SQL.
+- Jalon en cours : M5 (comptes, catégories et transactions locales)
+- Dernier jalon validé : M4 (2026-10-24)
+- Prochaine action : créer les écrans et formulaires locaux des comptes, catégories et transactions.
 
 ## Jalons
 
 | Jalon    | Statut            | Date       |
 | -------- | ----------------- | ---------- |
 | M0       | validé (CI verte) | 2026-10-19 |
-| M1 à M10 | à faire           |            |
+| M1       | validé            | 2026-10-23 |
+| M2       | validé            | 2026-10-24 |
+| M3       | validé*           | 2026-10-24 |
+| M4       | validé            | 2026-10-24 |
+| M5 à M10 | à faire           |            |
 
 ## Décisions prises
 
+- 2026-10-24 : nom officiel de l'application : cashFlow+.
 - 2026-10-19 : Vite + React + TypeScript (SPA) à la place de Next.js, car l'app est pilotée par la base locale et n'a pas besoin de rendu serveur.
 - 2026-10-19 : vite-plugin-pwa à la place de Serwist (conséquence du choix de Vite).
 - 2026-10-19 : Tailwind CSS 4 via le plugin Vite. shadcn/ui sera ajouté en M3.
@@ -32,12 +37,12 @@
 
 - TypeScript est fixé à ~6.0.3 dans package.json. Le modèle Vite proposait 7.0.2, mais typescript-eslint 8.71.2 n'accepte que les versions inférieures à 6.1.0. À réexaminer quand typescript-eslint supportera TypeScript 7.
 - Les actions GitHub de la CI sont en v4 (checkout, setup-node). Elles fonctionnent. Surveiller un éventuel avertissement de dépréciation.
-- Risque pour M1 : `supabase test db` demande vraisemblablement la pile Supabase locale, donc Docker (à confirmer dans la documentation de Supabase). Sur Windows 10 avec une connexion limitée, à anticiper avant de commencer M1.
-- Le plan gratuit de Supabase peut mettre en pause les projets inactifs. À vérifier sur la page de tarifs avant M1.
+- M1 : schéma relu et tests SQL confirmés par le développeur ; migrations appliquées au projet Supabase hébergé.
+- M2 : migrations appliquées ; inscription, confirmation e-mail, réinitialisation du mot de passe, connexion et déconnexion validées sur Supabase le 2026-10-24.
+- M3 : shadcn/ui initialisé avec Radix Nova ; navigation responsive, manifest, icônes et service worker livrés. Build, précache, shell hors-ligne simulé, badge réseau et navigation validés dans Chromium. Dérogation acceptée : installation Android réelle et audit Lighthouse reportés à M10.
+- M4 : validé le 2026-10-24. Couche miroir Dexie avec outbox transactionnelle, validation Zod, repositories typés et hooks réactifs ; purge locale à la déconnexion. Six tests IndexedDB passent. Synchronisation non implémentée (réservée à M6).
 
 ## Ce qui n'est PAS encore fait
 
-- Compte Supabase (nécessaire à partir de M1).
-- shadcn/ui, PWA, Dexie, Zod, Playwright.
-- Nettoyage des fichiers de démonstration inutilisés : src/assets (hero.png, react.svg, vite.svg) et public/icons.svg. À faire en M3, avec les vraies icônes de la PWA.
-- Suppression de src/sanity.test.ts quand le premier vrai test existera.
+- *M3 est validé avec installation Android et audit Lighthouse reportés à M10 ; les données métier hors-ligne arrivent en M4.
+- Playwright.
