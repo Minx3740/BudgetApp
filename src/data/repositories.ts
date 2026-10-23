@@ -29,6 +29,14 @@ function nextTimestamp(previous: string): string {
   return new Date(Math.max(Date.now(), Date.parse(previous) + 1)).toISOString()
 }
 
+async function nextOutboxTimestamp(database: BudgetDatabase, candidate: string): Promise<string> {
+  const latest = await database.outbox.orderBy('created_at').last()
+  if (!latest || Date.parse(latest.created_at) < Date.parse(candidate)) {
+    return candidate
+  }
+  return new Date(Date.parse(latest.created_at) + 1).toISOString()
+}
+
 function makeOutboxOperation<K extends EditableTable>(
   table: K,
   action: OutboxOperation['action'],
@@ -66,7 +74,8 @@ export function createRepository<K extends EditableTable>(
 
       await database.transaction('rw', table, database.outbox, async () => {
         await table.add(row)
-        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, now))
+        const queuedAt = await nextOutboxTimestamp(database, now)
+        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt))
       })
 
       return row
@@ -82,7 +91,8 @@ export function createRepository<K extends EditableTable>(
         const now = nextTimestamp(existing.updated_at)
         const row = schema.parse({ ...existing, ...changes, updated_at: now })
         await table.put(row)
-        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, now))
+        const queuedAt = await nextOutboxTimestamp(database, now)
+        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt))
         return row
       })
     },
@@ -97,7 +107,8 @@ export function createRepository<K extends EditableTable>(
         const now = nextTimestamp(existing.updated_at)
         const row = schema.parse({ ...existing, updated_at: now, deleted_at: now })
         await table.put(row)
-        await database.outbox.add(makeOutboxOperation(tableName, 'delete', row, now))
+        const queuedAt = await nextOutboxTimestamp(database, now)
+        await database.outbox.add(makeOutboxOperation(tableName, 'delete', row, queuedAt))
         return row
       })
     },

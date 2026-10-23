@@ -5,6 +5,7 @@ import {
   Home,
   LogOut,
   ReceiptText,
+  RefreshCw,
   UsersRound,
   Wifi,
   WifiOff,
@@ -17,7 +18,8 @@ import { LocalDataView } from './components/budget/local-data-view'
 import { bootstrapFromSupabase } from './data/bootstrap'
 import { calculateWorkspaceBalance } from './data/calculations'
 import { clearLocalData, db } from './data/database'
-import { useAccounts, useTransactions, useWorkspaces } from './data/hooks'
+import { useAccounts, useSyncSummary, useTransactions, useWorkspaces } from './data/hooks'
+import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync'
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
@@ -327,8 +329,12 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   } | null>(null)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncAttempt, setSyncAttempt] = useState(0)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false)
   const bootstrapAbortController = useRef<AbortController | null>(null)
+  const syncAbortController = useRef<AbortController | null>(null)
   const workspaces = useWorkspaces()
   const activeWorkspace =
     workspaces.find(
@@ -336,6 +342,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     ) ?? workspaces.find((workspace) => workspace.deleted_at === null)
   const accounts = useAccounts(activeWorkspace?.id)
   const transactions = useTransactions(activeWorkspace?.id)
+  const syncSummary = useSyncSummary()
   const activeTransactions = transactions.filter((transaction) => transaction.deleted_at === null)
   const recentTransactions = [...activeTransactions]
     .sort(
@@ -354,6 +361,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const bootstrapKey = `${session.user.id}:${bootstrapAttempt}`
   const isBootstrapping = bootstrapResult?.key !== bootstrapKey
   const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
+  const visibleSyncError = syncError ?? syncSummary.lastError
 
   useEffect(() => {
     function updateNetworkStatus() {
@@ -442,11 +450,89 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     }
   }, [bootstrapAttempt, bootstrapKey, client, isOnline, session.user.id])
 
+  useEffect(() => {
+    if (!isOnline || isBootstrapping || bootstrapError) {
+      return
+    }
+
+    let isMounted = true
+    let isRunning = false
+    const abortController = new AbortController()
+    syncAbortController.current = abortController
+    const syncEngine = createSupabaseSyncEngine(client, session.user.id)
+
+    function synchronize() {
+      if (
+        isRunning ||
+        abortController.signal.aborted ||
+        !navigator.onLine ||
+        document.visibilityState === 'hidden'
+      ) {
+        return
+      }
+
+      isRunning = true
+      setIsSyncing(true)
+      setSyncError(null)
+      void syncEngine
+        .synchronize(abortController.signal)
+        .catch((failure: unknown) => {
+          if (!isMounted || abortController.signal.aborted) {
+            return
+          }
+          const message =
+            failure instanceof Error ? failure.message : 'Erreur inconnue de synchronisation.'
+          setSyncError(message)
+        })
+        .finally(() => {
+          isRunning = false
+          if (isMounted) {
+            setIsSyncing(false)
+          }
+        })
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        synchronize()
+      }
+    }
+
+    synchronize()
+    const intervalId = window.setInterval(synchronize, 60_000)
+    window.addEventListener('online', synchronize)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      isMounted = false
+      abortController.abort()
+      if (syncAbortController.current === abortController) {
+        syncAbortController.current = null
+      }
+      window.clearInterval(intervalId)
+      window.removeEventListener('online', synchronize)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [bootstrapError, client, isBootstrapping, isOnline, session.user.id, syncAttempt])
+
+  async function retrySynchronization() {
+    setSyncError(null)
+    try {
+      await retryFailedSyncOperations()
+      setSyncAttempt((attempt) => attempt + 1)
+    } catch (failure) {
+      const message =
+        failure instanceof Error ? failure.message : 'Erreur inconnue de synchronisation.'
+      setSyncError(`Impossible de relancer la file locale. ${message}`)
+    }
+  }
+
   async function signOut() {
     setError(null)
     setIsSigningOut(true)
     try {
       bootstrapAbortController.current?.abort()
+      syncAbortController.current?.abort()
       await clearLocalData()
       const { error: signOutError } = await client.auth.signOut()
       if (signOutError) {
@@ -542,6 +628,32 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               )}
               <span>{isOnline ? 'En ligne' : 'Hors-ligne'}</span>
             </span>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3 py-2 text-xs font-medium text-stone-700"
+              role="status"
+              title={
+                syncSummary.lastSuccessfulSync
+                  ? `Dernière synchronisation : ${new Date(syncSummary.lastSuccessfulSync).toLocaleString('fr-FR')}`
+                  : 'Aucune synchronisation terminée'
+              }
+            >
+              <RefreshCw
+                aria-hidden="true"
+                className={isSyncing ? 'animate-spin' : undefined}
+                size={14}
+              />
+              <span>
+                {isSyncing
+                  ? 'Sync…'
+                  : syncSummary.failedCount > 0
+                    ? 'Échec'
+                    : syncSummary.pendingCount > 0
+                      ? `${syncSummary.pendingCount} en attente`
+                      : syncSummary.lastSuccessfulSync
+                        ? 'Synchronisé'
+                        : 'À synchroniser'}
+              </span>
+            </span>
             <Button
               className="hidden min-h-12 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900 sm:inline-flex"
               onClick={addTransaction}
@@ -585,6 +697,25 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               <Button
                 className="min-h-12 shrink-0"
                 onClick={() => setBootstrapAttempt((attempt) => attempt + 1)}
+                variant="outline"
+              >
+                Réessayer
+              </Button>
+            </div>
+          )}
+          {visibleSyncError && (
+            <div
+              className="mb-6 flex flex-col gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+              role="alert"
+            >
+              <p>
+                Synchronisation interrompue : {visibleSyncError}
+                {syncSummary.pendingCount + syncSummary.failedCount > 0 &&
+                  ` ${syncSummary.pendingCount + syncSummary.failedCount} opération(s) locale(s) restent dans la file.`}
+              </p>
+              <Button
+                className="min-h-12 shrink-0"
+                onClick={() => void retrySynchronization()}
                 variant="outline"
               >
                 Réessayer

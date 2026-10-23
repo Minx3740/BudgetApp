@@ -46,9 +46,10 @@ Le service worker met en cache l'app shell pour qu'elle puisse s'ouvrir hors-lig
 la page statique `/offline.html` est également incluse comme secours. Les données métier
 sont maintenant stockées localement dans IndexedDB via Dexie. Les repositories écrivent
 chaque modification et son entrée d'outbox dans une transaction locale. Après connexion,
-une première copie paginée de l'espace et des données accessibles est importée dans Dexie ;
-cette importation nécessite une connexion. Le moteur de synchronisation complet sera ajouté
-au jalon M6. La déconnexion efface la base locale.
+une première copie paginée est importée, puis le moteur M6 pousse l'outbox et récupère les
+changements distants avec des curseurs par espace/table. Il se relance à l'ouverture, au
+retour du réseau, au retour au premier plan et périodiquement. La déconnexion efface la base
+locale.
 
 Pour vérifier l'installation, lance `npm run build`, puis `npm run preview` et ouvre
 l'URL locale dans Chrome. Utilise le menu du navigateur **Installer cashFlow+**. Le
@@ -75,7 +76,10 @@ dans le SQL Editor du tableau de bord, dans l'ordre chronologique. Ne les exécu
 que sur un projet neuf ou dont l'historique de migrations correspond.
 Applique les migrations M1 `20261023154500` et `20261023160000` avant la migration
 M2 `20261023170000` ; le trigger d'inscription M2 dépend des tables métier créées par
-la deuxième migration M1.
+la deuxième migration M1. Pour activer la synchronisation M6 sur le projet hébergé,
+applique aussi `20261024180000_sync_invariants.sql` après les migrations précédentes
+dans le SQL Editor. Cette migration ajoute l'horloge serveur et le timestamp des budgets,
+et empêche la résurrection d'une ligne supprimée.
 
 À chaque inscription, l'application crée un espace personnel « Perso », trois
 comptes (espèces, mobile money, banque) et des catégories de revenus et dépenses.

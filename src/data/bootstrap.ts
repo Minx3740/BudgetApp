@@ -228,7 +228,10 @@ function keyOfMembership(membership: Membership): string {
   return `${membership.workspace_id}:${membership.user_id}`
 }
 
-async function purgeWorkspace(database: BudgetDatabase, workspaceId: string): Promise<void> {
+export async function purgeLocalWorkspace(
+  database: BudgetDatabase,
+  workspaceId: string,
+): Promise<void> {
   await Promise.all([
     database.workspaces.delete(workspaceId),
     database.memberships.where('workspace_id').equals(workspaceId).delete(),
@@ -307,7 +310,7 @@ export async function bootstrapLocalData(
       .map((membership) => membership.workspace_id)
 
     for (const removedWorkspaceId of removedWorkspaceIds) {
-      await purgeWorkspace(database, removedWorkspaceId)
+      await purgeLocalWorkspace(database, removedWorkspaceId)
     }
 
     const pendingKeys = pendingRowKeys(await database.outbox.toArray())

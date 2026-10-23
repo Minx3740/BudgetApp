@@ -168,15 +168,16 @@ Contraintes à imposer en base : montants strictement positifs, cohérence works
 
 **Principe** : l'UI ne parle qu'à la base locale (Dexie). Un moteur de synchronisation distinct fait le lien avec Supabase.
 
-- **Import initial** : après connexion en ligne, un service dédié lit une copie paginée des espaces accessibles et de leurs données, puis l'insère dans Dexie sans outbox. Les écrans métier ne lisent et n'écrivent que dans Dexie ; l'import initial ne remplace pas le moteur de synchronisation M6. Une première utilisation hors-ligne sans espace local affiche une erreur explicite et propose de réessayer au retour du réseau.
+- **Import initial** : après connexion en ligne, un service dédié lit une copie paginée des espaces accessibles et de leurs données, puis l'insère dans Dexie sans outbox. Les écrans métier ne lisent et n'écrivent que dans Dexie ; l'import initial est distinct du moteur M6. Une première utilisation hors-ligne sans espace local affiche une erreur explicite et propose de réessayer au retour du réseau.
 - **Écriture** : l'action écrit dans la table locale ET ajoute une entrée dans une **file d'attente (`outbox`)** : `op_id` (uuid), table, type (`upsert`/`delete`), payload, `created_at`, tentatives, statut.
-- **Push** : le moteur envoie les opérations dans l'ordre. Elles sont **idempotentes** (upsert par UUID) : rejouer une opération ne duplique rien. Une opération n'est retirée de la file qu'après confirmation du serveur.
-- **Pull** : le moteur demande, par table, les lignes dont `updated_at` est supérieur au dernier curseur connu, avec un **léger chevauchement** (ex. 60 s) pour éviter de rater des lignes commitées dans le désordre ; la fusion étant idempotente, le chevauchement est sans danger.
-- **Conflits** : voir D13. L'horodatage serveur fait foi (pas l'horloge du téléphone).
-- **Perte d'accès** : si le serveur répond « interdit » pour un espace (membre retiré), l'espace local est purgé.
+- **Push** : le moteur envoie les opérations séquentiellement, dans l'ordre de création. Elles sont **idempotentes** (upsert par UUID) : rejouer une opération ne duplique rien. Une opération n'est retirée de la file qu'après confirmation du serveur ; une opération en cours est remise en attente au redémarrage.
+- **Pull** : le moteur demande, par espace et par table, les lignes dont `updated_at` est supérieur au dernier curseur connu, avec un **chevauchement de 60 s**. Le curseur est borné par l'heure du serveur, non celle du téléphone ; la fusion idempotente rend le chevauchement sans danger.
+- **Conflits** : voir D13. Les triggers de base de données posent l'horodatage serveur ; une ligne supprimée (`deleted_at`) ne peut pas être ressuscitée par une modification ultérieure.
+- **Perte d'accès** : les appartenances sont vérifiées au début de chaque cycle ; si un membre a été retiré, ses données et opérations locales de l'espace sont purgées. Un refus d'écriture pour un membre toujours présent reste signalé dans la file au lieu d'être supprimé.
 - **Auth hors-ligne** : la session est conservée ; le rafraîchissement du jeton se fait au retour du réseau. L'expiration du jeton ne doit jamais bloquer la consultation/saisie locale.
 - **Limite connue** : l'API Background Sync n'est pas fiable partout ; ne pas s'y appuyer. Synchroniser à l'ouverture, au retour du réseau (`online`), au retour au premier plan (`visibilitychange`) et périodiquement.
 - **Calculs** (soldes, restant du budget) : faits **localement** à partir des données locales ; ils peuvent être temporairement en retard sur un autre appareil, ce que l'indicateur de synchro rend explicite.
+- **Migration serveur M6** : appliquer `supabase/migrations/20261024180000_sync_invariants.sql` après les migrations M1/M2 pour l'heure serveur, les timestamps de budgets et la protection contre la résurrection des suppressions.
 
 ## 9. Exigences UX/UI (« une vraie app, pas un site »)
 
@@ -242,6 +243,7 @@ Chaque jalon a : **livrables**, **critère de validation**, **interdits**. L'IA 
 - Livrables : push de l'outbox (idempotent, ordonné, avec reprise), pull par curseur avec chevauchement, gestion des erreurs (réseau, 401, 403, conflit), indicateur de synchro (F-11), tests d'intégration.
 - Validation : scénarios obligatoires — (1) saisie hors-ligne puis retour du réseau ; (2) coupure au milieu d'un push, sans doublon ni perte ; (3) deux appareils modifient la même ligne (règle D13) ; (4) suppression propagée ; (5) retrait d'un membre → purge locale.
 - C'est le jalon le plus risqué : prévoir du temps et ne pas le bâcler.
+- État : moteur client et tests automatisés implémentés ; application de la migration sur le projet hébergé et validation réelle entre appareils restent à faire.
 
 **M7 — Budgets et écran d'accueil**
 
