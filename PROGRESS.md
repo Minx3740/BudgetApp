@@ -2,24 +2,27 @@
 
 ## État actuel
 
-- Jalon en cours : M5 (comptes, catégories et transactions locales)
-- Dernier jalon validé : M4 (2026-10-24)
-- Prochaine action : créer les écrans et formulaires locaux des comptes, catégories et transactions.
+- Jalon en cours : M6 (moteur de synchronisation)
+- Dernier jalon validé : M5 (2026-10-24)
+- Prochaine action : implémenter le push ordonné et idempotent de l'outbox, puis le pull avec curseur et les règles de conflit.
 
 ## Jalons
 
-| Jalon    | Statut            | Date       |
-| -------- | ----------------- | ---------- |
-| M0       | validé (CI verte) | 2026-10-19 |
-| M1       | validé            | 2026-10-23 |
-| M2       | validé            | 2026-10-24 |
-| M3       | validé*           | 2026-10-24 |
-| M4       | validé            | 2026-10-24 |
-| M5 à M10 | à faire           |            |
+| Jalon    | Statut                                          | Date       |
+| -------- | ----------------------------------------------- | ---------- |
+| M0       | validé (CI verte)                               | 2026-10-19 |
+| M1       | validé                                          | 2026-10-23 |
+| M2       | validé                                          | 2026-10-24 |
+| M3       | validé*                                         | 2026-10-24 |
+| M4       | validé                                          | 2026-10-24 |
+| M5       | validé                                          | 2026-10-24 |
+| M6       | import initial validé, synchronisation en cours | 2026-10-24 |
+| M7 à M10 | à faire                                         |            |
 
 ## Décisions prises
 
 - 2026-10-24 : nom officiel de l'application : cashFlow+.
+- 2026-10-24 : l'import initial des données Supabase dans Dexie précède les écrans M5 afin de conserver les identifiants des espaces et des données déjà créés côté serveur.
 - 2026-10-19 : Vite + React + TypeScript (SPA) à la place de Next.js, car l'app est pilotée par la base locale et n'a pas besoin de rendu serveur.
 - 2026-10-19 : vite-plugin-pwa à la place de Serwist (conséquence du choix de Vite).
 - 2026-10-19 : Tailwind CSS 4 via le plugin Vite. shadcn/ui sera ajouté en M3.
@@ -41,6 +44,8 @@
 - M2 : migrations appliquées ; inscription, confirmation e-mail, réinitialisation du mot de passe, connexion et déconnexion validées sur Supabase le 2026-10-24.
 - M3 : shadcn/ui initialisé avec Radix Nova ; navigation responsive, manifest, icônes et service worker livrés. Build, précache, shell hors-ligne simulé, badge réseau et navigation validés dans Chromium. Dérogation acceptée : installation Android réelle et audit Lighthouse reportés à M10.
 - M4 : validé le 2026-10-24. Couche miroir Dexie avec outbox transactionnelle, validation Zod, repositories typés et hooks réactifs ; purge locale à la déconnexion. Six tests IndexedDB passent. Synchronisation non implémentée (réservée à M6).
+- M5 : validé le 2026-10-24. Écrans locaux de transactions, comptes et catégories ; ajout rapide en panneau, archivage, modification et suppression logique. Le solde est calculé localement ; scénario dépense → modification → suppression et recalcul testé. Import Supabase réel vérifié dans l'app : 1 espace, 3 comptes et 8 catégories chargés ; saisie/écrans parcourus en mode hors-ligne sans modifier les données personnelles.
+- M6 : import initial paginé vérifié ; valide le snapshot avec Zod, l'écrit dans Dexie sans créer d'opérations d'outbox, préserve les lignes locales en attente et purge les espaces lorsque l'accès est retiré. Le moteur complet de push/pull, conflits et reprise reste à implémenter.
 
 ## Ce qui n'est PAS encore fait
 

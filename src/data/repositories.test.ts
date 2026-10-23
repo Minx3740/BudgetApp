@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { calculateAccountBalance } from './calculations'
 import { clearLocalData, db } from './database'
-import { accountsRepository, transactionsRepository } from './repositories'
+import { accountsRepository, categoriesRepository, transactionsRepository } from './repositories'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
 const accountId = '00000000-0000-4000-8000-000000000002'
@@ -100,6 +101,56 @@ describe('repositories locaux', () => {
 
     expect(await db.transactions.count()).toBe(0)
     expect(await db.outbox.count()).toBe(0)
+  })
+
+  it('enregistre une dépense hors-ligne puis recalcule le solde après modification et suppression', async () => {
+    const account = await accountsRepository.create({
+      id: accountId,
+      workspace_id: workspaceId,
+      name: 'Espèces',
+      type: 'cash',
+      initial_balance: 10_000,
+      archived_at: null,
+    })
+    const category = await categoriesRepository.create({
+      id: categoryId,
+      workspace_id: workspaceId,
+      name: 'Repas',
+      kind: 'expense',
+      icon: null,
+      color: null,
+      archived_at: null,
+    })
+    const transaction = await transactionsRepository.create({
+      workspace_id: workspaceId,
+      account_id: account.id,
+      to_account_id: null,
+      category_id: category.id,
+      kind: 'expense',
+      amount: 1_200,
+      occurred_on: '2026-10-24',
+      note: 'Déjeuner',
+      created_by: userId,
+    })
+
+    expect(calculateAccountBalance(account, await transactionsRepository.list(workspaceId))).toBe(
+      8_800,
+    )
+
+    const updatedTransaction = await transactionsRepository.update(transaction.id, workspaceId, {
+      amount: 2_000,
+    })
+    expect(calculateAccountBalance(account, await transactionsRepository.list(workspaceId))).toBe(
+      8_000,
+    )
+
+    await transactionsRepository.softDelete(updatedTransaction.id, workspaceId)
+    expect(calculateAccountBalance(account, await transactionsRepository.list(workspaceId))).toBe(
+      10_000,
+    )
+    expect(await db.outbox.filter((operation) => operation.table === 'transactions').count()).toBe(
+      3,
+    )
   })
 
   it('refuse une modification depuis un autre espace', async () => {

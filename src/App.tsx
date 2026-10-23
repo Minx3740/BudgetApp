@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ChartNoAxesColumn,
   CirclePlus,
@@ -13,7 +13,11 @@ import {
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { clearLocalData } from './data/database'
+import { LocalDataView } from './components/budget/local-data-view'
+import { bootstrapFromSupabase } from './data/bootstrap'
+import { calculateWorkspaceBalance } from './data/calculations'
+import { clearLocalData, db } from './data/database'
+import { useAccounts, useTransactions, useWorkspaces } from './data/hooks'
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
@@ -66,6 +70,14 @@ function authErrorMessage(message: string) {
     return 'Cette adresse de retour n’est pas autorisée par Supabase. Ajoute l’URL locale dans Authentication → URL Configuration → Redirect URLs.'
   }
   return `Impossible de terminer l’opération : ${message}`
+}
+
+function formatMoney(amount: number, currency: string): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount)
 }
 
 function AuthForm({
@@ -308,17 +320,47 @@ function AuthForm({
 function SignedInView({ client, session }: { client: SupabaseClient; session: Session }) {
   const [activeSection, setActiveSection] = useState<AppSection>('home')
   const [error, setError] = useState<string | null>(null)
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
+  const [bootstrapResult, setBootstrapResult] = useState<{
+    key: string
+    error: string | null
+  } | null>(null)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+  const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false)
+  const bootstrapAbortController = useRef<AbortController | null>(null)
+  const workspaces = useWorkspaces()
+  const activeWorkspace =
+    workspaces.find(
+      (workspace) => workspace.type === 'personal' && workspace.deleted_at === null,
+    ) ?? workspaces.find((workspace) => workspace.deleted_at === null)
+  const accounts = useAccounts(activeWorkspace?.id)
+  const transactions = useTransactions(activeWorkspace?.id)
+  const activeTransactions = transactions.filter((transaction) => transaction.deleted_at === null)
+  const recentTransactions = [...activeTransactions]
+    .sort(
+      (left, right) =>
+        right.occurred_on.localeCompare(left.occurred_on) ||
+        right.created_at.localeCompare(left.created_at),
+    )
+    .slice(0, 5)
+  const currency = activeWorkspace?.currency ?? 'MGA'
+  const totalBalance = calculateWorkspaceBalance(accounts, activeTransactions)
   const metadataDisplayName = session.user.user_metadata['display_name']
   const displayName =
     (typeof metadataDisplayName === 'string' && metadataDisplayName.trim()) ||
     session.user.email ||
     'utilisateur'
+  const bootstrapKey = `${session.user.id}:${bootstrapAttempt}`
+  const isBootstrapping = bootstrapResult?.key !== bootstrapKey
+  const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
 
   useEffect(() => {
     function updateNetworkStatus() {
       setIsOnline(navigator.onLine)
+      if (navigator.onLine) {
+        setBootstrapAttempt((attempt) => attempt + 1)
+      }
     }
 
     window.addEventListener('online', updateNetworkStatus)
@@ -330,10 +372,81 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     }
   }, [])
 
+  useEffect(() => {
+    let isMounted = true
+    if (!isOnline) {
+      bootstrapAbortController.current = null
+      void db.workspaces
+        .count()
+        .then((workspaceCount) => {
+          if (isMounted) {
+            setBootstrapResult({
+              key: bootstrapKey,
+              error:
+                workspaceCount > 0
+                  ? null
+                  : 'La première récupération des données nécessite une connexion Internet.',
+            })
+          }
+        })
+        .catch((bootstrapFailure: unknown) => {
+          if (isMounted) {
+            const message =
+              bootstrapFailure instanceof Error ? bootstrapFailure.message : 'Erreur inconnue.'
+            setBootstrapResult({
+              key: bootstrapKey,
+              error: `La base locale ne peut pas être lue. ${message}`,
+            })
+          }
+        })
+
+      return () => {
+        isMounted = false
+      }
+    }
+
+    const abortController = new AbortController()
+    bootstrapAbortController.current = abortController
+
+    void bootstrapFromSupabase(client, session.user.id, abortController.signal)
+      .then(() => {
+        if (isMounted) {
+          setBootstrapResult({ key: bootstrapKey, error: null })
+        }
+      })
+      .catch((bootstrapFailure: unknown) => {
+        if (!isMounted) {
+          return
+        }
+        if (bootstrapFailure instanceof DOMException && bootstrapFailure.name === 'AbortError') {
+          setBootstrapResult({
+            key: bootstrapKey,
+            error: 'Le chargement initial a été interrompu. Tu peux le relancer.',
+          })
+          return
+        }
+        const message =
+          bootstrapFailure instanceof Error ? bootstrapFailure.message : 'Erreur inconnue.'
+        setBootstrapResult({
+          key: bootstrapKey,
+          error: `Le chargement initial des données est impossible. Les données déjà enregistrées localement sont conservées. ${message}`,
+        })
+      })
+
+    return () => {
+      isMounted = false
+      abortController.abort()
+      if (bootstrapAbortController.current === abortController) {
+        bootstrapAbortController.current = null
+      }
+    }
+  }, [bootstrapAttempt, bootstrapKey, client, isOnline, session.user.id])
+
   async function signOut() {
     setError(null)
     setIsSigningOut(true)
     try {
+      bootstrapAbortController.current?.abort()
       await clearLocalData()
       const { error: signOutError } = await client.auth.signOut()
       if (signOutError) {
@@ -347,7 +460,10 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   }
 
   const activeDetails = sectionDetails[activeSection === 'home' ? 'transactions' : activeSection]
-  const addTransaction = () => setActiveSection('transactions')
+  const addTransaction = () => {
+    setActiveSection('transactions')
+    setIsQuickEntryOpen(true)
+  }
 
   function renderNavigationItem(item: (typeof navigation)[number]) {
     const Icon = item.icon
@@ -381,7 +497,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
         <div className="mb-7 rounded-2xl border border-stone-200 bg-stone-50 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Espace actif</p>
-          <p className="mt-1 font-semibold">Perso</p>
+          <p className="mt-1 font-semibold">{activeWorkspace?.name ?? 'Perso'}</p>
         </div>
 
         <nav aria-label="Navigation principale" className="grid gap-1">
@@ -410,7 +526,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           </div>
           <div className="hidden md:block">
             <p className="text-sm text-stone-500">Ton espace personnel</p>
-            <p className="font-semibold">Perso</p>
+            <p className="font-semibold">{activeWorkspace?.name ?? 'Perso'}</p>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-4">
             <span
@@ -452,6 +568,29 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               {error}
             </p>
           )}
+          {isBootstrapping && (
+            <p
+              className="mb-6 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+              role="status"
+            >
+              Chargement initial des données depuis ton espace…
+            </p>
+          )}
+          {bootstrapError && (
+            <div
+              className="mb-6 flex flex-col gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between"
+              role="alert"
+            >
+              <p>{bootstrapError}</p>
+              <Button
+                className="min-h-12 shrink-0"
+                onClick={() => setBootstrapAttempt((attempt) => attempt + 1)}
+                variant="outline"
+              >
+                Réessayer
+              </Button>
+            </div>
+          )}
           {activeSection === 'home' ? (
             <>
               <div className="mb-8">
@@ -460,28 +599,61 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   Bonjour, {displayName}
                 </h1>
                 <p className="mt-3 max-w-2xl leading-7 text-stone-600">
-                  Ton espace « Perso » est prêt. La saisie et le suivi de ton budget arrivent dans
-                  les prochaines étapes.
+                  Ton espace « {activeWorkspace?.name ?? 'Perso'} » est prêt. Tes comptes et
+                  transactions sont enregistrés sur cet appareil.
                 </p>
               </div>
 
               <section aria-label="Aperçu du budget" className="grid gap-4 sm:grid-cols-2">
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
-                    <CardTitle>Reste à dépenser</CardTitle>
-                    <CardDescription>Ton aperçu mensuel apparaîtra ici.</CardDescription>
+                    <CardTitle>Solde total des comptes</CardTitle>
+                    <CardDescription>
+                      Calculé localement à partir de tes transactions.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-stone-500">Disponible au jalon M7</p>
+                    <p className="text-3xl font-bold tracking-tight">
+                      {formatMoney(totalBalance, currency)}
+                    </p>
                   </CardContent>
                 </Card>
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
                     <CardTitle>Dernières transactions</CardTitle>
-                    <CardDescription>Retrouve les mouvements de ton espace.</CardDescription>
+                    <CardDescription>Les mouvements récents de ton espace.</CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-stone-500">La saisie locale arrive au jalon M5</p>
+                  <CardContent className="space-y-3">
+                    {recentTransactions.length === 0 ? (
+                      <p className="text-sm text-stone-500">Aucune transaction pour le moment.</p>
+                    ) : (
+                      recentTransactions.map((transaction) => (
+                        <div
+                          className="flex items-center justify-between gap-3 text-sm"
+                          key={transaction.id}
+                        >
+                          <span className="truncate text-stone-600">
+                            {transaction.kind === 'expense'
+                              ? 'Dépense'
+                              : transaction.kind === 'income'
+                                ? 'Revenu'
+                                : 'Transfert'}
+                            {' · '}
+                            {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
+                              'fr-FR',
+                            )}
+                          </span>
+                          <span className="shrink-0 font-semibold">
+                            {transaction.kind === 'expense'
+                              ? '−'
+                              : transaction.kind === 'income'
+                                ? '+'
+                                : ''}
+                            {formatMoney(transaction.amount, currency)}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </CardContent>
                 </Card>
               </section>
@@ -491,7 +663,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   <div>
                     <h2 className="text-lg font-semibold">Prêt à suivre tes dépenses ?</h2>
                     <p className="mt-1 text-sm text-emerald-100">
-                      L’ajout rapide des transactions arrive bientôt.
+                      Ajoute une dépense ou un revenu en quelques secondes, même hors-ligne.
                     </p>
                   </div>
                   <Button
@@ -500,11 +672,19 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                     variant="secondary"
                   >
                     <CirclePlus aria-hidden="true" size={18} />
-                    Nouvelle transaction
+                    Ajouter une transaction
                   </Button>
                 </CardContent>
               </Card>
             </>
+          ) : activeSection === 'transactions' ? (
+            <LocalDataView
+              currency={currency}
+              isQuickEntryOpen={isQuickEntryOpen}
+              onQuickEntryOpenChange={setIsQuickEntryOpen}
+              userId={session.user.id}
+              workspaceId={activeWorkspace?.id}
+            />
           ) : (
             <section aria-labelledby="section-title" className="max-w-3xl">
               <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
@@ -516,17 +696,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   <CardTitle>{activeDetails.description}</CardTitle>
                   <CardDescription>{activeDetails.milestone}</CardDescription>
                 </CardHeader>
-                {activeSection === 'transactions' && (
-                  <CardContent>
-                    <Button
-                      className="min-h-12 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900"
-                      onClick={addTransaction}
-                    >
-                      <CirclePlus aria-hidden="true" size={18} />
-                      Ajouter une transaction
-                    </Button>
-                  </CardContent>
-                )}
               </Card>
             </section>
           )}

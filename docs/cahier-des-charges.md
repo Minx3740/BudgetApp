@@ -168,6 +168,7 @@ Contraintes à imposer en base : montants strictement positifs, cohérence works
 
 **Principe** : l'UI ne parle qu'à la base locale (Dexie). Un moteur de synchronisation distinct fait le lien avec Supabase.
 
+- **Import initial** : après connexion en ligne, un service dédié lit une copie paginée des espaces accessibles et de leurs données, puis l'insère dans Dexie sans outbox. Les écrans métier ne lisent et n'écrivent que dans Dexie ; l'import initial ne remplace pas le moteur de synchronisation M6. Une première utilisation hors-ligne sans espace local affiche une erreur explicite et propose de réessayer au retour du réseau.
 - **Écriture** : l'action écrit dans la table locale ET ajoute une entrée dans une **file d'attente (`outbox`)** : `op_id` (uuid), table, type (`upsert`/`delete`), payload, `created_at`, tentatives, statut.
 - **Push** : le moteur envoie les opérations dans l'ordre. Elles sont **idempotentes** (upsert par UUID) : rejouer une opération ne duplique rien. Une opération n'est retirée de la file qu'après confirmation du serveur.
 - **Pull** : le moteur demande, par table, les lignes dont `updated_at` est supérieur au dernier curseur connu, avec un **léger chevauchement** (ex. 60 s) pour éviter de rater des lignes commitées dans le désordre ; la fusion étant idempotente, le chevauchement est sans danger.

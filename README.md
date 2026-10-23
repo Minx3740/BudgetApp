@@ -45,8 +45,10 @@ Aucune clé secrète dans le dépôt. Le fichier `.env` n'est jamais versionné.
 Le service worker met en cache l'app shell pour qu'elle puisse s'ouvrir hors-ligne ;
 la page statique `/offline.html` est également incluse comme secours. Les données métier
 sont maintenant stockées localement dans IndexedDB via Dexie. Les repositories écrivent
-chaque modification et son entrée d'outbox dans une transaction locale ; la synchronisation
-avec Supabase sera ajoutée au jalon M6. La déconnexion efface la base locale.
+chaque modification et son entrée d'outbox dans une transaction locale. Après connexion,
+une première copie paginée de l'espace et des données accessibles est importée dans Dexie ;
+cette importation nécessite une connexion. Le moteur de synchronisation complet sera ajouté
+au jalon M6. La déconnexion efface la base locale.
 
 Pour vérifier l'installation, lance `npm run build`, puis `npm run preview` et ouvre
 l'URL locale dans Chrome. Utilise le menu du navigateur **Installer cashFlow+**. Le
