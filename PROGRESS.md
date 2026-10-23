@@ -2,22 +2,23 @@
 
 ## État actuel
 
-- Jalon en cours : M6 (moteur de synchronisation)
+- Jalon en cours : M7 (budgets et écran d'accueil)
 - Dernier jalon validé : M5 (2026-10-24)
-- Prochaine action : valider dans l'application la synchronisation réelle (push/pull et reprise), puis le test entre appareils.
+- Prochaine action : confirmer l'interface M7 ; le test réel M6 entre appareils reste à faire.
 
 ## Jalons
 
-| Jalon    | Statut                                                       | Date       |
-| -------- | ------------------------------------------------------------ | ---------- |
-| M0       | validé (CI verte)                                            | 2026-10-19 |
-| M1       | validé                                                       | 2026-10-23 |
-| M2       | validé                                                       | 2026-10-24 |
-| M3       | validé*                                                      | 2026-10-24 |
-| M4       | validé                                                       | 2026-10-24 |
-| M5       | validé                                                       | 2026-10-24 |
-| M6       | moteur implémenté, migration appliquée, test réel en attente | 2026-10-24 |
-| M7 à M10 | à faire                                                      |            |
+| Jalon    | Statut                                                                                      | Date       |
+| -------- | ------------------------------------------------------------------------------------------- | ---------- |
+| M0       | validé (CI verte)                                                                           | 2026-10-19 |
+| M1       | validé                                                                                      | 2026-10-23 |
+| M2       | validé                                                                                      | 2026-10-24 |
+| M3       | validé*                                                                                     | 2026-10-24 |
+| M4       | validé                                                                                      | 2026-10-24 |
+| M5       | validé                                                                                      | 2026-10-24 |
+| M6       | implémenté, migration appliquée, push/suppression validés ; test entre appareils en attente | 2026-10-24 |
+| M7       | implémenté, calculs validés en tests ; confirmation UI en attente                           | 2026-10-24 |
+| M8 à M10 | à faire                                                                                     |            |
 
 ## Décisions prises
 
@@ -45,7 +46,8 @@
 - M3 : shadcn/ui initialisé avec Radix Nova ; navigation responsive, manifest, icônes et service worker livrés. Build, précache, shell hors-ligne simulé, badge réseau et navigation validés dans Chromium. Dérogation acceptée : installation Android réelle et audit Lighthouse reportés à M10.
 - M4 : validé le 2026-10-24. Couche miroir Dexie avec outbox transactionnelle, validation Zod, repositories typés et hooks réactifs ; purge locale à la déconnexion. Six tests IndexedDB passent. Synchronisation non implémentée (réservée à M6).
 - M5 : validé le 2026-10-24. Écrans locaux de transactions, comptes et catégories ; ajout rapide en panneau, archivage, modification et suppression logique. Le solde est calculé localement ; scénario dépense → modification → suppression et recalcul testé. Import Supabase réel vérifié dans l'app : 1 espace, 3 comptes et 8 catégories chargés ; saisie/écrans parcourus en mode hors-ligne sans modifier les données personnelles.
-- M6 : moteur client implémenté : push séquentiel/idempotent avec reprise, pull paginé par curseur (chevauchement 60 s), horloge serveur, tombstones prioritaires, purge après retrait d'accès, indicateur UI et relance manuelle. Tests automatisés couvrent l'interruption au milieu du push, l'accusé perdu, les conflits, les suppressions et l'accès retiré. La migration `supabase/migrations/20261024180000_sync_invariants.sql` a été exécutée avec succès dans Supabase le 2026-10-24. La validation réelle via l'application et le test multi-appareils restent à faire avant de marquer le jalon validé.
+- M6 : moteur client implémenté : push séquentiel/idempotent avec reprise, pull paginé par curseur (chevauchement 60 s), horloge serveur, tombstones prioritaires, purge après retrait d'accès, indicateur UI et relance manuelle. Tests automatisés couvrent l'interruption au milieu du push, l'accusé perdu, les conflits, les suppressions et l'accès retiré. La migration `supabase/migrations/20261024180000_sync_invariants.sql` a été exécutée avec succès dans Supabase le 2026-10-24. Une dépense de test a été créée, synchronisée puis supprimée logiquement dans l'application ; le test réel de conflit entre deux appareils reste à faire.
+- M7 : calcul local du budget mensuel, accueil et gestion des plafonds implémentés. Couverture : dépenses par catégorie, reste global et quotidien, catégorie sans plafond, dépassement, suppression logique et changement de mois. Lint, TypeScript, formatage, 32 tests et build de production passent. L'interface est intégrée ; une validation manuelle dans le navigateur reste souhaitable avant clôture du jalon.
 
 ## Ce qui n'est PAS encore fait
 

@@ -1,4 +1,4 @@
-# Cahier des charges — Application de gestion de budget (nom provisoire : `[NOM_APP]`)
+# Cahier des charges — cashFlow+
 
 Version 1.1 (19 octobre 2026). Document de référence à coller au début de CHAQUE conversation avec l'IA, avec `PROGRESS.md`.
 
@@ -243,12 +243,13 @@ Chaque jalon a : **livrables**, **critère de validation**, **interdits**. L'IA 
 - Livrables : push de l'outbox (idempotent, ordonné, avec reprise), pull par curseur avec chevauchement, gestion des erreurs (réseau, 401, 403, conflit), indicateur de synchro (F-11), tests d'intégration.
 - Validation : scénarios obligatoires — (1) saisie hors-ligne puis retour du réseau ; (2) coupure au milieu d'un push, sans doublon ni perte ; (3) deux appareils modifient la même ligne (règle D13) ; (4) suppression propagée ; (5) retrait d'un membre → purge locale.
 - C'est le jalon le plus risqué : prévoir du temps et ne pas le bâcler.
-- État : moteur client et tests automatisés implémentés ; application de la migration sur le projet hébergé et validation réelle entre appareils restent à faire.
+- État : moteur client et tests automatisés implémentés ; migration appliquée sur le projet hébergé ; création, synchronisation et suppression logique d'une dépense validées dans l'application. Le test de conflit réel entre deux appareils reste à faire.
 
 **M7 — Budgets et écran d'accueil**
 
 - Livrables : F-08 et F-09, calculs locaux testés (cas limites : changement de mois, catégorie sans budget, dépassement).
 - Validation : le « reste à dépenser » est exact sur un jeu de données de test.
+- État : calculs locaux et écrans d'accueil/gestion implémentés ; les tests de calcul couvrent le jeu de données et les cas limites demandés.
 
 **M8 — Espaces partagés, invitations, rôles**
 

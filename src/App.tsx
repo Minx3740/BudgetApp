@@ -14,6 +14,7 @@ import {
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { BudgetDashboard } from './components/budget/budget-dashboard'
 import { LocalDataView } from './components/budget/local-data-view'
 import { bootstrapFromSupabase } from './data/bootstrap'
 import { calculateWorkspaceBalance } from './data/calculations'
@@ -44,7 +45,7 @@ const sectionDetails: Record<
   budgets: {
     title: 'Budgets',
     description: 'Retrouve ici tes plafonds mensuels et le reste à dépenser.',
-    milestone: 'Les budgets et leur calcul arrivent au jalon M7.',
+    milestone: 'Tes plafonds et dépenses sont calculés sur cet appareil.',
   },
   spaces: {
     title: 'Espaces',
@@ -789,6 +790,13 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 </Card>
               </section>
 
+              <BudgetDashboard
+                currency={currency}
+                mode="home"
+                onOpenBudgets={() => setActiveSection('budgets')}
+                workspaceId={activeWorkspace?.id}
+              />
+
               <Card className="mt-4 rounded-2xl border-0 bg-emerald-900 text-white shadow-sm">
                 <CardContent className="flex flex-col gap-5 py-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -816,6 +824,8 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               userId={session.user.id}
               workspaceId={activeWorkspace?.id}
             />
+          ) : activeSection === 'budgets' ? (
+            <BudgetDashboard currency={currency} mode="manage" workspaceId={activeWorkspace?.id} />
           ) : (
             <section aria-labelledby="section-title" className="max-w-3xl">
               <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
