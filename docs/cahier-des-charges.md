@@ -1,287 +1,706 @@
 # Cahier des charges — cashFlow+
 
-Version 1.1 (19 octobre 2026). Document de référence à coller au début de CHAQUE conversation avec l'IA, avec `PROGRESS.md`.
+Version 1.2 — validée par Laro (24 octobre 2026).
 
-Changements par rapport à la 1.0 : décisions techniques tranchées (Vite + React à la place de Next.js), section 0 réécrite pour un travail en chat (et non avec un agent qui lit le dépôt), TypeScript fixé en 6.0.x, M0 adapté, annexe B réécrite.
+Cette version intègre la réforme décrite dans `reforme-budget-global.md`. Elle définit
+la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
+implémentées.
+
+Les faits sur l’implémentation actuelle ont été vérifiés dans le dépôt. Les décisions
+marquées **À confirmer** restent en attente ; elles ne doivent pas être codées avant
+validation par Laro.
 
 ---
 
-## 0. Règles de travail en session (mode chat)
+## 0. Règles de travail
 
-Le développeur travaille seul, avec une IA en conversation. L'IA ne voit ni le dépôt ni le terminal : tout passe par ce que le développeur colle dans le chat. Ces règles évitent les erreurs et les dérives.
+1. **Accès au dépôt** : l’IA peut inspecter les fichiers du dépôt lorsque Laro l’y
+   autorise. Si un fichier ou une information n’est pas disponible, elle le signale
+   explicitement et n’en invente pas le contenu.
+2. **Une étape à la fois** : pour les lots R0 à R6, l’IA s’arrête à la fin de l’étape
+   et attend la validation de Laro avant de poursuivre.
+3. **Pour chaque étape** : expliquer ce qui sera fait et pourquoi, préciser les chemins
+   Windows depuis la racine du dépôt et donner les commandes de vérification avec leur
+   résultat attendu.
+4. **Fichiers complets** : avant de remplacer un document ou un fichier, lire son
+   contenu existant. Lorsqu’un fichier complet est demandé, ne pas fournir un extrait
+   accompagné de « le reste inchangé ».
+5. **Décisions** : ne pas modifier une décision verrouillée sans accord. Présenter les
+   décisions signalées **À confirmer** avant le lot concerné.
+6. **Dépendances** : ne pas ajouter de paquet sans expliquer son rôle, l’alternative
+   écartée et son impact sur l’installation.
+7. **Sécurité** : aucune clé secrète dans le dépôt ou le code client. Supabase RLS
+   protège les données côté serveur ; masquer un bouton ne constitue pas un contrôle
+   d’accès suffisant.
+8. **Fin d’un lot** : donner la liste des livrables, les contrôles exécutés et leurs
+   résultats, les éléments non terminés, et attendre la validation de Laro.
+9. **Migration selon le cycle de vie des données** : tant que les données sont des
+   données de test, Laro autorise leur suppression pour la réforme. Dès la première
+   utilisation avec des données à conserver, toute migration doit être conservatrice,
+   documentée et vérifiée avant exécution.
 
-1. **Début de session** : le développeur colle ce document et `PROGRESS.md`. L'IA résume en 3 lignes où on en est avant de continuer.
-2. **Un jalon à la fois** (section 11), et une étape à la fois dans le jalon. L'IA ne passe au suivant qu'après « jalon N validé » ou la confirmation de l'étape.
-3. **Format d'une étape** : (a) ce qu'on fait et pourquoi, (b) où : chemin exact du fichier ou dossier et commande exacte, (c) comment vérifier. Les fichiers viennent après l'explication, jamais avant.
-4. **Fichiers complets** : l'IA fournit des fichiers entiers avec leur chemin, jamais des extraits avec « le reste inchangé ». Si elle n'a pas vu le fichier existant, elle le demande avant de proposer un remplacement.
-5. **Erreurs** : le développeur colle le message complet (pas une paraphrase), avec la commande lancée. L'IA identifie la cause avant de proposer un correctif, et évite `--force` et `--legacy-peer-deps`.
-6. **Décisions verrouillées** (section 3) : l'IA ne les change pas d'elle-même. Si elle pense qu'une décision est mauvaise, elle l'écrit avec ses arguments et attend la réponse.
-7. **Pas d'invention** : les API des bibliothèques changent. En cas de doute sur une fonction, une option ou une version, l'IA dit « je ne suis pas sûr » et indique où vérifier (documentation officielle de la version installée).
-8. **Pas de dépendance ajoutée sans justification** : nom, rôle, alternative écartée.
-9. **Sécurité** : aucune clé secrète dans le dépôt ni côté client. La clé `service_role` de Supabase n'est JAMAIS utilisée dans le navigateur. Toute donnée est protégée par la RLS côté base, pas seulement par du code applicatif.
-10. **Fin de jalon** : l'IA fournit (a) la liste des fichiers livrés, (b) les commandes de vérification (lint, typecheck, tests, scénario manuel), (c) le `PROGRESS.md` complet mis à jour, que le développeur enregistre, (d) la liste de ce qui n'est PAS fait.
-11. **Ambiguïté** : l'IA pose UNE question précise plutôt que de deviner.
-12. **Hors périmètre** : tout ce qui est en section 5 est interdit en v1, même si c'est « facile à ajouter ».
-13. **Conversations longues** : une conversation par jalon, avec ce document et `PROGRESS.md` en tête. Le jalon M6 peut demander plusieurs conversations.
+### 0.1 Environnement constaté
 
-Environnement du développeur : Windows 10, PowerShell, VS Code, Git, Node 22.14, npm.
+- Windows, VS Code, Node.js 22, npm.
+- Vite, React, TypeScript strict, Tailwind CSS 4, shadcn/ui, Supabase, Dexie, Zod,
+  Vitest et vite-plugin-pwa.
+- Déploiement prévu sur Cloudflare Pages.
+- Les utilisateurs ciblés utilisent principalement des téléphones Android et une
+  connexion parfois instable.
+- Le dépôt utilise les noms `workspace_id`, `occurred_on` et `kind` dans son modèle
+  courant. Les nouveaux noms doivent suivre ces conventions sauf décision contraire.
 
 ---
 
 ## 1. Contexte et objectif
 
-Application de gestion de budget permettant, dans une même application :
+cashFlow+ aide une personne ou un groupe à suivre ses dépenses et revenus, à fixer
+une enveloppe mensuelle et à consulter l’évolution de son solde. L’application est
+une PWA mobile-first, utilisable hors ligne après le premier chargement des données.
 
-- un **budget personnel** (créé automatiquement) ;
-- des **budgets partagés** (colocation, famille, projet) rejoints **par invitation** ;
-- une saisie des dépenses **très rapide**, qui **fonctionne hors-ligne** et se synchronise ensuite.
+Promesse : **comprendre rapidement ce qui a été dépensé, ce qu’il reste dans
+l’enveloppe du mois et quel est le solde réel.**
 
-Promesse utilisateur : _« Savoir en un coup d'œil combien il me reste à dépenser ce mois-ci. »_
+La réforme distingue explicitement :
 
-## 2. Utilisateurs et contexte d'usage
+- **Budget du mois** : enveloppe globale définie manuellement pour un espace et un
+  mois. C’est une limite de dépenses décidée, pas de l’argent possédé.
+- **Seuil par catégorie** : montant de référence pour observer les dépenses d’une
+  catégorie. Les seuils sont indépendants du budget du mois.
+- **Reste du budget** : enveloppe globale du mois moins les dépenses nettes du mois.
+- **Solde** : estimation de l’argent possédé, calculée avec les reports, revenus,
+  ajustements et dépenses nettes.
 
-- Usage **privé** : quelques utilisateurs (pas de grand public en v1).
-- Appareils : **téléphones Android** (Chrome), usage secondaire sur ordinateur.
-- Connectivité **instable** (Madagascar) : le hors-ligne est une exigence centrale, pas un bonus.
-- Langue de l'interface : **français** (structure prête pour d'autres langues, sans les implémenter).
-- Devise par défaut : **Ariary (MGA)**, sans décimales en pratique.
+### 1.1 Écart important avec l’application actuelle
 
-## 3. Décisions techniques
-
-| #   | Décision                                                                                                                                                                                        | Statut                     |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| D1  | Application **web installable (PWA)**, mobile-first, responsive                                                                                                                                 | Verrouillée                |
-| D2  | **Offline-first** : l'interface lit et écrit toujours dans la base locale ; le réseau n'est qu'une synchronisation en arrière-plan                                                              | Verrouillée                |
-| D3  | Front : **Vite + React + TypeScript strict** (SPA). Pas de rendu serveur : l'app est pilotée par la base locale                                                                                 | Verrouillée (19/10/2026)   |
-| D4  | UI : **Tailwind CSS 4** (plugin Vite) + **shadcn/ui** (ajouté en M3)                                                                                                                            | Validée                    |
-| D5  | Backend : **Supabase** (Postgres + Auth + RLS). À vérifier avant M1 : limites du plan gratuit, notamment la mise en pause des projets inactifs                                                  | Validée, à vérifier        |
-| D6  | Stockage local : **IndexedDB via Dexie**                                                                                                                                                        | Validée                    |
-| D7  | PWA / service worker : **vite-plugin-pwa** (Workbox)                                                                                                                                            | Validée                    |
-| D8  | Validation des données : **Zod** (même schéma côté client et serveur)                                                                                                                           | Validée                    |
-| D9  | Tests : **Vitest** (unitaire), **Playwright** (e2e, y compris mode hors-ligne), tests SQL pour la RLS avec `supabase test db` (pgTAP)                                                           | Validée                    |
-| D10 | Montants : **entiers** (jamais de flottants). Solde = **calculé** à partir des transactions, jamais stocké                                                                                      | Verrouillée                |
-| D11 | Identifiants : **UUID générés côté client** (permet la création hors-ligne et l'idempotence)                                                                                                    | Verrouillée                |
-| D12 | Suppression : **soft delete** (`deleted_at`) pour que la synchronisation puisse propager les suppressions                                                                                       | Verrouillée                |
-| D13 | Conflits de synchronisation : **dernière écriture gagne, au niveau de la ligne**, selon l'horodatage serveur ; une **suppression l'emporte** sur une modification                               | Verrouillée                |
-| D14 | TypeScript fixé à **~6.0.3** dans `package.json`, car `typescript-eslint` 8.71.2 n'accepte que les versions inférieures à 6.1.0. À réexaminer quand `typescript-eslint` supportera TypeScript 7 | Verrouillée (dette connue) |
-| D15 | Authentification : **email + mot de passe uniquement** en v1 (pas de Google)                                                                                                                    | Verrouillée                |
-| D16 | Moteur de synchronisation **écrit à la main** (pas de PowerSync ou équivalent), le modèle étant simple (lignes indépendantes, dernière écriture gagne)                                          | Validée                    |
-
-Options TypeScript strictes activées (M0) : `strict`, `noUncheckedIndexedAccess`, `noImplicitReturns`, `noImplicitOverride`. `exactOptionalPropertyTypes` est volontairement désactivé (il casse régulièrement les bibliothèques).
-
-## 4. Fonctionnalités v1 et critères d'acceptation
-
-**F-01 Authentification**
-
-- Inscription/connexion par email + mot de passe.
-- La première connexion nécessite le réseau ; ensuite l'app s'ouvre **hors-ligne** avec la session en cache.
-- Critère : après connexion, mode avion + fermeture/réouverture de l'app → l'app s'ouvre et affiche les données locales.
-
-**F-02 Espace personnel automatique**
-
-- À l'inscription, un espace « Perso » est créé (avec comptes et catégories par défaut).
-- Critère : un nouvel utilisateur peut saisir une dépense moins de 30 secondes après l'inscription.
-
-**F-03 Espaces partagés**
-
-- Créer un espace partagé ; le créateur en est propriétaire.
-- Rôles : `owner` (tout, gère les membres), `member` (lit/écrit les données), `viewer` (lecture seule).
-- Critère : un `viewer` ne peut ni créer ni modifier (vérifié par un test RLS, pas seulement par l'UI).
-
-**F-04 Invitations**
-
-- Le propriétaire génère un lien/code : rôle choisi, expiration (défaut 7 jours), usage unique par défaut, révocable.
-- Le jeton est aléatoire (32 octets minimum), **stocké haché** côté base.
-- L'acceptation se fait via une fonction serveur atomique (RPC) ; elle nécessite d'être en ligne.
-- Critère : un jeton expiré, révoqué ou déjà utilisé est refusé avec un message clair.
-
-**F-05 Comptes/portefeuilles**
-
-- Créer/modifier/archiver (espèces, mobile money, banque…). Solde calculé.
-
-**F-06 Catégories**
-
-- Dépense ou revenu ; nom, icône, couleur ; modifiables ; archivage plutôt que suppression si utilisée.
-
-**F-07 Transactions**
-
-- Types : dépense, revenu, transfert entre comptes.
-- Saisie : montant, catégorie, compte, date (défaut aujourd'hui), note optionnelle.
-- Critère : saisie d'une dépense en moins de 5 secondes et 4 interactions maximum depuis l'écran d'accueil ; fonctionne hors-ligne ; visible immédiatement.
-- Modification et suppression (soft delete). Dans un espace partagé, l'auteur est enregistré et affiché.
-
-**F-08 Budgets mensuels**
-
-- Un plafond par catégorie et par mois.
-- Affichage : dépensé, restant, barre de progression, dépassement signalé visuellement.
-
-**F-09 Écran d'accueil**
-
-- Montre, pour l'espace actif et le mois en cours : **reste à dépenser** (budget total − dépensé), reste par jour, dernières transactions, catégories les plus consommées.
-- Sélecteur d'espace toujours accessible.
-
-**F-10 Historique**
-
-- Liste des transactions avec filtres (période, catégorie, compte, membre) et recherche texte ; défilement fluide sur plusieurs milliers de lignes (virtualisation si nécessaire).
-
-**F-11 Synchronisation et état réseau**
-
-- Indicateur discret : « Synchronisé » / « n modifications en attente » / « Hors-ligne ».
-- Synchronisation au retour du réseau, à l'ouverture de l'app, au retour au premier plan, et périodiquement.
-- Ne jamais perdre une écriture locale : si la synchro échoue, l'opération reste dans la file d'attente et sera retentée.
-
-**F-12 Installation PWA**
-
-- Installable (manifest, icônes, `display: standalone`), démarrage instantané grâce à l'app shell en cache.
-
-## 5. Hors périmètre v1 (interdit sans accord explicite)
-
-Import/lecture de SMS mobile money · connexion bancaire automatique · dépenses récurrentes · alertes/notifications push · objectifs d'épargne · export CSV · pièces jointes/photos de reçus · répartition « qui doit combien » · multi-devises · statistiques avancées · mode sombre (prévoir les variables CSS pour l'ajouter, ne pas l'implémenter) · connexion Google · monétisation.
-
-## 6. Modèle de données (Postgres)
-
-Toutes les tables métier ont : `id uuid` (généré par le client), `created_at`, `updated_at` (posé par un **trigger serveur**), `deleted_at` nullable. Les noms ci-dessous sont indicatifs ; le schéma exact est livré et validé au jalon M1.
-
-- `profiles` (id = id Supabase Auth, display_name)
-- `workspaces` (name, type `personal|shared`, currency défaut `MGA`, owner_id)
-- `memberships` (workspace_id, user_id, role) — clé primaire (workspace_id, user_id)
-- `invitations` (workspace_id, token_hash, role, expires_at, max_uses, used_count, revoked_at, created_by)
-- `accounts` (workspace_id, name, type, initial_balance, archived_at)
-- `categories` (workspace_id, name, kind, icon, color, archived_at)
-- `transactions` (workspace_id, account_id, to_account_id nullable, category_id nullable pour les transferts, kind `expense|income|transfer`, amount bigint > 0, occurred_on date, note, created_by)
-- `budgets` (workspace_id, category_id, month = premier jour du mois, limit_amount) — unicité (workspace_id, category_id, month)
-
-Contraintes à imposer en base : montants strictement positifs, cohérence workspace entre une transaction et son compte/catégorie, un transfert exige `to_account_id` différent du compte source.
-
-## 7. Sécurité (RLS)
-
-- RLS activée sur **toutes** les tables ; aucune table sans politique.
-- Fonction utilitaire du type `is_member(workspace_id)` / `has_role(workspace_id, role)` ; les politiques en dépendent.
-- `viewer` : lecture seule. `member` : lecture + écriture des données de l'espace. `owner` : en plus, gestion des membres et invitations.
-- Un utilisateur ne voit que les espaces dont il est membre.
-- L'acceptation d'invitation passe par une fonction `SECURITY DEFINER` qui vérifie jeton, expiration, révocation, quota et insère le membership dans une transaction.
-- **Tests RLS obligatoires** (utilisateur A ne lit pas l'espace de B ; viewer ne peut pas écrire ; membre retiré perd l'accès).
-- Données locales : IndexedDB n'est pas chiffrée. Risque connu (téléphone perdu) ; verrouillage de l'app prévu hors v1. À la déconnexion, la base locale est vidée.
-- `.env` n'est jamais versionné ; `.env.example` ne contient aucune valeur secrète.
-
-## 8. Architecture offline-first et synchronisation
-
-**Principe** : l'UI ne parle qu'à la base locale (Dexie). Un moteur de synchronisation distinct fait le lien avec Supabase.
-
-- **Import initial** : après connexion en ligne, un service dédié lit une copie paginée des espaces accessibles et de leurs données, puis l'insère dans Dexie sans outbox. Les écrans métier ne lisent et n'écrivent que dans Dexie ; l'import initial est distinct du moteur M6. Une première utilisation hors-ligne sans espace local affiche une erreur explicite et propose de réessayer au retour du réseau.
-- **Écriture** : l'action écrit dans la table locale ET ajoute une entrée dans une **file d'attente (`outbox`)** : `op_id` (uuid), table, type (`upsert`/`delete`), payload, `created_at`, tentatives, statut.
-- **Push** : le moteur envoie les opérations séquentiellement, dans l'ordre de création. Elles sont **idempotentes** (upsert par UUID) : rejouer une opération ne duplique rien. Une opération n'est retirée de la file qu'après confirmation du serveur ; une opération en cours est remise en attente au redémarrage.
-- **Pull** : le moteur demande, par espace et par table, les lignes dont `updated_at` est supérieur au dernier curseur connu, avec un **chevauchement de 60 s**. Le curseur est borné par l'heure du serveur, non celle du téléphone ; la fusion idempotente rend le chevauchement sans danger.
-- **Conflits** : voir D13. Les triggers de base de données posent l'horodatage serveur ; une ligne supprimée (`deleted_at`) ne peut pas être ressuscitée par une modification ultérieure.
-- **Perte d'accès** : les appartenances sont vérifiées au début de chaque cycle ; si un membre a été retiré, ses données et opérations locales de l'espace sont purgées. Un refus d'écriture pour un membre toujours présent reste signalé dans la file au lieu d'être supprimé.
-- **Auth hors-ligne** : la session est conservée ; le rafraîchissement du jeton se fait au retour du réseau. L'expiration du jeton ne doit jamais bloquer la consultation/saisie locale.
-- **Limite connue** : l'API Background Sync n'est pas fiable partout ; ne pas s'y appuyer. Synchroniser à l'ouverture, au retour du réseau (`online`), au retour au premier plan (`visibilitychange`) et périodiquement.
-- **Calculs** (soldes, restant du budget) : faits **localement** à partir des données locales ; ils peuvent être temporairement en retard sur un autre appareil, ce que l'indicateur de synchro rend explicite.
-- **Migration serveur M6** : appliquer `supabase/migrations/20261024180000_sync_invariants.sql` après les migrations M1/M2 pour l'heure serveur, les timestamps de budgets et la protection contre la résurrection des suppressions.
-
-## 9. Exigences UX/UI (« une vraie app, pas un site »)
-
-- Mobile-first ; barre de navigation **en bas** (Accueil, Transactions, Budgets, Espaces) ; bouton d'action principal « + ».
-- Saisie de montant avec **pavé numérique natif** (`inputmode="numeric"`) ; ajout de transaction dans un panneau (bottom sheet, composant Drawer de shadcn/ui), jamais une page complète.
-- **Mises à jour optimistes** et **squelettes de chargement** ; aucun spinner bloquant ; aucun rechargement de page.
-- Cibles tactiles ≥ 48 px ; gestion des zones sûres (encoche, barre de gestes) ; retour arrière cohérent avec le geste Android.
-- Animations à 60 fps : uniquement `transform` et `opacity`, durée courte ; respecter `prefers-reduced-motion`.
-- États vides soignés, messages d'erreur humains, formatage des montants (`1 250 000 Ar`) et des dates en français.
-- Responsive : sur grand écran, la barre du bas devient une navigation latérale.
-- Accessibilité de base : contrastes AA, libellés sur les champs, focus visible.
-
-## 10. Exigences non fonctionnelles
-
-- Ouverture à froid de l'app installée < 2 s sur téléphone milieu de gamme (cible, à mesurer).
-- Ajout d'une transaction : retour visuel < 100 ms.
-- Lighthouse : PWA installable ; Performance ≥ 90 en mobile (cible).
-- TypeScript `strict` (avec les options de la section 3), ESLint, Prettier ; pas de `any` sans commentaire justifié.
-- Aucune donnée sensible dans les logs. Variables d'environnement documentées dans `.env.example`.
+Le dépôt contient aujourd’hui des comptes/portefeuilles avec soldes initiaux, des
+transferts entre comptes et des catégories obligatoires pour les dépenses et revenus.
+Le solde affiché est calculé à partir de ces comptes. La cible de la réforme retire
+les comptes et transferts et rend la catégorie facultative pour les dépenses et
+remboursements. Les données actuelles sont des données de test supprimables selon la
+section 8. Dès la première utilisation avec des données à conserver, toute migration
+devra être conservatrice.
 
 ---
 
-## 11. Plan d'étapes (jalons)
+## 2. Utilisateurs, espaces et vocabulaire
 
-Chaque jalon a : **livrables**, **critère de validation**, **interdits**. L'IA s'arrête à la fin du jalon et attend « jalon N validé ».
-
-**M0 — Cadrage et dépôt**
-
-- Livrables : projet Vite + React + TypeScript strict + Tailwind 4 + ESLint/Prettier + Vitest (un test minimal temporaire), scripts `lint`, `typecheck`, `test`, `format`, `format:check`, `README.md`, `PROGRESS.md`, `.env.example`, `.gitignore` qui ignore `.env`, ce cahier des charges dans `docs/`, dépôt GitHub privé, CI simple (lint + typecheck + tests).
-- Validation : `npm run lint`, `typecheck`, `test`, `format:check` et `build` passent ; l'app démarre ; la CI est au vert sur GitHub.
-- Interdit : toute fonctionnalité, Supabase, shadcn/ui.
-
-**M1 — Base de données et sécurité (AVANT toute interface)**
-
-- Prérequis : compte Supabase créé, limites du plan gratuit vérifiées.
-- Livrables : migrations SQL du schéma (section 6), triggers `updated_at`, fonctions `is_member`/`has_role`, politiques RLS, fonction RPC d'acceptation d'invitation, **tests SQL des politiques**.
-- Validation : tous les tests RLS passent (A ne voit pas B ; viewer en lecture seule ; invitation expirée/révoquée refusée). Le développeur relit le schéma.
-- Interdit : UI.
-
-**M2 — Authentification et espace personnel**
-
-- Livrables : inscription/connexion/déconnexion, création automatique du profil + espace « Perso » + comptes/catégories par défaut (trigger ou RPC), garde de routes.
-- Validation : un nouvel utilisateur arrive sur un espace prêt à l'emploi.
-
-**M3 — Coquille d'application (app shell) et PWA**
-
-- Livrables : installation de shadcn/ui, layout mobile-first, barre de navigation basse, thème (variables CSS), manifest, icônes, service worker pour l'app shell (vite-plugin-pwa), page « hors-ligne » de secours.
-- Validation : installable sur Android ; l'app shell s'ouvre en mode avion ; Lighthouse PWA OK.
-
-**M4 — Couche de données locale**
-
-- Livrables : schéma Dexie miroir du serveur + table `outbox`, « repositories » typés (create/update/softDelete/list) qui écrivent local + outbox, hooks de lecture réactifs (liveQuery), tests unitaires (le test temporaire de M0 est supprimé).
-- Validation : tests unitaires ; l'UI ne contient AUCUN appel direct à Supabase pour les données métier.
-- Interdit : moteur de synchro.
-
-**M5 — Comptes, catégories, transactions (100 % local)**
-
-- Livrables : écrans et formulaires F-05, F-06, F-07, panneau de saisie rapide, calcul local des soldes.
-- Validation : critère de saisie < 5 s ; tout fonctionne en mode avion.
-
-**M6 — Moteur de synchronisation**
-
-- Livrables : push de l'outbox (idempotent, ordonné, avec reprise), pull par curseur avec chevauchement, gestion des erreurs (réseau, 401, 403, conflit), indicateur de synchro (F-11), tests d'intégration.
-- Validation : scénarios obligatoires — (1) saisie hors-ligne puis retour du réseau ; (2) coupure au milieu d'un push, sans doublon ni perte ; (3) deux appareils modifient la même ligne (règle D13) ; (4) suppression propagée ; (5) retrait d'un membre → purge locale.
-- C'est le jalon le plus risqué : prévoir du temps et ne pas le bâcler.
-- État : moteur client et tests automatisés implémentés ; migration appliquée sur le projet hébergé ; création, synchronisation et suppression logique d'une dépense validées dans l'application. Le test de conflit réel entre deux appareils reste à faire.
-
-**M7 — Budgets et écran d'accueil**
-
-- Livrables : F-08 et F-09, calculs locaux testés (cas limites : changement de mois, catégorie sans budget, dépassement).
-- Validation : le « reste à dépenser » est exact sur un jeu de données de test.
-- État : validé le 2026-10-24. Calculs locaux et écrans d'accueil/gestion implémentés ; tests automatisés du jeu de données et des cas limites passés ; accueil, formulaire et navigation entre mois vérifiés dans l'application.
-
-**M8 — Espaces partagés, invitations, rôles**
-
-- Livrables : création d'espace partagé, sélecteur d'espace, génération/révocation d'invitation, page d'acceptation, gestion des membres et rôles, affichage de l'auteur.
-- Validation : scénario complet à deux comptes (A invite B, B saisit, A voit la dépense) y compris avec B hors-ligne pendant la saisie.
-- État : validé le 2026-10-24. Le deuxième compte a accepté l'invitation en rôle membre ; une dépense saisie en ligne puis une dépense de 3 MGA saisie hors-ligne ont été synchronisées et sont visibles côté propriétaire après le retour en ligne.
-
-**M9 — Historique, finitions, robustesse**
-
-- Livrables : F-10 (filtres, recherche, virtualisation), états vides, erreurs, accessibilité de base, polissage des animations.
-- Validation : fluidité sur 5 000 transactions de test.
-
-**M10 — Qualité et mise en bêta privée**
-
-- Livrables : tests e2e Playwright (dont hors-ligne), revue de sécurité (RLS, secrets, CORS, en-têtes), mesure de performance, déploiement (hébergement statique), procédure de sauvegarde de la base, guide d'installation pour les testeurs.
-- Validation : checklist de la section 12 entièrement cochée.
+- Usage privé, individuel ou partagé par invitation.
+- Interface en français ; devise interne `MGA`, montant affiché en ariary (`Ar`), sans
+  décimales.
+- Un **espace** contient les transactions, catégories, budgets, seuils et forfaits de
+  ses membres.
+- Un **propriétaire** administre l’espace et ses réglages. Un **membre invité** peut
+  ajouter des transactions et modifier celles dont il est l’auteur, selon les droits
+  décrits en section 7. Un **viewer** consulte les données en lecture seule.
+- Un **mois** est identifié par `YYYY-MM`. Le mois d’une transaction vient de sa date
+  locale, et non d’un horodatage UTC.
+- Un **remboursement** réduit les dépenses nettes du mois où il est reçu.
+- Un **ajustement** est une correction signée qui ne touche qu’au solde.
+- Un **report** est le solde positif du mois précédent, uniquement si le propriétaire
+  choisit de le reprendre.
+- Un **forfait** est une dépense fixe qui revient à une fréquence mensuelle.
+- Le **responsable** (`paid_by`) est la personne qui a réellement payé. Il peut être
+  différent de l’auteur de la saisie (`created_by`).
 
 ---
 
-## 12. Définition de « terminé » pour la v1
+## 3. Transactions et calculs
 
-- [ ] Toutes les fonctionnalités F-01 à F-12 respectent leurs critères.
-- [ ] Les scénarios hors-ligne de M6 et M8 passent en automatique.
-- [ ] Aucune table sans RLS ; tests RLS au vert.
-- [ ] Aucune clé secrète côté client ni dans l'historique du dépôt.
-- [ ] Installable sur Android, fonctionnel en mode avion après première connexion.
-- [ ] `PROGRESS.md` à jour, `README.md` permet à un tiers de lancer le projet.
+### 3.1 Types de transactions
 
----
+| Type         |                  Montant stocké | Effet                                                        |
+| ------------ | ------------------------------: | ------------------------------------------------------------ |
+| `expense`    |      Entier strictement positif | Augmente les dépenses nettes ; catégorie facultative.        |
+| `refund`     |      Entier strictement positif | Réduit les dépenses nettes ; catégorie facultative.          |
+| `income`     |      Entier strictement positif | Augmente les revenus et le solde ; n’augmente pas le budget. |
+| `adjustment` | Entier signé, différent de zéro | Modifie le solde seulement ; aucune catégorie.               |
 
-## Annexe A — Modèle de `PROGRESS.md`
+Il n’y a pas de comptes ni de transferts entre comptes dans la cible. Un transfert
+d’argent à une personne est enregistré comme une dépense. Un passage d’argent entre
+deux espaces se saisit comme dépense dans un espace et revenu dans l’autre ; il n’y a
+pas de liaison automatique entre les deux écritures.
 
-```mark
+### 3.2 Formules
 
+```text
+dépenses_nettes(M) = dépenses(M) - remboursements(M)
+revenus(M)         = somme des revenus de M
+ajustements(M)     = somme signée des ajustements de M
+
+reste_budget(M)    = budget(M) - dépenses_nettes(M), si un budget existe
+solde(M)           = report(M) + revenus(M) + ajustements(M) - dépenses_nettes(M)
+report(M)          = décision(M) acceptée ? max(0, solde(M-1)) : 0
+usage_seuil(c, M)  = dépenses_nettes de la catégorie c / seuil(c, M)
 ```
+
+### 3.3 Règles de calcul
+
+- Toute transaction supprimée logiquement est ignorée.
+- Une transaction appartient au mois de son champ date locale. Le 31 octobre à 23 h 30
+  à Antananarivo reste une transaction d’octobre.
+- Un budget absent et un budget présent égal à zéro sont distincts. Un budget à zéro
+  signifie que le propriétaire a défini explicitement une enveloppe nulle.
+- Chaque dépense réduit le budget global exactement une fois, qu’elle ait une
+  catégorie ou un seuil ou non. Un remboursement réduit les dépenses nettes. Les
+  revenus et ajustements ne modifient pas le budget.
+- Le reste peut être négatif ; il n’est jamais ramené artificiellement à zéro.
+- Le solde et les agrégats sont calculés côté client à partir des données locales ; ils
+  ne sont pas persistés comme valeurs dérivées.
+- Montants en unités entières d’ariary. Pas de calcul métier en nombres flottants.
+- Les calculs sont des fonctions pures et disposent de tests unitaires.
+
+---
+
+## 4. Budget du mois et report de solde
+
+### 4.1 Budget du mois
+
+- Un montant global est défini manuellement pour chaque espace et chaque mois.
+- Il n’est associé à aucune catégorie.
+- Il est indépendant des seuils par catégorie : leur somme peut être inférieure,
+  égale ou supérieure à l’enveloppe. Il n’existe aucune validation croisée.
+- Le reste est calculé à partir de toutes les dépenses nettes du mois, sans double
+  comptage des dépenses également suivies par seuil.
+- Un budget non défini déclenche une invitation à le créer. Un budget défini à zéro
+  reste un budget existant.
+- Reprendre le montant du mois précédent est une action explicite ; aucun report
+  automatique de l’enveloppe n’a lieu.
+
+### 4.2 Report du solde
+
+- Le propriétaire décide chaque mois d’accepter ou non le report du solde positif du
+  mois précédent. Seule la décision est stockée ; le montant est recalculé.
+- Proposer cette décision seulement si aucune décision n’existe pour le mois, si le
+  mois précédent contient au moins une transaction et si son solde est positif.
+- Le propriétaire voit les boutons « Reporter » et « Ne pas reporter ». Un membre
+  voit l’information sans pouvoir décider.
+- Tant qu’aucune décision n’existe, le report vaut zéro.
+- Un solde négatif est affiché comme un déficit et n’est jamais reporté. Le mois
+  suivant repart de zéro avant ses revenus et dépenses.
+- Le calcul en chaîne remonte de mois en mois, inclut les reports acceptés antérieurs
+  et s’arrête à une décision négative ou absente. Limite de sécurité : 120 mois.
+- Modifier une transaction ancienne peut donc modifier les soldes des mois suivants.
+- Premier mois : pas de report. Un solde initial peut être saisi comme revenu libellé
+  « Solde initial » ou comme ajustement positif.
+
+---
+
+## 5. Seuils par catégorie
+
+- Remplacer « plafond » et « plafonner » par « seuil » dans l’interface.
+- Un seuil mensuel est un montant entier supérieur ou égal à zéro, associé à un
+  espace, une catégorie et un mois.
+- Les seuils sont des repères distincts de l’enveloppe globale ; ils ne la modifient
+  pas et ne s’y additionnent pas pour calculer le reste.
+- États de suivi : normal en dessous de 80 %, alerte de 80 % à 100 % inclus, dépassé
+  au-dessus de 100 %. Le seuil d’alerte est une constante en v1.
+- Une catégorie sans seuil n’affiche pas de barre ; ses dépenses comptent toujours
+  dans le budget global.
+- Une dépense sans catégorie compte dans le budget global et apparaît comme « Non
+  classé » dans les statistiques.
+
+La réforme autorise un seuil égal à zéro. Le dépôt actuel impose un montant strictement
+positif ; Zod, Dexie, Postgres, le formulaire et les tests devront être alignés au lot
+R1.
+
+---
+
+## 6. Droits dans les espaces partagés
+
+| Action                                             | Propriétaire | Membre invité                         |
+| -------------------------------------------------- | ------------ | ------------------------------------- |
+| Lire les données de l’espace                       | Oui          | Oui                                   |
+| Ajouter une transaction                            | Oui          | Oui                                   |
+| Modifier/supprimer une transaction                 | Toutes       | Seulement celles dont il est l’auteur |
+| Modifier le responsable d’une transaction          | Toutes       | Ses propres transactions              |
+| Modifier budget du mois, seuils ou catégories      | Oui          | Non                                   |
+| Créer, modifier ou arrêter un forfait              | Oui          | Non                                   |
+| Décider du report                                  | Oui          | Non                                   |
+| Gérer invitations, membres et suppression d’espace | Oui          | Non                                   |
+| Quitter l’espace                                   | —            | Oui                                   |
+| Déclencher la génération des forfaits              | Oui          | Oui                                   |
+
+Le rôle `viewer` reste en lecture seule. Les droits sont appliqués par RLS et par les
+fonctions serveur, pas uniquement dans l’interface.
+
+Chaque transaction contient `created_by`, attribué automatiquement et immuable, ainsi
+que `paid_by`, égal par défaut à `created_by` et modifiable par un utilisateur autorisé.
+`paid_by` doit être membre de l’espace. Une dépense générée par un forfait a son
+créateur comme auteur et responsable.
+
+### Écart avec la RLS actuelle
+
+Les politiques actuelles autorisent les rôles `owner` et `member` à mettre à jour
+n’importe quelle transaction de leur espace. Elles ne limitent pas la modification
+aux transactions dont `created_by` correspond au membre. La migration devra resserrer
+ces politiques et être couverte par des tests RLS.
+
+---
+
+## 7. Forfaits
+
+- Un forfait appartient à un espace. Seul le propriétaire peut le créer, le modifier
+  ou l’arrêter.
+- Champs requis : libellé, montant entier positif, catégorie facultative, jour du mois
+  (1 à 28), mois de début. Le mois de fin est facultatif.
+- Chaque mois couvert génère une vraie transaction `expense`, liée au forfait et au
+  mois généré. Elle compte dans les dépenses, le budget et les statistiques.
+- En statistiques, les dépenses avec forfait sont « fixes », les autres « variables ».
+- La génération serveur est idempotente, autorisée aux membres de l’espace et ne
+  génère jamais de mois futur. Elle rattrape les mois manquants jusqu’au mois courant.
+- Après une première synchronisation en ligne du mois, les occurrences de forfait
+  deviennent disponibles hors ligne.
+- Modifier « ce mois seulement » modifie la transaction du mois, sans toucher au
+  forfait.
+- Modifier « ce mois et les suivants » termine l’ancien forfait au mois précédent et
+  crée une nouvelle version à partir du mois courant ; les occurrences passées ne
+  changent pas.
+- Une occurrence supprimée ne doit pas être régénérée.
+- Arrêter un forfait conserve ses occurrences passées et empêche les suivantes.
+- Créer ou modifier un forfait nécessite Internet ; sa lecture reste disponible hors
+  ligne.
+- Les modifications vérifient la version serveur. Une version obsolète est refusée
+  avec un message explicite.
+- Pour un forfait commencé dans le passé, indiquer le nombre d’occurrences à créer et
+  demander confirmation.
+
+---
+
+## 8. Données et migration
+
+Les noms exacts des nouvelles tables et colonnes restent à confirmer selon les
+conventions du dépôt. Les éléments ci-dessous expriment les données et contraintes
+nécessaires, pas une migration déjà réalisée.
+
+### 8.1 Nouvelles données
+
+- **Budget du mois** : identifiant, `workspace_id`, mois `YYYY-MM`, montant entier
+  `bigint >= 0`, date de mise à jour serveur, utilisateur ayant effectué la mise à
+  jour. Unicité sur espace + mois.
+- **Décision de report** : identifiant, `workspace_id`, mois, booléen accepté/refusé,
+  auteur et horodatage serveur. Une décision par espace + mois.
+- **Forfait** : identifiant, identifiant de série, `workspace_id`, libellé, montant
+  positif, catégorie facultative, jour 1–28, mois de début/fin, créateur, version,
+  dates de création/mise à jour.
+- **Transactions** : types `expense|refund|income|adjustment`, montant entier positif
+  sauf ajustement signé non nul, date locale, catégorie nullable, `created_by`,
+  `paid_by`, référence de forfait et mois d’occurrence facultatifs.
+- Les occurrences de forfait sont uniques par identifiant de forfait et mois.
+- Profil : ajouter un chemin d’avatar facultatif si ce champ n’existe pas déjà.
+
+Le projet utilise actuellement `workspaces` et `workspace_id`, non `spaces` et
+`space_id`. Les noms de colonnes définitifs seront validés avant les migrations.
+
+### 8.2 Migration des données
+
+- Aucun budget global n’est créé automatiquement. Les mois existants sans budget
+  montrent l’invitation à le définir.
+- Le calcul du budget ne lit plus la somme des seuils.
+- Les données présentes dans Supabase et Dexie sont des données de test supprimables.
+  Pour le passage au nouveau modèle, la migration peut vider les anciennes
+  transactions, budgets, comptes et opérations en attente, puis supprimer les comptes,
+  transferts et colonnes obsolètes.
+- Ne pas convertir les soldes initiaux en ajustement, archiver les transferts, ni créer
+  de décisions de report pour les anciens mois.
+- Aucun budget global n’est créé automatiquement ; un mois sans budget invite à le
+  définir. Le calcul du budget ne lit jamais la somme des seuils.
+- **Dès la première utilisation avec des données à conserver, toute migration doit
+  devenir conservatrice** : préserver et vérifier les données avant exécution, et
+  obtenir l’accord de Laro pour tout traitement destructif.
+
+### 8.3 Dexie et synchronisation
+
+- Ajouter les tables locales des budgets mensuels, décisions de report et forfaits.
+  Comme les données locales actuelles sont des données de test, l’upgrade R1 peut vider
+  les anciennes tables et l’outbox ; toute migration après le début de l’utilisation
+  réelle devra conserver les données.
+- Mettre à jour les schémas Zod, repositories, hooks réactifs, import initial et
+  opérations d’outbox pour couvrir toutes les nouvelles données.
+- Les écritures hors ligne du budget et du report sont locales et mises en file, puis
+  synchronisées. Les horodatages serveur arbitrent les conflits ; l’horloge mobile
+  n’arbitre jamais.
+- Toute erreur d’autorisation serveur est présentée à l’utilisateur et la donnée locale
+  refusée est traitée conformément à la politique de synchronisation.
+- RLS est activée sur chaque nouvelle table et des contraintes SQL valident les
+  données possibles.
+
+---
+
+## 9. Sécurité et confidentialité
+
+- Toutes les tables métier sont protégées par RLS. Un utilisateur ne lit que les
+  espaces auxquels il appartient.
+- Les invitations demeurent à jeton fort, stocké sous forme hachée, révocable et
+  acceptées atomiquement côté serveur.
+- Le serveur valide les rôles, l’auteur de la transaction, le responsable et la
+  cohérence d’appartenance du responsable.
+- Tests obligatoires : propriétaire, membre, viewer, non-membre, membre retiré et
+  tentative de modification d’une transaction écrite par quelqu’un d’autre.
+- IndexedDB n’est pas chiffrée ; ce risque est connu. La déconnexion efface les données
+  locales.
+- Aucun secret Supabase dans le navigateur, dans le dépôt ou dans les journaux. La clé
+  `service_role` n’est jamais utilisée côté client.
+
+---
+
+## 10. Offline-first et synchronisation
+
+- L’interface métier lit et écrit dans Dexie ; elle ne dépend pas du réseau pour
+  afficher les données déjà disponibles localement.
+- L’import initial récupère par pages les espaces et données autorisés sans ajouter
+  d’opérations à l’outbox.
+- Toute écriture locale ajoute sa mutation à l’outbox dans une transaction locale.
+- Le push est séquentiel, idempotent et retenté après une interruption. Les suppressions
+  logiques ne peuvent pas être ressuscitées par une modification ultérieure.
+- Le pull est paginé, par espace et table, à partir d’un curseur d’heure serveur avec
+  chevauchement.
+- La synchronisation s’exécute au démarrage, au retour réseau, au retour au premier
+  plan et périodiquement.
+- Les droits sont revérifiés à chaque cycle. Si un membre perd son accès, ses données
+  et opérations locales de cet espace sont purgées. Un refus d’écriture pour un membre
+  toujours autorisé reste signalé.
+- Le budget et le solde sont calculés localement ; leur état peut temporairement différer
+  d’un autre appareil jusqu’à synchronisation.
+- Les forfaits du nouveau mois ne sont créés qu’après connexion ; c’est une limite
+  hors ligne acceptée.
+
+---
+
+## 11. Fonctionnalités et critères d’acceptation
+
+**F-01 — Authentification** : inscription, connexion, réinitialisation et changement de
+mot de passe par email ; première connexion en ligne, puis ouverture hors ligne avec
+session et données déjà présentes.
+
+**F-02 — Espaces** : espace personnel créé à l’inscription ; espaces partagés par
+invitation, avec sélection et gestion des membres conformément aux droits.
+
+**F-03 — Catégories** : catégories de dépenses et revenus, modifiables et archivables.
+La dépense et le remboursement peuvent ne pas avoir de catégorie.
+
+**F-04 — Transactions** : dépenses, remboursements, revenus et ajustements. Saisie
+rapide hors ligne ; la date est locale ; auteur et responsable sont distincts dans les
+espaces partagés. Aucune entité compte/portefeuille ni transfert entre comptes dans la
+cible.
+
+**F-05 — Budget du mois** : enveloppe manuelle, unique par espace/mois, y compris zéro ;
+reste et progression calculés sur les dépenses nettes, une fois chacune.
+
+**F-06 — Seuils** : seuil indépendant par catégorie/mois, états normal/alerte/dépassé,
+catégories non suivies sans barre.
+
+**F-07 — Solde et report** : solde calculé sur report accepté, revenus, ajustements et
+dépenses nettes ; déficit non reporté ; décisions réservées au propriétaire.
+
+**F-08 — Forfaits** : gestion propriétaire, génération d’occurrences idempotente,
+occurrence supprimée non recréée et contrôle de version.
+
+**F-09 — Accueil** : solde principal ; budget du mois et reste ; proposition de report
+si applicable ; revenus/dépenses du mois ; trois transactions récentes ; catégories les
+plus consommées et lien vers les analyses.
+
+**F-10 — Transactions et historique** : vues Dépenses/Revenus/Tout, liste du mois,
+filtres adaptés à l’espace, recherche texte et pagination adaptée aux grands historiques.
+
+**F-11 — Analyses** : graphiques et indicateurs définis en section 13, avec valeurs
+accessibles sous forme textuelle.
+
+**F-12 — Profil et réglages** : avatar, profil, réglages d’application distincts des
+réglages de l’espace.
+
+**F-13 — PWA et synchronisation** : application installable, shell accessible hors
+ligne, opérations en attente conservées et état de synchronisation explicite.
+
+---
+
+## 12. Interface et expérience utilisateur
+
+### 12.1 Principes
+
+- Prioriser les actions fréquentes : ajouter une transaction, consulter le solde et le
+  budget. Ranger les outils moins fréquents dans « Plus » ou les réglages appropriés.
+- Une action principale par écran ; aucun doublon de logo, sélecteur d’espace ou action.
+- Chaque écran possède des états chargement, vide, erreur et hors ligne.
+- Les fiches d’écran (but, action principale, contenu et états) sont validées avant
+  leur implémentation.
+
+### 12.2 En-tête et profil
+
+- À gauche : sélecteur compact de l’espace actif.
+- À droite : avatar (photo ou initiales) et indicateur de synchronisation seulement
+  quand utile.
+- Pas de salutation dans l’en-tête ni de nom d’application répété sur mobile.
+- Le menu de profil contient identité, « Mon profil », réglages de l’application et
+  déconnexion. Les réglages de l’espace restent dans « Plus ».
+
+### 12.3 Navigation
+
+- Mobile : barre du bas, cinq emplacements — Accueil, Transactions, action centrale
+  « + » ouvrant le panneau d’ajout, Budgets, Plus.
+- Grand écran : barre latérale — Accueil, Transactions, Budgets, Forfaits, puis
+  Catégories et Membres dans la partie Espace.
+- « Plus » sur mobile : Forfaits, Catégories, Membres/invitations, Réglages de l’espace.
+- Budget : volets « Mois » et « Analyses ».
+- Un mois sélectionné est partagé par les écrans et reflété dans l’adresse, sous la
+  forme `?mois=YYYY-MM`.
+
+### 12.4 Écrans
+
+**Accueil**, dans l’ordre :
+
+1. Solde réel, en grand, avec espace/rôle ; déficit indiqué par un libellé et une
+   couleur.
+2. Enveloppe et reste du budget du mois, ou invitation à définir l’enveloppe.
+3. Carte de décision de report si les conditions de la section 4 sont réunies.
+4. Revenus et dépenses du mois côte à côte.
+5. Trois dernières transactions.
+6. Trois catégories les plus consommées, avec lien vers les analyses.
+
+**Transactions** : liste du mois et filtres Dépenses/Revenus/Tout ; catégorie et
+responsable en espace partagé.
+
+**Budgets — Mois** : deux sections distinctes : « Enveloppe globale du mois » avec
+action explicite pour reprendre le montant précédent ; « Seuils par catégorie ».
+
+**Budgets — Analyses** : graphiques de la section 13.
+
+**Réglages de l’application** : profil/photo, mot de passe, thème clair/sombre/système,
+langue française en v1, à propos.
+
+**Réglages de l’espace** : catégories, forfaits, membres/invitations, nom ou suppression
+de l’espace. Modifications réservées au propriétaire ; lecture selon les droits.
+
+### 12.5 Ajout d’une transaction
+
+- Panneau inférieur (Drawer) plutôt qu’une page dédiée.
+- Ordre : montant avec pavé numérique, type (dépense par défaut), catégorie si
+  applicable, date locale (aujourd’hui par défaut).
+- « Plus d’options » : responsable et note.
+- Après enregistrement, confirmation avec possibilité d’annuler.
+
+### 12.6 Textes, montants et états
+
+- Afficher les montants comme `800 000 Ar`, sans décimales, avec espaces françaises
+  insécables pour les milliers. Utiliser une seule fonction de formatage.
+- Ne pas afficher « MGA » dans les libellés utilisateurs.
+- Remplacer « Reste à dépenser » par « Budget de [mois] » dans les titres adaptés.
+- Ne pas afficher de détails techniques comme « calculé sur cet appareil ».
+- Les états vides proposent l’action de démarrage appropriée.
+- Utiliser des squelettes pendant les chargements ; éviter qu’un écran vide ressemble à
+  une perte de données.
+
+### 12.7 Accessibilité et mobile
+
+- Cibles tactiles d’au moins 44 px ; onglets d’au moins 11 px.
+- Respect des zones sûres Android (`viewport-fit=cover` et `env(safe-area-inset-bottom)`).
+- La barre fixe ne masque pas le contenu ; contraste AA, libellés et focus visibles.
+- La couleur seule ne porte jamais une information.
+- Respect de `prefers-reduced-motion` ; transitions de 150 à 250 ms.
+
+### 12.8 Système de design
+
+Créer `docs/guide-ui.md` avec les couleurs (accent vert), espacements en multiples de
+4, rayons, police et graisses, variables de thème clair/sombre et règles de réutilisation
+des composants shadcn/ui.
+
+---
+
+## 13. Analyses
+
+Graphiques en barres et courbes uniquement ; pas de camemberts. Charger le composant
+de graphiques à la demande depuis le volet Analyses. Chaque représentation graphique
+doit aussi rendre ses valeurs accessibles en texte.
+
+1. **Où va l’argent ?** Dépenses nettes par catégorie, triées décroissantes, avec
+   repère du seuil ; inclure « Non classé ».
+2. **Mieux ou pire que le mois dernier ?** Comparaison par catégorie entre le mois
+   sélectionné et le précédent.
+3. **Suis-je dans le budget ?** Dépenses nettes cumulées par jour, avec ligne du budget
+   mensuel lorsqu’il existe.
+4. **Sur la durée.** Revenus et dépenses des six derniers mois.
+
+Indicateurs : parts fixe/variable, part « Non classé », seuils en alerte/dépassés et,
+en espace partagé, dépenses par responsable.
+
+Les projections de fin de mois sont hors périmètre.
+
+---
+
+## 14. Photo de profil
+
+- Redimensionner dans le navigateur à 256 × 256 en WebP avant envoi.
+- Stocker dans le bucket Supabase Storage `avatars`, chemin `{user_id}/avatar.webp`.
+- Un utilisateur ne peut écrire que dans son propre dossier.
+- En ligne seulement pour modifier la photo ; initiales hors ligne ou sans photo.
+- Les membres d’un espace voient les avatars des responsables de transaction.
+
+**À confirmer avant R3 :** accès public au bucket avec chemins non devinables ou URLs
+signées. Le compromis de lecture publique de la proposition P7 n’est pas validé.
+
+---
+
+## 15. Tests et critères de validation
+
+### 15.1 Unitaires
+
+Tester au minimum :
+
+1. Une dépense avec seuil réduit le budget global une seule fois et augmente l’usage du
+   seuil.
+2. Une dépense sans seuil ou sans catégorie réduit uniquement le budget global.
+3. Un revenu n’affecte pas le budget et augmente le solde.
+4. Un remboursement réduit les dépenses nettes et l’usage du seuil concerné.
+5. Un ajustement positif/négatif ne modifie que le solde.
+6. Budget absent et budget égal à zéro restent distincts.
+7. Une somme de seuils supérieure au budget ne change pas le calcul du reste.
+8. Les frontières de mois utilisent la date locale.
+9. Transactions supprimées ignorées ; corrections historiques répercutées.
+10. Report accepté/refusé/absent, déficit, mois sans transactions et chaîne de
+    plusieurs mois.
+11. Statistiques : catégories triées, « Non classé », part fixe/variable.
+
+### 15.2 Base et synchronisation
+
+12. RLS : membre ne modifie ni budget du mois, ni seuil, ni forfait, ni décision de
+    report ; propriétaire autorisé ; non-membre sans lecture.
+13. Membre ne modifie que ses transactions ; `paid_by` doit être membre de l’espace.
+14. Forfait appelé deux fois sans doublon, aucun mois futur, refus du non-membre,
+    occurrence supprimée non recréée.
+15. Mauvaise version de forfait refusée.
+16. L’upgrade Dexie R1 vide les données de test et l’ancienne outbox ; la synchronisation
+    et le pull incluent les nouvelles tables.
+
+### 15.3 Parcours de bout en bout
+
+17. Hors ligne, enregistrer le budget, recharger, conserver la valeur et la synchroniser
+    au retour du réseau.
+18. Ajouter une dépense sur écran de téléphone et vérifier l’évolution du solde et du
+    reste, sans double comptage.
+19. Changer de mois et de section ; conserver le mois sélectionné.
+20. Vérifier les parcours sur téléphone Android et l’interface responsive.
+
+Les tests existants incluent Vitest, tests Dexie avec IndexedDB simulée, tests du moteur
+de synchronisation et tests SQL pgTAP. Le test RLS actuellement présent est
+`supabase/tests/database/001_rls_and_invitations.test.sql`. Playwright est prévu par
+les objectifs de validation, mais n’est pas déclaré dans le `package.json` inspecté ;
+son installation et son exécution en CI restent à décider au lot de validation
+concerné.
+
+---
+
+## 16. Décisions proposées à confirmer
+
+Ces éléments sont des propositions du texte de réforme et doivent être validés avant
+le lot correspondant.
+
+| ID  | Proposition                                                                 | Lot |
+| --- | --------------------------------------------------------------------------- | --- |
+| P1  | Jour de forfait limité à 1–28                                               | R5  |
+| P2  | Le mois précédent « existe » s’il contient au moins une transaction         | R2  |
+| P3  | Alerte de seuil à 80 %, non configurable                                    | R2  |
+| P4  | Rattraper les occurrences manquantes jusqu’au mois courant, sans mois futur | R5  |
+| P5  | Création/modification de forfait uniquement en ligne                        | R5  |
+| P6  | Décision de report réservée au propriétaire                                 | R2  |
+| P7  | Lecture publique du bucket avatar plutôt que liens signés                   | R3  |
+| P8  | Confirmée : montants TypeScript `number` entier validé avec Zod             | R1  |
+| P9  | Confirmée : noms alignés sur les conventions existantes du dépôt            | R1  |
+| P10 | Analyses comme volet de Budgets                                             | R3  |
+
+Décision confirmée par Laro : les données Supabase et Dexie actuelles sont des données
+de test supprimables. R1 peut vider les transactions, budgets, comptes et opérations
+en attente obsolètes, puis supprimer les tables/colonnes de comptes et transferts. Ne
+pas créer d’ajustement initial, d’archive de transferts ni de reports historiques.
+Dès la première utilisation avec des données à conserver, toute migration devra être
+conservatrice. Aucune migration ne sera appliquée au Supabase distant sans accord
+explicite de Laro.
+
+---
+
+## 17. Lots de la réforme
+
+Chaque lot s’arrête pour validation par Laro avant de commencer le suivant. Les
+jalons M0–M10 historiques de `PROGRESS.md` restent le relevé de l’état antérieur ;
+R0–R6 suivent l’implémentation de la réforme.
+
+### R0 — Documents et état des lieux
+
+- [x] Lire la réforme et inspecter les migrations, règles RLS, modèles Zod, Dexie,
+      repositories, bootstrap, synchronisation, calculs et écrans concernés.
+- [x] Faire valider le présent brouillon v1.2.
+- [x] Mettre à jour `docs/cahier-des-charges.md` en v1.2 après validation.
+- [x] Créer `docs/guide-ui.md` et ajouter R0–R6 à `PROGRESS.md`.
+- [x] Faire confirmer P8 et P9 avant d’ouvrir R1.
+- **État vérifié** : migrations présentes ; tests SQL présents dans
+  `supabase/tests/database/`; `PROGRESS.md` présent ; `docs/guide-ui.md` créé.
+- Validation : documents relus, contrôles de documentation disponibles passés et
+  propositions nécessaires à R1 confirmées le 2026-10-24.
+
+### R1 — Données et calculs
+
+- [x] Ajouter les schémas/types Zod R1 et les calculs purs ; tests ciblés réussis.
+- [ ] Simplifier la migration Supabase en mode destructif pour les données de test,
+      créer le nouveau schéma et couvrir les contraintes/RLS par tests SQL.
+- [ ] Mettre à jour Dexie ; supprimer les données locales et l’ancienne outbox lors
+      de l’upgrade de schéma.
+- [ ] Adapter repositories et bootstrap au nouveau modèle.
+- [ ] Adapter synchronisation et outbox aux nouvelles tables.
+- [ ] Adapter minimalement l’écran Transactions pour supprimer les comptes/transferts
+      et garder l’application utilisable ; le parcours complet reste en R4.
+- [ ] Valider : `npm test`, tests SQL, lint, typecheck et build ; mettre à jour le
+      compte-rendu et demander validation avant R2.
+
+### R2 — Budget, solde et seuils
+
+- Sélecteur de mois partagé et persisté dans l’URL.
+- Accueil : solde, budget global, reste, report et résumés mensuels.
+- Écran Budgets : enveloppe globale et seuils séparés.
+- Remplacer le vocabulaire plafond par seuil ; format `Ar`.
+- États de chargement, vide, erreur et hors ligne.
+- Validation : parcours complet sur téléphone, hors ligne puis synchronisé.
+
+### R3 — Navigation, profil et réglages
+
+- En-tête avec sélecteur d’espace, avatar et indicateur de synchronisation.
+- Navigation mobile et barre latérale conformes à la section 12.
+- Plus, menu avatar, réglages d’application et d’espace.
+- Photo de profil et droits UI cohérents avec RLS.
+- Validation : parcours sur téléphone et tentatives d’accès interdites refusées par le
+  serveur.
+
+### R4 — Transactions
+
+- Panneau d’ajout : dépenses, remboursements, revenus, ajustements et responsable.
+- Historique Dépenses/Revenus/Tout.
+- Mise à jour des calculs de budget, solde et catégories.
+- Validation : chaque type de transaction modifie uniquement les agrégats prévus.
+
+### R5 — Forfaits
+
+- Migration, génération SQL idempotente et règles RLS.
+- Écran de création, modification/arrêt, versionnement et suppression d’occurrence.
+- Validation : pas de doublon même sur deux appareils ; tests SQL et synchronisation
+  au vert.
+
+### R6 — Analyses
+
+- Volet Analyses, graphiques et indicateurs de la section 13.
+- Chargement à la demande.
+- Validation : valeurs des graphiques cohérentes avec les listes et premier chargement
+  non alourdi.
+
+---
+
+## 18. Hors périmètre
+
+- Import ou lecture des SMS Mobile Money.
+- Connexion bancaire automatique.
+- Export CSV.
+- Projections de fin de mois ou détection d’anomalies.
+- Report d’un solde négatif ou report du reste du budget.
+- Lien automatique entre écritures de deux espaces.
+- Notifications push.
+- Liens signés pour les avatars, sauf si la proposition P7 est refusée et une stratégie
+  alternative est retenue.
+- Seuil d’alerte configurable.
+- Monétisation et connexion Google.
