@@ -40,17 +40,19 @@ import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
 type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces' | 'profile' | 'settings' | 'plus'
+type ThemePreference = 'system' | 'light' | 'dark'
+
+function savedThemePreference(): ThemePreference {
+  const preference = window.localStorage.getItem('cashFlow.theme')
+  return preference === 'light' || preference === 'dark' ? preference : 'system'
+}
 
 const navigation: { id: AppSection; label: string; icon: LucideIcon }[] = [
   { id: 'home', label: 'Accueil', icon: Home },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
   { id: 'budgets', label: 'Budgets', icon: ChartNoAxesColumn },
-  { id: 'spaces', label: 'Espaces', icon: UsersRound },
 ]
-const mobileNavigation = [
-  ...navigation.filter((item) => item.id !== 'spaces'),
-  { id: 'plus' as const, label: 'Plus', icon: Settings2 },
-]
+const mobileNavigation = [...navigation, { id: 'plus' as const, label: 'Plus', icon: Settings2 }]
 
 const sectionDetails: Record<
   Exclude<AppSection, 'home'>,
@@ -460,6 +462,12 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const [syncAttempt, setSyncAttempt] = useState(0)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false)
+  const [themePreference, setThemePreference] = useState<ThemePreference>(savedThemePreference)
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false)
+  const [settingsMessage, setSettingsMessage] = useState<{
+    type: 'error' | 'notice'
+    text: string
+  } | null>(null)
   const bootstrapAbortController = useRef<AbortController | null>(null)
   const syncAbortController = useRef<AbortController | null>(null)
   const workspaces = useWorkspaces()
@@ -525,6 +533,23 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     window.addEventListener('popstate', restoreSelectedMonthFromHistory)
     return () => window.removeEventListener('popstate', restoreSelectedMonthFromHistory)
   }, [])
+
+  useEffect(() => {
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = () => {
+      const useDarkTheme =
+        themePreference === 'dark' || (themePreference === 'system' && systemTheme.matches)
+      document.documentElement.classList.toggle('dark', useDarkTheme)
+    }
+
+    applyTheme()
+    window.localStorage.setItem('cashFlow.theme', themePreference)
+    if (themePreference === 'system') {
+      systemTheme.addEventListener('change', applyTheme)
+    }
+
+    return () => systemTheme.removeEventListener('change', applyTheme)
+  }, [themePreference])
 
   useEffect(() => {
     const url = new URL(window.location.href)
@@ -697,6 +722,49 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     }
   }
 
+  async function requestPasswordReset() {
+    const email = session.user.email
+    setSettingsMessage(null)
+    if (!isOnline) {
+      setSettingsMessage({
+        type: 'error',
+        text: 'Une connexion Internet est nécessaire pour demander le lien de modification.',
+      })
+      return
+    }
+    if (!email) {
+      setSettingsMessage({
+        type: 'error',
+        text: 'Aucune adresse e-mail n’est associée à ce compte.',
+      })
+      return
+    }
+
+    setIsSendingPasswordReset(true)
+    try {
+      const { error: resetError } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: getApplicationUrl(),
+      })
+      if (resetError) {
+        setSettingsMessage({ type: 'error', text: authErrorMessage(resetError.message) })
+      } else {
+        setSettingsMessage({
+          type: 'notice',
+          text: 'Un lien pour modifier ton mot de passe a été envoyé à ton adresse e-mail.',
+        })
+      }
+    } catch (failure) {
+      const message =
+        failure instanceof Error ? failure.message : 'Erreur inconnue de réinitialisation.'
+      setSettingsMessage({
+        type: 'error',
+        text: `Impossible de demander le lien de modification. ${message}`,
+      })
+    } finally {
+      setIsSendingPasswordReset(false)
+    }
+  }
+
   async function signOut() {
     setError(null)
     setIsSigningOut(true)
@@ -763,7 +831,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     )
   }
 
-  function renderNavigationItem(item: (typeof navigation)[number]) {
+  function renderNavigationItem(item: { id: AppSection; label: string; icon: LucideIcon }) {
     const Icon = item.icon
     const isActive = activeSection === item.id
 
@@ -819,7 +887,29 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
         <nav aria-label="Navigation principale" className="grid gap-1">
           {navigation.map(renderNavigationItem)}
+          <button
+            className="flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-medium text-stone-400"
+            disabled
+            title="Les forfaits seront disponibles dans le lot R5."
+            type="button"
+          >
+            <RefreshCw aria-hidden="true" size={20} strokeWidth={1.8} />
+            Forfaits
+          </button>
         </nav>
+
+        <div className="mt-6">
+          <p className="mb-2 px-4 text-xs font-medium uppercase tracking-wide text-stone-500">
+            Espace
+          </p>
+          <nav aria-label="Navigation de l’espace" className="grid gap-1">
+            {renderNavigationItem({
+              id: 'spaces',
+              label: 'Membres et invitations',
+              icon: UsersRound,
+            })}
+          </nav>
+        </div>
 
         <div className="mt-auto border-t border-stone-200 pt-5">
           <p className="truncate px-3 text-xs text-stone-500">
@@ -1216,7 +1306,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   onClick={() => setActiveSection('budgets')}
                   variant="outline"
                 >
-                  Catégories et seuils
+                  Budgets et seuils par catégorie
                   <ChartNoAxesColumn aria-hidden="true" size={18} />
                 </Button>
                 <Button
@@ -1224,7 +1314,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   onClick={() => setActiveSection('spaces')}
                   variant="outline"
                 >
-                  Membres, invitations et espace
+                  Membres, invitations et réglages de l’espace
                   <UsersRound aria-hidden="true" size={18} />
                 </Button>
                 <Button
@@ -1241,38 +1331,101 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           ) : (
             <section aria-labelledby="section-title" className="space-y-6">
               <div>
-                <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
                   {activeDetails.title}
                 </h1>
+                <p className="mt-2 leading-7 text-stone-600">{activeDetails.description}</p>
               </div>
 
+              {settingsMessage && (
+                <p
+                  className={`rounded-xl px-4 py-3 text-sm ${
+                    settingsMessage.type === 'error'
+                      ? 'bg-red-50 text-red-800'
+                      : 'bg-emerald-50 text-emerald-900'
+                  }`}
+                  role={settingsMessage.type === 'error' ? 'alert' : 'status'}
+                >
+                  {settingsMessage.text}
+                </p>
+              )}
               <div className="grid gap-4 md:grid-cols-2">
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
-                    <CardTitle>Compte</CardTitle>
-                    <CardDescription>Informations utiles pour ton espace.</CardDescription>
+                    <CardTitle>Préférences d’affichage</CardTitle>
+                    <CardDescription>Le choix est conservé sur cet appareil.</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-stone-600">
-                    <p>
-                      <span className="font-medium text-stone-900">Utilisateur :</span>{' '}
-                      {displayName}
-                    </p>
-                    <p>
-                      <span className="font-medium text-stone-900">Espace :</span>{' '}
-                      {activeWorkspace?.name ?? 'Perso'}
-                    </p>
-                    <p>
-                      <span className="font-medium text-stone-900">Rôle :</span>{' '}
-                      {canEditWorkspace ? 'Modifiable' : 'Lecture seule'}
-                    </p>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="theme-preference">
+                        Thème
+                      </label>
+                      <select
+                        className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3"
+                        id="theme-preference"
+                        onChange={(event) => {
+                          const preference = event.target.value
+                          if (
+                            preference === 'system' ||
+                            preference === 'light' ||
+                            preference === 'dark'
+                          ) {
+                            setThemePreference(preference)
+                          }
+                        }}
+                        value={themePreference}
+                      >
+                        <option value="system">Selon l’appareil</option>
+                        <option value="light">Clair</option>
+                        <option value="dark">Sombre</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">Langue</p>
+                      <p className="text-stone-600">Français (seule langue disponible)</p>
+                    </div>
                   </CardContent>
                 </Card>
 
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
-                    <CardTitle>Connexion</CardTitle>
-                    <CardDescription>État local de synchronisation et de réseau.</CardDescription>
+                    <CardTitle>Mot de passe</CardTitle>
+                    <CardDescription>
+                      Reçois un lien sécurisé pour définir un nouveau mot de passe.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="min-h-11"
+                      disabled={!isOnline || !session.user.email || isSendingPasswordReset}
+                      onClick={() => void requestPasswordReset()}
+                    >
+                      {isSendingPasswordReset ? 'Envoi…' : 'Envoyer le lien de modification'}
+                    </Button>
+                    {!isOnline && (
+                      <p className="mt-2 text-sm text-amber-800">
+                        Connecte-toi à Internet pour demander ce lien.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>À propos</CardTitle>
+                    <CardDescription>
+                      cashFlow+ · gestion du budget mensuel par espace.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-sm text-stone-600">
+                    <p>Les montants sont affichés en ariary (Ar).</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>État de connexion</CardTitle>
+                    <CardDescription>Réseau et synchronisation sur cet appareil.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm text-stone-600">
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2">

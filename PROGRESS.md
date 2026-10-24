@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 00:27 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 00:36 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
 - Lot/tâche en cours : R3 — navigation, compte et réglages. R2 est validé par Laro ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -19,13 +19,14 @@
   synchronisation uniquement lorsqu’il est utile, menu avatar et déconnexion regroupée ;
   salutation et actions rapides redondantes retirées ; barre mobile à cinq emplacements
   avec « + » central et onglet Plus ; accès distinct à une page Mon profil en lecture.
-  `npm test` (58), lint, typecheck, format check, build et `git diff --check` passent.
+  Réglages application : thème système/clair/sombre persisté localement, français, lien
+  de réinitialisation du mot de passe et À propos. `npm test` (58), lint, typecheck,
+  format check et build passent.
   Aucune vérification visuelle responsive ne peut être revendiquée ; essai téléphone écarté
   à la demande de Laro.
-- Prochaine action exacte : ouvrir `src/App.tsx` et remplacer la vue générique de réglages
-  par les réglages d’application distincts prévus en section 12.4 du cahier ; puis structurer
-  les réglages de l’espace. Avant la photo de profil, demander la décision sur l’accès au
-  bucket `avatars` (public ou URLs signées).
+- Prochaine action exacte : examiner `src/components/workspaces/workspace-management.tsx`
+  pour compléter l’entrée Réglages de l’espace et les contrôles de droits. Avant la photo
+  de profil, demander la décision sur l’accès au bucket `avatars` (public ou URLs signées).
 - Fait mais non vérifié à l’exécution : migration Supabase/RLS et pgTAP (`de32a7c`).
   Tests SQL indisponibles : `supabase`, `psql`, `postgres`, Docker et Podman absents.
   Aucune migration distante n’a été appliquée. Build réussi avec avertissement Vite sur
@@ -131,14 +132,15 @@ le suivant.
 
 ### Tâches R3
 
-| Tâche                                      | État                 | Détail                                                                                                             |
-| ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| En-tête compact et état de synchronisation | Terminée et vérifiée | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée. |
-| Navigation mobile et grand écran           | Partielle            | Barre mobile 5 places et Plus livrés ; reste à structurer la barre latérale desktop selon le cahier.               |
-| Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif.    |
-| Réglages de l’application et de l’espace   | À faire              | Remplacer la vue générique par les réglages prévus au cahier v1.2.                                                 |
-| Photo de profil                            | Bloquée              | Décision P7 requise : bucket public à chemin non devinable ou URLs signées.                                        |
-| Validation R3                              | À faire              | Tests ciblés, tests complets et responsive automatisé si disponible ; droits membres cohérents avec RLS.           |
+| Tâche                                      | État                 | Détail                                                                                                                                           |
+| ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| En-tête compact et état de synchronisation | Terminée et vérifiée | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée.                               |
+| Navigation mobile et grand écran           | Partielle            | Barre mobile 5 places ; barre latérale groupée avec Forfaits désactivé jusqu’à R5 et Membres sous Espace ; compléter les destinations restantes. |
+| Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif.                                  |
+| Réglages de l’application                  | Terminée             | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé.                      |
+| Réglages de l’espace                       | En cours             | L’écran Espace regroupe les membres et invitations ; vérifier les actions disponibles selon rôle et rendre les réglages espace explicites.       |
+| Photo de profil                            | Bloquée              | Décision P7 requise : bucket public à chemin non devinable ou URLs signées.                                                                      |
+| Validation R3                              | À faire              | Tests ciblés, tests complets et responsive automatisé si disponible ; droits membres cohérents avec RLS.                                         |
 
 ## Décisions prises
 
