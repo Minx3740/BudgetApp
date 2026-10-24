@@ -529,8 +529,9 @@ Les projections de fin de mois sont hors périmètre.
 - En ligne seulement pour modifier la photo ; initiales hors ligne ou sans photo.
 - Les membres d’un espace voient les avatars des responsables de transaction.
 
-**À confirmer avant R3 :** accès public au bucket avec chemins non devinables ou URLs
-signées. Le compromis de lecture publique de la proposition P7 n’est pas validé.
+**P7 confirmé par Laro le 2026-10-25 :** bucket privé et URLs signées temporaires.
+L’utilisateur n’accède qu’à sa propre photo en écriture ; la lecture est réservée à
+l’utilisateur et aux membres de ses espaces.
 
 ---
 
@@ -597,7 +598,7 @@ le lot correspondant.
 | P4  | Rattraper les occurrences manquantes jusqu’au mois courant, sans mois futur | R5  |
 | P5  | Création/modification de forfait uniquement en ligne                        | R5  |
 | P6  | Décision de report réservée au propriétaire                                 | R2  |
-| P7  | Lecture publique du bucket avatar plutôt que liens signés                   | R3  |
+| P7  | Confirmée : bucket avatar privé avec URLs signées temporaires               | R3  |
 | P8  | Confirmée : montants TypeScript `number` entier validé avec Zod             | R1  |
 | P9  | Confirmée : noms alignés sur les conventions existantes du dépôt            | R1  |
 | P10 | Analyses comme volet de Budgets                                             | R3  |
@@ -698,7 +699,5 @@ R0–R6 suivent l’implémentation de la réforme.
 - Report d’un solde négatif ou report du reste du budget.
 - Lien automatique entre écritures de deux espaces.
 - Notifications push.
-- Liens signés pour les avatars, sauf si la proposition P7 est refusée et une stratégie
-  alternative est retenue.
 - Seuil d’alerte configurable.
 - Monétisation et connexion Google.

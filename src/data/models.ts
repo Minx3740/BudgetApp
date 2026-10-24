@@ -28,6 +28,7 @@ const syncFields = {
 export const profileSchema = z.object({
   id: uuidSchema,
   display_name: z.string().max(80),
+  avatar_path: z.string().max(64).nullable().default(null),
   created_at: timestampSchema,
   updated_at: timestampSchema,
   deleted_at: timestampSchema.nullable(),

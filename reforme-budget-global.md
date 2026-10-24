@@ -319,7 +319,7 @@ Les projections (« à ce rythme, fin de mois non atteinte ») sont hors périm�
 ## 12. Photo de profil
 
 - Redimensionner dans le navigateur avant l'envoi : 256 × 256, WebP, quelques dizaines de ko.
-- Stockage : bucket Supabase Storage `avatars`, fichier `{user_id}/avatar.webp`. Écriture : un utilisateur ne peut écrire que dans son propre dossier. Lecture : voir la proposition P7.
+- Stockage : bucket privé Supabase Storage `avatars`, fichier `{user_id}/avatar.webp`. Écriture : un utilisateur ne peut écrire que dans son propre dossier. Lecture : URLs signées temporaires réservées à l’utilisateur et aux membres de ses espaces, conformément à P7.
 - Le changement de photo exige d'être en ligne. Hors ligne ou sans photo : initiales.
 - Les membres d'un même espace voient les photos des autres (affichage du responsable).
 
@@ -438,18 +438,18 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 
 Ces choix sont proposés par le rédacteur de ce document et n'ont pas encore été validés. Les présenter à Laro avant le lot indiqué.
 
-| N°  | Proposition                                                                                                                           | Lot |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------- | --- |
-| P1  | Jour du mois d'un forfait limité à 1 à 28                                                                                             | R5  |
-| P2  | « Le mois précédent existe » veut dire : il contient au moins une transaction                                                         | R2  |
-| P3  | Seuil d'alerte fixé à 80 %, non configurable                                                                                          | R2  |
-| P4  | La génération rattrape les mois manqués jusqu'au mois courant, jamais de mois futur                                                   | R5  |
-| P5  | Création et modification des forfaits seulement en ligne                                                                              | R5  |
-| P6  | Décision de report réservée au propriétaire                                                                                           | R2  |
-| P7  | Bucket `avatars` en lecture publique, chemins non devinables (compromis : pas strictement privé) ; sinon liens signés, plus complexes | R3  |
-| P8  | Montants en `number` entier côté TypeScript, validé par Zod                                                                           | R1  |
-| P9  | Noms des nouvelles tables et colonnes tels qu'écrits en section 8, adaptés aux conventions du dépôt                                   | R1  |
-| P10 | Analyses comme volet de Budgets, pas comme onglet séparé                                                                              | R3  |
+| N°  | Proposition                                                                                         | Lot |
+| --- | --------------------------------------------------------------------------------------------------- | --- |
+| P1  | Jour du mois d'un forfait limité à 1 à 28                                                           | R5  |
+| P2  | « Le mois précédent existe » veut dire : il contient au moins une transaction                       | R2  |
+| P3  | Seuil d'alerte fixé à 80 %, non configurable                                                        | R2  |
+| P4  | La génération rattrape les mois manqués jusqu'au mois courant, jamais de mois futur                 | R5  |
+| P5  | Création et modification des forfaits seulement en ligne                                            | R5  |
+| P6  | Décision de report réservée au propriétaire                                                         | R2  |
+| P7  | Confirmée par Laro le 2026-10-25 : bucket `avatars` privé avec URLs signées temporaires             | R3  |
+| P8  | Montants en `number` entier côté TypeScript, validé par Zod                                         | R1  |
+| P9  | Noms des nouvelles tables et colonnes tels qu'écrits en section 8, adaptés aux conventions du dépôt | R1  |
+| P10 | Analyses comme volet de Budgets, pas comme onglet séparé                                            | R3  |
 
 ## 16. Hors périmètre (v2 ou plus tard)
 

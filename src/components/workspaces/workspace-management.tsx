@@ -12,6 +12,7 @@ import {
   updateWorkspaceMemberRole,
   type InvitationRole,
 } from '@/data/workspaces'
+import { SignedAvatar } from './signed-avatar'
 
 interface WorkspaceManagementProps {
   client: SupabaseClient
@@ -419,45 +420,65 @@ export function WorkspaceManagement({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {memberships.map((member) => (
-                <div
-                  className="flex flex-col gap-3 rounded-xl border border-stone-200 p-3 sm:flex-row sm:items-center sm:justify-between"
-                  key={`${member.workspace_id}:${member.user_id}`}
-                >
-                  <div>
-                    <p className="font-medium">{displayName(member.user_id, profiles)}</p>
-                    <p className="text-sm text-stone-600">{roleName(member.role)}</p>
-                  </div>
-                  {isOwner && member.role !== 'owner' && (
-                    <div className="flex flex-wrap gap-2">
-                      <label className="sr-only" htmlFor={`role-${member.user_id}`}>
-                        Rôle de {displayName(member.user_id, profiles)}
-                      </label>
-                      <select
-                        className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm"
-                        disabled={!isOnline || busyKey !== null}
-                        id={`role-${member.user_id}`}
-                        onChange={(event) =>
-                          void changeRole(member, event.target.value as InvitationRole)
-                        }
-                        value={member.role}
-                      >
-                        <option value="member">Membre</option>
-                        <option value="viewer">Lecture seule</option>
-                      </select>
-                      <Button
-                        className="min-h-11"
-                        disabled={!isOnline || busyKey !== null}
-                        onClick={() => void removeMember(member)}
-                        type="button"
-                        variant="outline"
-                      >
-                        Retirer
-                      </Button>
+              {memberships.map((member) => {
+                const name = displayName(member.user_id, profiles)
+                const profile = profiles.find((candidate) => candidate.id === member.user_id)
+                const initials = name
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((part) => part.charAt(0).toLocaleUpperCase('fr-FR'))
+                  .join('')
+                return (
+                  <div
+                    className="flex flex-col gap-3 rounded-xl border border-stone-200 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    key={`${member.workspace_id}:${member.user_id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <SignedAvatar
+                        avatarPath={profile?.avatar_path ?? null}
+                        className="size-10 rounded-full text-sm"
+                        client={client}
+                        displayName={name}
+                        initials={initials}
+                        showError
+                      />
+                      <div>
+                        <p className="font-medium">{name}</p>
+                        <p className="text-sm text-stone-600">{roleName(member.role)}</p>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {isOwner && member.role !== 'owner' && (
+                      <div className="flex flex-wrap gap-2">
+                        <label className="sr-only" htmlFor={`role-${member.user_id}`}>
+                          Rôle de {name}
+                        </label>
+                        <select
+                          className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 text-sm"
+                          disabled={!isOnline || busyKey !== null}
+                          id={`role-${member.user_id}`}
+                          onChange={(event) =>
+                            void changeRole(member, event.target.value as InvitationRole)
+                          }
+                          value={member.role}
+                        >
+                          <option value="member">Membre</option>
+                          <option value="viewer">Lecture seule</option>
+                        </select>
+                        <Button
+                          className="min-h-11"
+                          disabled={!isOnline || busyKey !== null}
+                          onClick={() => void removeMember(member)}
+                          type="button"
+                          variant="outline"
+                        >
+                          Retirer
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </CardContent>
           </Card>
         </>

@@ -12,6 +12,7 @@ const timestamp = '2026-10-24T00:00:00.000Z'
 const profile = {
   id: userId,
   display_name: 'Utilisateur',
+  avatar_path: null,
   created_at: timestamp,
   updated_at: timestamp,
   deleted_at: null,

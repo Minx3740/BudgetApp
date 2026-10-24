@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { cashflowTransactionSchema, monthCarryDecisionSchema, monthlyBudgetSchema } from './models'
+import {
+  cashflowTransactionSchema,
+  monthCarryDecisionSchema,
+  monthlyBudgetSchema,
+  profileSchema,
+} from './models'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
 const categoryId = '00000000-0000-4000-8000-000000000002'
@@ -28,6 +33,18 @@ function transaction(
 }
 
 describe('modèles du budget réformé', () => {
+  it('accepte les profils existants sans photo et leur donne un chemin nul', () => {
+    expect(
+      profileSchema.parse({
+        id: userId,
+        display_name: 'Utilisateur',
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: null,
+      }).avatar_path,
+    ).toBeNull()
+  })
+
   it('accepte un budget mensuel nul, distinct d’un budget absent', () => {
     expect(
       monthlyBudgetSchema.parse({

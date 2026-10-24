@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 00:47 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 01:08 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
 - Lot/tâche en cours : R3 — navigation, compte et réglages. R2 est validé par Laro ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -23,17 +23,20 @@
   de réinitialisation du mot de passe et À propos. `npm test` (58), lint, typecheck,
   format check et build passent. En R3, l’écran Réglages de l’espace permet le renommage et
   l’archivage soft d’un espace partagé ; l’archivage exige un autre espace actif.
-  Validations du changement courant : 60 tests, lint, typecheck, format check et build OK.
+  Validations de cette étape : 60 tests, lint, typecheck, format check et build OK.
   Aucune vérification visuelle responsive ne peut être revendiquée ; essai téléphone écarté
   à la demande de Laro. Les actions de renommage/archivage utilisent les politiques RLS
   existantes ; aucun test SQL ni accès Supabase distant n’a été effectué.
-- Prochaine action exacte : demander à Laro de trancher P7 pour la photo de profil
-  (bucket public à chemin non devinable ou URLs signées) avant toute création de bucket,
-  politique ou téléversement.
-- Fait mais non vérifié à l’exécution : migration Supabase/RLS et pgTAP (`de32a7c`).
-  Tests SQL indisponibles : `supabase`, `psql`, `postgres`, Docker et Podman absents.
-  Aucune migration distante n’a été appliquée. Build réussi avec avertissement Vite sur
-  un bundle JavaScript dépassant 500 kB.
+- Terminé et vérifié en R3 : photos de profil en WebP redimensionnées à 256 × 256,
+  téléversement dans un bucket privé, affichage avec URL signée et renouvelée, possibilité
+  de retirer la photo, et avatars des membres dans les réglages d’espace. Migration et
+  tests pgTAP écrits mais non exécutés ; aucune migration distante n’a été appliquée.
+- Vérifications du changement photo : `npm test` (63 tests), `npm run lint`,
+  `npm run typecheck`, `npm run format:check` et `npm run build` réussis. Le build conserve
+  l’avertissement Vite sur le bundle JavaScript supérieur à 500 kB.
+- Prochaine action exacte : vérifier la disponibilité d’un environnement PostgreSQL local
+  pour exécuter `supabase/tests/database/002_private_avatars.test.sql`, puis consigner le
+  résultat ; ne jamais appliquer cette migration au projet distant sans accord explicite.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
   appliquer de migration au projet Supabase distant.
@@ -43,10 +46,12 @@
   aucune archive de transfert, aucune décision de report historique, aucune migration
   de l’ancienne outbox ; première utilisation réelle : toutes les migrations devront
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
-  prioritaire : adaptation minimale en R1, parcours complet en R4.
-- Questions encore ouvertes : essai manuel mobile/hors ligne puis en ligne à faire sur le
-  téléphone de Laro ; tests pgTAP R1 à exécuter lorsqu’un environnement PostgreSQL local
-  sera disponible. Aucune question métier R2 ouverte.
+  prioritaire : adaptation minimale en R1, parcours complet en R4. P7 confirmé le
+  2026-10-25 : bucket Storage privé et URLs signées pour les photos de profil.
+- Questions encore ouvertes : tests pgTAP R1 et R3 à exécuter lorsqu’un environnement
+  PostgreSQL local sera disponible. Aucun PostgreSQL local n’est disponible actuellement ;
+  aucune installation n’a été lancée. L’essai manuel mobile/hors ligne est écarté à la
+  demande de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration Supabase distante ne doit jamais être exécutée sans accord explicite ;
   workflow Cloudflare `deploy-pages.yml` doit se déclencher uniquement sur `main` ;
@@ -58,7 +63,7 @@
 - Dernier jalon historique validé : M8 (2026-10-24).
 - Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
   appareils reste également à faire.
-- Réforme budget : R0 et R1 terminés ; R2 approuvé et en cours.
+- Réforme budget : R0–R2 terminés et R2 validé ; R3 en cours.
 
 ## Jalons
 
@@ -87,7 +92,7 @@ le suivant.
 | R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                       | 2026-10-24 |
 | R1  | Implémentation terminée ; validations disponibles réussies ; pgTAP non exécuté faute d’outils locaux ; Laro a validé R2 | 2026-10-24 |
 | R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande                             | 2026-10-25 |
-| R3  | En cours — navigation et réglages implémentés ; photo de profil et validation finale en attente de P7                   | 2026-10-25 |
+| R3  | En cours — navigation, réglages et photos implémentés ; validation SQL locale en attente                                  | 2026-10-25 |
 | R4  | À faire — transactions, remboursements, ajustements et responsable                                                      |            |
 | R5  | À faire — forfaits                                                                                                      |            |
 | R6  | À faire — analyses                                                                                                      |            |
@@ -142,8 +147,8 @@ le suivant.
 | Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif. Commit `da2e431`.                                                 |
 | Réglages de l’application                  | Terminée             | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé. Commit `5108755`.                                     |
 | Réglages de l’espace                       | Terminée             | Renommage pour le propriétaire ; archivage soft des espaces partagés, uniquement si un autre espace actif existe ; RLS existante demeure la protection serveur. Commit `0e56945`. |
-| Photo de profil                            | Bloquée              | Décision P7 requise : bucket public à chemin non devinable ou URLs signées.                                                                                                       |
-| Validation R3                              | En cours             | 60 tests, lint, typecheck, format check et build OK ; UI non vérifiée visuellement ; tests SQL/directs à exécuter avec un environnement Supabase local disponible.                |
+| Photo de profil                            | Implémentée et vérifiée | P7 confirmé : bucket privé, téléversement WebP, suppression, URLs signées et avatars de membres ; `npm test` (63), lint, typecheck, format check et build OK. Migration non appliquée. |
+| Validation R3                              | En cours             | Vérifications applicatives automatisées OK ; tests pgTAP non exécutés faute d’environnement PostgreSQL local ; essai téléphone écarté par Laro.                                  |
 
 ## Décisions prises
 

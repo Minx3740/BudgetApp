@@ -9,7 +9,6 @@ import {
   ReceiptText,
   RefreshCw,
   Settings2,
-  UserRound,
   UsersRound,
   Wifi,
   WifiOff,
@@ -24,6 +23,8 @@ import {
   InvitationAcceptance,
   WorkspaceManagement,
 } from './components/workspaces/workspace-management'
+import { ProfileAvatar } from './components/workspaces/profile-avatar'
+import { SignedAvatar } from './components/workspaces/signed-avatar'
 import { WorkspaceSettings } from './components/workspaces/workspace-settings'
 import { bootstrapFromSupabase } from './data/bootstrap'
 import { clearLocalData, db } from './data/database'
@@ -496,6 +497,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     )?.id ?? availableWorkspaces.find((workspace) => workspace.id !== activeWorkspace?.id)?.id
   const memberships = useMemberships(activeWorkspace?.id)
   const profiles = useProfiles()
+  const currentProfile = profiles.find((profile) => profile.id === session.user.id)
   const invitations = useInvitations(activeWorkspace?.id)
   const activeMembership = memberships.find((membership) => membership.user_id === session.user.id)
   const canEditWorkspace =
@@ -986,9 +988,15 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
             <details className="relative">
               <summary
                 aria-label={`Profil de ${displayName}`}
-                className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-950 outline-offset-2 focus-visible:outline-2 focus-visible:outline-emerald-800"
+                className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-emerald-800"
               >
-                {initials || <UserRound aria-hidden="true" size={20} />}
+                <SignedAvatar
+                  avatarPath={currentProfile?.avatar_path ?? null}
+                  className="size-11 rounded-full text-sm"
+                  client={client}
+                  displayName={displayName}
+                  initials={initials}
+                />
               </summary>
               <div className="absolute right-0 top-14 z-40 w-64 rounded-2xl border border-stone-200 bg-white p-2 shadow-lg">
                 <div className="border-b border-stone-100 px-3 py-2">
@@ -1286,12 +1294,13 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-4">
-                    <span
-                      aria-hidden="true"
-                      className="flex size-14 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg font-semibold text-emerald-950"
-                    >
-                      {initials || <UserRound size={24} />}
-                    </span>
+                    <SignedAvatar
+                      avatarPath={currentProfile?.avatar_path ?? null}
+                      className="size-14 shrink-0 rounded-full text-lg"
+                      client={client}
+                      displayName={displayName}
+                      initials={initials}
+                    />
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{displayName}</p>
                       <p className="truncate text-sm text-stone-600">{session.user.email}</p>
@@ -1328,6 +1337,15 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   </Button>
                 </CardContent>
               </Card>
+              <ProfileAvatar
+                avatarPath={currentProfile?.avatar_path ?? null}
+                client={client}
+                displayName={displayName}
+                initials={initials}
+                isOnline={isOnline}
+                onUpdated={() => setBootstrapAttempt((attempt) => attempt + 1)}
+                userId={session.user.id}
+              />
             </section>
           ) : activeSection === 'plus' ? (
             <section aria-labelledby="section-title" className="max-w-4xl space-y-5">
