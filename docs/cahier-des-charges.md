@@ -249,12 +249,13 @@ Chaque jalon a : **livrables**, **critère de validation**, **interdits**. L'IA 
 
 - Livrables : F-08 et F-09, calculs locaux testés (cas limites : changement de mois, catégorie sans budget, dépassement).
 - Validation : le « reste à dépenser » est exact sur un jeu de données de test.
-- État : calculs locaux et écrans d'accueil/gestion implémentés ; les tests de calcul couvrent le jeu de données et les cas limites demandés.
+- État : validé le 2026-10-24. Calculs locaux et écrans d'accueil/gestion implémentés ; tests automatisés du jeu de données et des cas limites passés ; accueil, formulaire et navigation entre mois vérifiés dans l'application.
 
 **M8 — Espaces partagés, invitations, rôles**
 
 - Livrables : création d'espace partagé, sélecteur d'espace, génération/révocation d'invitation, page d'acceptation, gestion des membres et rôles, affichage de l'auteur.
 - Validation : scénario complet à deux comptes (A invite B, B saisit, A voit la dépense) y compris avec B hors-ligne pendant la saisie.
+- État : validé le 2026-10-24. Le deuxième compte a accepté l'invitation en rôle membre ; une dépense saisie en ligne puis une dépense de 3 MGA saisie hors-ligne ont été synchronisées et sont visibles côté propriétaire après le retour en ligne.
 
 **M9 — Historique, finitions, robustesse**
 

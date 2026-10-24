@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './database'
+import type { Invitation, Membership, Profile } from './models'
 import {
   accountsRepository,
   budgetsRepository,
@@ -65,4 +66,30 @@ export function useSyncSummary() {
 
 export function useWorkspaces() {
   return useLiveQuery(() => db.workspaces.toArray(), [], [])
+}
+
+export function useMemberships(workspaceId: string | undefined) {
+  return useLiveQuery(
+    () =>
+      workspaceId
+        ? db.memberships.where('workspace_id').equals(workspaceId).toArray()
+        : Promise.resolve([] as Membership[]),
+    [workspaceId],
+    [] as Membership[],
+  )
+}
+
+export function useProfiles() {
+  return useLiveQuery(() => db.profiles.toArray(), [], [] as Profile[])
+}
+
+export function useInvitations(workspaceId: string | undefined) {
+  return useLiveQuery(
+    () =>
+      workspaceId
+        ? db.invitations.where('workspace_id').equals(workspaceId).toArray()
+        : Promise.resolve([] as Invitation[]),
+    [workspaceId],
+    [] as Invitation[],
+  )
 }

@@ -2,9 +2,9 @@
 
 ## État actuel
 
-- Jalon en cours : M7 (budgets et écran d'accueil)
-- Dernier jalon validé : M5 (2026-10-24)
-- Prochaine action : confirmer l'interface M7 ; le test réel M6 entre appareils reste à faire.
+- Jalon en cours : M8 (espaces partagés et invitations)
+- Dernier jalon validé : M7 (2026-10-24)
+- Prochaine action : démarrer M9 (historique, finitions et robustesse) ; le test de conflit réel M6 entre appareils reste à faire.
 
 ## Jalons
 
@@ -17,8 +17,9 @@
 | M4       | validé                                                                                      | 2026-10-24 |
 | M5       | validé                                                                                      | 2026-10-24 |
 | M6       | implémenté, migration appliquée, push/suppression validés ; test entre appareils en attente | 2026-10-24 |
-| M7       | implémenté, calculs validés en tests ; confirmation UI en attente                           | 2026-10-24 |
-| M8 à M10 | à faire                                                                                     |            |
+| M7       | validé : calculs et parcours UI vérifiés                                                    | 2026-10-24 |
+| M8       | validé : invitation, saisie en ligne et saisie hors-ligne synchronisée entre deux comptes   | 2026-10-24 |
+| M9 à M10 | à faire                                                                                     |            |
 
 ## Décisions prises
 
@@ -47,7 +48,8 @@
 - M4 : validé le 2026-10-24. Couche miroir Dexie avec outbox transactionnelle, validation Zod, repositories typés et hooks réactifs ; purge locale à la déconnexion. Six tests IndexedDB passent. Synchronisation non implémentée (réservée à M6).
 - M5 : validé le 2026-10-24. Écrans locaux de transactions, comptes et catégories ; ajout rapide en panneau, archivage, modification et suppression logique. Le solde est calculé localement ; scénario dépense → modification → suppression et recalcul testé. Import Supabase réel vérifié dans l'app : 1 espace, 3 comptes et 8 catégories chargés ; saisie/écrans parcourus en mode hors-ligne sans modifier les données personnelles.
 - M6 : moteur client implémenté : push séquentiel/idempotent avec reprise, pull paginé par curseur (chevauchement 60 s), horloge serveur, tombstones prioritaires, purge après retrait d'accès, indicateur UI et relance manuelle. Tests automatisés couvrent l'interruption au milieu du push, l'accusé perdu, les conflits, les suppressions et l'accès retiré. La migration `supabase/migrations/20261024180000_sync_invariants.sql` a été exécutée avec succès dans Supabase le 2026-10-24. Une dépense de test a été créée, synchronisée puis supprimée logiquement dans l'application ; le test réel de conflit entre deux appareils reste à faire.
-- M7 : calcul local du budget mensuel, accueil et gestion des plafonds implémentés. Couverture : dépenses par catégorie, reste global et quotidien, catégorie sans plafond, dépassement, suppression logique et changement de mois. Lint, TypeScript, formatage, 32 tests et build de production passent. L'interface est intégrée ; une validation manuelle dans le navigateur reste souhaitable avant clôture du jalon.
+- M7 : calcul local du budget mensuel, accueil et gestion des plafonds implémentés. Couverture : dépenses par catégorie, reste global et quotidien, catégorie sans plafond, dépassement, suppression logique et changement de mois. Lint, TypeScript, formatage, 32 tests et build de production passent. Dans l'application, l'accueil, la vue Budgets, le formulaire sans enregistrement et la navigation entre mois ont été vérifiés ; aucune donnée personnelle n'a été modifiée.
+- M8 : validé le 2026-10-24. Fonctionnalités livrées : création d'espaces partagés avec comptes/catégories par défaut, sélecteur persistant, invitation à usage unique valable 7 jours (jeton aléatoire 256 bits stocké haché), acceptation par RPC, révocation et gestion des rôles/membres. Les accès viewer sont en lecture seule dans l'UI ; RLS reste l'autorité serveur. La synchronisation actualise aussi le rôle depuis le serveur. Validation réelle à deux comptes : le propriétaire a invité le deuxième compte, qui a accepté l'invitation comme membre ; une dépense saisie en ligne a été vue par le propriétaire ; une seconde dépense de 3 MGA saisie hors-ligne a été enregistrée localement, mise en attente, puis synchronisée et visible côté propriétaire après le retour en ligne. Les tests automatisés (35), le lint, TypeScript, le formatage et le build passent. Trois dépenses de test (1, 2 et 3 MGA) restent dans l'espace `TEST M8 - cashFlow+`.
 
 ## Ce qui n'est PAS encore fait
 

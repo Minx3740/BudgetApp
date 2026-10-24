@@ -529,6 +529,9 @@ async function runSync(
       }
     })
   }
+  await database.memberships.bulkPut(
+    memberships.filter((membership) => membership.user_id === userId),
+  )
 
   const pushed = await pushPendingOperations(
     userId,

@@ -56,6 +56,11 @@ transactions et les catégories les plus consommées. La section Budgets permet 
 modifier des plafonds mensuels par catégorie ; dépenses et progression sont calculées à partir
 des données locales et restent consultables hors-ligne.
 
+La section Espaces permet de créer un espace partagé, d'en sélectionner un, de gérer les membres
+et leurs rôles, et de créer ou révoquer des invitations. Les liens sont à usage unique et valables
+sept jours par défaut ; seul leur condensat est enregistré. L'acceptation nécessite Internet.
+Les viewers ont une interface en lecture seule et les permissions restent imposées par la RLS.
+
 Pour vérifier l'installation, lance `npm run build`, puis `npm run preview` et ouvre
 l'URL locale dans Chrome. Utilise le menu du navigateur **Installer cashFlow+**. Le
 service worker de production est activé dans le build ; en développement, il est
@@ -90,6 +95,8 @@ et empêche la résurrection d'une ligne supprimée.
 comptes (espèces, mobile money, banque) et des catégories de revenus et dépenses.
 L'authentification utilise exclusivement l'adresse e-mail et le mot de passe.
 L'écran de connexion permet aussi de demander un lien de réinitialisation du mot
-de passe. Dans Supabase, ajoute `http://localhost:5173/**` aux Redirect URLs
+de passe et de renvoyer un e-mail de confirmation si le lien a expiré.
+L'inscription redirige vers l'origine courante de l'application après confirmation.
+Dans Supabase, ajoute `http://localhost:5173/**` aux Redirect URLs
 (Authentication → URL Configuration) pour autoriser le retour vers l'application
 en développement ; ajoute également l'URL de production lors du déploiement.

@@ -16,10 +16,22 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BudgetDashboard } from './components/budget/budget-dashboard'
 import { LocalDataView } from './components/budget/local-data-view'
+import {
+  InvitationAcceptance,
+  WorkspaceManagement,
+} from './components/workspaces/workspace-management'
 import { bootstrapFromSupabase } from './data/bootstrap'
 import { calculateWorkspaceBalance } from './data/calculations'
 import { clearLocalData, db } from './data/database'
-import { useAccounts, useSyncSummary, useTransactions, useWorkspaces } from './data/hooks'
+import {
+  useAccounts,
+  useInvitations,
+  useMemberships,
+  useProfiles,
+  useSyncSummary,
+  useTransactions,
+  useWorkspaces,
+} from './data/hooks'
 import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync'
 import { supabase } from './lib/supabase'
 
@@ -75,6 +87,20 @@ function authErrorMessage(message: string) {
   return `Impossible de terminer l’opération : ${message}`
 }
 
+function getAuthLinkError(): string | null {
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  const errorCode = hash.get('error_code')
+  const description = hash.get('error_description')?.toLowerCase() ?? ''
+
+  if (errorCode === 'otp_expired' || description.includes('expired')) {
+    return 'Ce lien de confirmation a expiré ou a déjà été utilisé. Demande un nouvel e-mail de confirmation.'
+  }
+  if (hash.has('error')) {
+    return 'Ce lien de confirmation n’est plus valide. Demande un nouvel e-mail de confirmation.'
+  }
+  return null
+}
+
 function formatMoney(amount: number, currency: string): string {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
@@ -86,18 +112,21 @@ function formatMoney(amount: number, currency: string): string {
 function AuthForm({
   client,
   initialMode = 'sign-in',
+  initialError,
   onRecoveryComplete,
 }: {
   client: SupabaseClient
   initialMode?: AuthMode
+  initialError?: string | null
   onRecoveryComplete?: () => void
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialError ?? null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [canResendConfirmation, setCanResendConfirmation] = useState(Boolean(initialError))
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -132,13 +161,17 @@ function AuthForm({
         const { data, error: signUpError } = await client.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { display_name: displayName.trim() } },
+          options: {
+            data: { display_name: displayName.trim() },
+            emailRedirectTo: window.location.origin,
+          },
         })
 
         if (signUpError) {
           setError(authErrorMessage(signUpError.message))
         } else if (!data.session) {
           setNotice('Vérifie ta boîte mail pour confirmer ton adresse et terminer l’inscription.')
+          setCanResendConfirmation(true)
         }
       } else {
         const { error: signInError } = await client.auth.signInWithPassword({
@@ -148,7 +181,41 @@ function AuthForm({
 
         if (signInError) {
           setError(authErrorMessage(signInError.message))
+          setCanResendConfirmation(
+            signInError.message.toLowerCase().includes('email not confirmed'),
+          )
         }
+      }
+    } catch {
+      setError('La connexion au service est impossible. Vérifie ton réseau puis réessaie.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function resendConfirmation() {
+    if (!email.trim()) {
+      setError('Saisis l’adresse e-mail du compte à confirmer.')
+      return
+    }
+
+    setError(null)
+    setNotice(null)
+    setIsSubmitting(true)
+
+    try {
+      const { error: resendError } = await client.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: { emailRedirectTo: window.location.origin },
+      })
+
+      if (resendError) {
+        setError(authErrorMessage(resendError.message))
+      } else {
+        setNotice(
+          'Un nouvel e-mail de confirmation a été demandé pour l’adresse saisie. Vérifie aussi les courriers indésirables.',
+        )
       }
     } catch {
       setError('La connexion au service est impossible. Vérifie ton réseau puis réessaie.')
@@ -243,6 +310,16 @@ function AuthForm({
               {error}
             </p>
           )}
+          {canResendConfirmation && (
+            <button
+              className="min-h-12 w-full rounded-xl border border-stone-300 px-4 font-semibold text-emerald-800 transition hover:bg-stone-50 disabled:cursor-wait disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={() => void resendConfirmation()}
+              type="button"
+            >
+              {isSubmitting ? 'Patiente…' : 'Renvoyer l’e-mail de confirmation'}
+            </button>
+          )}
           {notice && (
             <>
               <p
@@ -322,6 +399,9 @@ function AuthForm({
 
 function SignedInView({ client, session }: { client: SupabaseClient; session: Session }) {
   const [activeSection, setActiveSection] = useState<AppSection>('home')
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
+    () => window.localStorage.getItem(`cashFlow.activeWorkspace.${session.user.id}`) ?? '',
+  )
   const [error, setError] = useState<string | null>(null)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
   const [bootstrapResult, setBootstrapResult] = useState<{
@@ -337,10 +417,19 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const bootstrapAbortController = useRef<AbortController | null>(null)
   const syncAbortController = useRef<AbortController | null>(null)
   const workspaces = useWorkspaces()
+  const availableWorkspaces = workspaces.filter((workspace) => workspace.deleted_at === null)
   const activeWorkspace =
-    workspaces.find(
-      (workspace) => workspace.type === 'personal' && workspace.deleted_at === null,
-    ) ?? workspaces.find((workspace) => workspace.deleted_at === null)
+    availableWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
+    availableWorkspaces.find((workspace) => workspace.type === 'personal') ??
+    availableWorkspaces[0]
+  const memberships = useMemberships(activeWorkspace?.id)
+  const profiles = useProfiles()
+  const invitations = useInvitations(activeWorkspace?.id)
+  const activeMembership = memberships.find((membership) => membership.user_id === session.user.id)
+  const canEditWorkspace =
+    activeWorkspace?.type === 'personal' ||
+    activeMembership?.role === 'owner' ||
+    activeMembership?.role === 'member'
   const accounts = useAccounts(activeWorkspace?.id)
   const transactions = useTransactions(activeWorkspace?.id)
   const syncSummary = useSyncSummary()
@@ -363,6 +452,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const isBootstrapping = bootstrapResult?.key !== bootstrapKey
   const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
   const visibleSyncError = syncError ?? syncSummary.lastError
+  const invitationToken = new URLSearchParams(window.location.hash.slice(1)).get('invite')
 
   useEffect(() => {
     function updateNetworkStatus() {
@@ -548,8 +638,43 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
   const activeDetails = sectionDetails[activeSection === 'home' ? 'transactions' : activeSection]
   const addTransaction = () => {
+    if (!canEditWorkspace) return
     setActiveSection('transactions')
     setIsQuickEntryOpen(true)
+  }
+
+  function selectWorkspace(workspaceId: string) {
+    setSelectedWorkspaceId(workspaceId)
+    setIsQuickEntryOpen(false)
+    window.localStorage.setItem(`cashFlow.activeWorkspace.${session.user.id}`, workspaceId)
+  }
+
+  function clearInvitationToken() {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  }
+
+  function cancelInvitation() {
+    clearInvitationToken()
+    setActiveSection('home')
+  }
+
+  function handleInvitationAccepted(workspaceId: string) {
+    clearInvitationToken()
+    selectWorkspace(workspaceId)
+    setActiveSection('home')
+    setBootstrapAttempt((attempt) => attempt + 1)
+  }
+
+  if (invitationToken !== null) {
+    return (
+      <InvitationAcceptance
+        client={client}
+        isOnline={isOnline}
+        onAccepted={handleInvitationAccepted}
+        onCancel={cancelInvitation}
+        token={invitationToken}
+      />
+    )
   }
 
   function renderNavigationItem(item: (typeof navigation)[number]) {
@@ -584,7 +709,18 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
         <div className="mb-7 rounded-2xl border border-stone-200 bg-stone-50 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Espace actif</p>
-          <p className="mt-1 font-semibold">{activeWorkspace?.name ?? 'Perso'}</p>
+          <select
+            aria-label="Choisir l’espace actif"
+            className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-2 font-semibold"
+            onChange={(event) => selectWorkspace(event.target.value)}
+            value={activeWorkspace?.id ?? ''}
+          >
+            {availableWorkspaces.map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>
+                {workspace.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <nav aria-label="Navigation principale" className="grid gap-1">
@@ -612,10 +748,25 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
             <span className="font-bold">cashFlow+</span>
           </div>
           <div className="hidden md:block">
-            <p className="text-sm text-stone-500">Ton espace personnel</p>
+            <p className="text-sm text-stone-500">Espace actif</p>
             <p className="font-semibold">{activeWorkspace?.name ?? 'Perso'}</p>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-4">
+            <label className="sr-only" htmlFor="active-workspace">
+              Espace actif
+            </label>
+            <select
+              className="min-h-10 max-w-32 rounded-lg border border-stone-300 bg-white px-2 text-xs font-medium sm:max-w-48 sm:text-sm"
+              id="active-workspace"
+              onChange={(event) => selectWorkspace(event.target.value)}
+              value={activeWorkspace?.id ?? ''}
+            >
+              {availableWorkspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${
                 isOnline ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
@@ -726,7 +877,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           {activeSection === 'home' ? (
             <>
               <div className="mb-8">
-                <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
+                <p className="mb-2 text-sm font-medium text-emerald-800">
+                  {activeWorkspace?.type === 'shared' ? 'Espace partagé' : 'Espace personnel'}
+                </p>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
                   Bonjour, {displayName}
                 </h1>
@@ -791,7 +944,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               </section>
 
               <BudgetDashboard
+                canEdit={canEditWorkspace}
                 currency={currency}
+                key={activeWorkspace?.id}
                 mode="home"
                 onOpenBudgets={() => setActiveSection('budgets')}
                 workspaceId={activeWorkspace?.id}
@@ -800,14 +955,22 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               <Card className="mt-4 rounded-2xl border-0 bg-emerald-900 text-white shadow-sm">
                 <CardContent className="flex flex-col gap-5 py-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold">Prêt à suivre tes dépenses ?</h2>
+                    <h2 className="text-lg font-semibold">
+                      {canEditWorkspace
+                        ? 'Prêt à suivre tes dépenses ?'
+                        : 'Espace consultable en lecture seule'}
+                    </h2>
                     <p className="mt-1 text-sm text-emerald-100">
-                      Ajoute une dépense ou un revenu en quelques secondes, même hors-ligne.
+                      {canEditWorkspace
+                        ? 'Ajoute une dépense ou un revenu en quelques secondes, même hors-ligne.'
+                        : 'Tu peux consulter les comptes et transactions de cet espace.'}
                     </p>
                   </div>
                   <Button
                     className="min-h-12 shrink-0 rounded-xl bg-white px-5 text-emerald-950 hover:bg-emerald-50"
+                    disabled={!canEditWorkspace}
                     onClick={addTransaction}
+                    title={!canEditWorkspace ? 'Accès en lecture seule' : undefined}
                     variant="secondary"
                   >
                     <CirclePlus aria-hidden="true" size={18} />
@@ -818,14 +981,39 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
             </>
           ) : activeSection === 'transactions' ? (
             <LocalDataView
+              canEdit={canEditWorkspace}
               currency={currency}
+              isSharedWorkspace={activeWorkspace?.type === 'shared'}
               isQuickEntryOpen={isQuickEntryOpen}
+              key={activeWorkspace?.id}
               onQuickEntryOpenChange={setIsQuickEntryOpen}
+              profiles={profiles}
               userId={session.user.id}
               workspaceId={activeWorkspace?.id}
             />
           ) : activeSection === 'budgets' ? (
-            <BudgetDashboard currency={currency} mode="manage" workspaceId={activeWorkspace?.id} />
+            <BudgetDashboard
+              canEdit={canEditWorkspace}
+              currency={currency}
+              key={activeWorkspace?.id}
+              mode="manage"
+              workspaceId={activeWorkspace?.id}
+            />
+          ) : activeSection === 'spaces' ? (
+            <WorkspaceManagement
+              client={client}
+              invitations={invitations}
+              isOnline={isOnline}
+              key={activeWorkspace?.id}
+              memberships={memberships}
+              onRefresh={(workspaceId) => {
+                if (workspaceId) selectWorkspace(workspaceId)
+                setBootstrapAttempt((attempt) => attempt + 1)
+              }}
+              profiles={profiles}
+              userId={session.user.id}
+              workspace={activeWorkspace}
+            />
           ) : (
             <section aria-labelledby="section-title" className="max-w-3xl">
               <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
@@ -868,7 +1056,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
         <button
           aria-label="Ajouter une transaction"
           className="mx-auto my-1 flex size-12 items-center justify-center self-center rounded-2xl bg-emerald-800 text-white shadow-md transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
+          disabled={!canEditWorkspace}
           onClick={addTransaction}
+          title={!canEditWorkspace ? 'Accès en lecture seule' : undefined}
           type="button"
         >
           <CirclePlus aria-hidden="true" size={23} />
@@ -898,6 +1088,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
+  const [authLinkError] = useState(getAuthLinkError)
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [sessionError, setSessionError] = useState<string | null>(null)
@@ -930,6 +1121,9 @@ export default function App() {
           setSession(data.session)
           setSessionError(error ? authErrorMessage(error.message) : null)
           setIsLoading(false)
+          if (authLinkError && window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          }
         }
       })
       .catch(() => {
@@ -943,7 +1137,7 @@ export default function App() {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [authLinkError])
 
   if (!supabase) {
     return (
@@ -993,6 +1187,6 @@ export default function App() {
   return session ? (
     <SignedInView client={supabase} session={session} />
   ) : (
-    <AuthForm client={supabase} />
+    <AuthForm client={supabase} initialError={authLinkError} />
   )
 }

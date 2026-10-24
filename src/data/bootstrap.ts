@@ -107,16 +107,27 @@ export function createSupabaseSnapshotSource(
       const workspaceIds = [
         ...new Set(parsedOwnMemberships.map((membership) => membership.workspace_id)),
       ]
+      const membershipRows =
+        workspaceIds.length === 0
+          ? ownMemberships
+          : await fetchAllPages((from, to) =>
+              client
+                .from('memberships')
+                .select('*')
+                .in('workspace_id', workspaceIds)
+                .order('workspace_id')
+                .order('user_id')
+                .abortSignal(signal)
+                .range(from, to),
+            )
+      const parsedMemberships = parseRows('memberships', membershipSchema, membershipRows)
 
       const profilesQuery = (from: number, to: number) => {
         const query = client.from('profiles').select('*')
         return (
           workspaceIds.length > 0
             ? query.in('id', [
-                ...new Set([
-                  userId,
-                  ...parsedOwnMemberships.map((membership) => membership.user_id),
-                ]),
+                ...new Set([userId, ...parsedMemberships.map((membership) => membership.user_id)]),
               ])
             : query.eq('id', userId)
         )
@@ -130,7 +141,7 @@ export function createSupabaseSnapshotSource(
         return {
           profiles: profileRows,
           workspaces: [],
-          memberships: parsedOwnMemberships,
+          memberships: parsedMemberships,
           invitations: [],
           accounts: [],
           categories: [],
@@ -139,7 +150,7 @@ export function createSupabaseSnapshotSource(
         }
       }
 
-      const [workspaces, memberships, invitations, accounts, categories, transactions, budgets] =
+      const [workspaces, invitations, accounts, categories, transactions, budgets] =
         await Promise.all([
           fetchAllPages((from, to) =>
             client
@@ -147,16 +158,6 @@ export function createSupabaseSnapshotSource(
               .select('*')
               .in('id', workspaceIds)
               .order('id')
-              .abortSignal(signal)
-              .range(from, to),
-          ),
-          fetchAllPages((from, to) =>
-            client
-              .from('memberships')
-              .select('*')
-              .in('workspace_id', workspaceIds)
-              .order('workspace_id')
-              .order('user_id')
               .abortSignal(signal)
               .range(from, to),
           ),
@@ -209,7 +210,7 @@ export function createSupabaseSnapshotSource(
       return {
         profiles: profileRows,
         workspaces,
-        memberships,
+        memberships: membershipRows,
         invitations,
         accounts,
         categories,

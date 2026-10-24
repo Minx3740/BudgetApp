@@ -8,6 +8,7 @@ import {
   transactionsRepository,
 } from '@/data/repositories'
 import type { Category, Transaction } from '@/data/models'
+import type { Profile } from '@/data/models'
 import { db } from '@/data/database'
 import { useAccounts, useCategories, useTransactions } from '@/data/hooks'
 import { calculateAccountBalance } from '@/data/calculations'
@@ -19,6 +20,9 @@ interface LocalDataViewProps {
   workspaceId: string | undefined
   userId: string
   currency: string
+  canEdit: boolean
+  isSharedWorkspace: boolean
+  profiles: Profile[]
   isQuickEntryOpen: boolean
   onQuickEntryOpenChange: (isOpen: boolean) => void
 }
@@ -95,6 +99,9 @@ export function LocalDataView({
   workspaceId,
   userId,
   currency,
+  canEdit,
+  isSharedWorkspace,
+  profiles,
   isQuickEntryOpen,
   onQuickEntryOpenChange,
 }: LocalDataViewProps) {
@@ -115,12 +122,14 @@ export function LocalDataView({
     const dialog = dialogRef.current
     if (!dialog) return
 
-    if (isQuickEntryOpen && !dialog.open) {
+    if (!canEdit && dialog.open) {
+      dialog.close()
+    } else if (canEdit && isQuickEntryOpen && !dialog.open) {
       dialog.showModal()
-    } else if (!isQuickEntryOpen && dialog.open) {
+    } else if ((!canEdit || !isQuickEntryOpen) && dialog.open) {
       dialog.close()
     }
-  }, [isQuickEntryOpen])
+  }, [canEdit, isQuickEntryOpen, onQuickEntryOpenChange])
 
   const activeAccounts = accounts.filter((account) => account.archived_at === null)
   const expenseCategories = categories.filter(
@@ -178,6 +187,7 @@ export function LocalDataView({
   )
 
   function openNewTransaction() {
+    if (!canEdit) return
     setError(null)
     setTransactionError(null)
     setNotice(null)
@@ -193,7 +203,7 @@ export function LocalDataView({
 
   async function saveAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!workspaceId || !accountDraft) return
+    if (!canEdit || !workspaceId || !accountDraft) return
     setError(null)
     setNotice(null)
 
@@ -224,7 +234,7 @@ export function LocalDataView({
   }
 
   async function toggleAccountArchive(accountId: string, archivedAt: string | null) {
-    if (!workspaceId) return
+    if (!canEdit || !workspaceId) return
     setError(null)
     setNotice(null)
     try {
@@ -239,7 +249,7 @@ export function LocalDataView({
 
   async function saveCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!workspaceId || !categoryDraft) return
+    if (!canEdit || !workspaceId || !categoryDraft) return
     setError(null)
     setNotice(null)
 
@@ -282,7 +292,7 @@ export function LocalDataView({
   }
 
   async function toggleCategoryArchive(categoryId: string, archivedAt: string | null) {
-    if (!workspaceId) return
+    if (!canEdit || !workspaceId) return
     setError(null)
     setNotice(null)
     try {
@@ -296,6 +306,7 @@ export function LocalDataView({
   }
 
   function editTransaction(transaction: Transaction) {
+    if (!canEdit) return
     setError(null)
     setTransactionError(null)
     setNotice(null)
@@ -315,6 +326,10 @@ export function LocalDataView({
   async function saveTransaction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setTransactionError(null)
+    if (!canEdit) {
+      setTransactionError('Tu as un accès en lecture seule à cet espace.')
+      return
+    }
     if (!workspaceId) {
       setTransactionError('Aucun espace local n’est disponible. Recharge les données en ligne.')
       return
@@ -372,7 +387,7 @@ export function LocalDataView({
   }
 
   async function deleteTransaction(transaction: Transaction) {
-    if (!workspaceId || !window.confirm('Supprimer cette transaction ?')) return
+    if (!canEdit || !workspaceId || !window.confirm('Supprimer cette transaction ?')) return
     setError(null)
     setNotice(null)
     try {
@@ -385,13 +400,20 @@ export function LocalDataView({
 
   return (
     <section aria-labelledby="section-title" className="max-w-3xl">
-      <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
+      <p className="mb-2 text-sm font-medium text-emerald-800">Données de l’espace actif</p>
       <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
         Transactions, comptes et catégories
       </h1>
       <p className="mt-3 leading-7 text-stone-600">
-        Tes changements sont enregistrés sur cet appareil, même sans connexion.
+        {canEdit
+          ? 'Tes changements sont enregistrés sur cet appareil, même sans connexion.'
+          : 'Les données de cet espace sont disponibles sur cet appareil.'}
       </p>
+      {!canEdit && (
+        <p className="mt-4 rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-700">
+          Accès en lecture seule : tu peux consulter les données, mais pas les modifier.
+        </p>
+      )}
 
       {error && (
         <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
@@ -449,13 +471,15 @@ export function LocalDataView({
                 <CardTitle>Historique</CardTitle>
                 <CardDescription>Les dernières transactions de ton espace.</CardDescription>
               </div>
-              <Button
-                className="min-h-12 shrink-0 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900"
-                onClick={openNewTransaction}
-              >
-                <CirclePlus aria-hidden="true" size={18} />
-                Ajouter
-              </Button>
+              {canEdit && (
+                <Button
+                  className="min-h-12 shrink-0 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900"
+                  onClick={openNewTransaction}
+                >
+                  <CirclePlus aria-hidden="true" size={18} />
+                  Ajouter
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {orderedTransactions.length === 0 ? (
@@ -484,6 +508,11 @@ export function LocalDataView({
                           )}
                           {account ? ` · ${account.name}` : ''}
                           {transaction.note ? ` · ${transaction.note}` : ''}
+                          {isSharedWorkspace &&
+                            ` · par ${
+                              profiles.find((profile) => profile.id === transaction.created_by)
+                                ?.display_name || transaction.created_by
+                            }`}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
@@ -491,24 +520,28 @@ export function LocalDataView({
                           {amountPrefix}
                           {formatMoney(transaction.amount, currency)}
                         </span>
-                        <Button
-                          aria-label={`Modifier ${transactionLabel(transaction.kind).toLowerCase()}`}
-                          className="min-h-12 min-w-12"
-                          onClick={() => editTransaction(transaction)}
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <Pencil aria-hidden="true" size={17} />
-                        </Button>
-                        <Button
-                          aria-label={`Supprimer ${transactionLabel(transaction.kind).toLowerCase()}`}
-                          className="min-h-12 min-w-12 text-red-700 hover:text-red-800"
-                          onClick={() => void deleteTransaction(transaction)}
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <Trash2 aria-hidden="true" size={17} />
-                        </Button>
+                        {canEdit && (
+                          <>
+                            <Button
+                              aria-label={`Modifier ${transactionLabel(transaction.kind).toLowerCase()}`}
+                              className="min-h-12 min-w-12"
+                              onClick={() => editTransaction(transaction)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <Pencil aria-hidden="true" size={17} />
+                            </Button>
+                            <Button
+                              aria-label={`Supprimer ${transactionLabel(transaction.kind).toLowerCase()}`}
+                              className="min-h-12 min-w-12 text-red-700 hover:text-red-800"
+                              onClick={() => void deleteTransaction(transaction)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <Trash2 aria-hidden="true" size={17} />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </article>
                   )
@@ -529,16 +562,18 @@ export function LocalDataView({
                   Le solde est calculé à partir du solde initial et des transactions.
                 </CardDescription>
               </div>
-              <Button
-                className="min-h-12 shrink-0"
-                onClick={() =>
-                  setAccountDraft({ id: null, name: '', type: 'cash', initialBalance: '0' })
-                }
-                variant="outline"
-              >
-                <CirclePlus aria-hidden="true" size={18} />
-                Ajouter
-              </Button>
+              {canEdit && (
+                <Button
+                  className="min-h-12 shrink-0"
+                  onClick={() =>
+                    setAccountDraft({ id: null, name: '', type: 'cash', initialBalance: '0' })
+                  }
+                  variant="outline"
+                >
+                  <CirclePlus aria-hidden="true" size={18} />
+                  Ajouter
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {accounts.length === 0 && (
@@ -562,43 +597,45 @@ export function LocalDataView({
                       {formatMoney(calculateAccountBalance(account, transactions), currency)}
                     </p>
                   </div>
-                  <div className="flex shrink-0">
-                    <Button
-                      aria-label={`Modifier ${account.name}`}
-                      className="min-h-12 min-w-12"
-                      onClick={() =>
-                        setAccountDraft({
-                          id: account.id,
-                          name: account.name,
-                          type: account.type,
-                          initialBalance: String(account.initial_balance),
-                        })
-                      }
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <Pencil aria-hidden="true" size={17} />
-                    </Button>
-                    <Button
-                      aria-label={`${account.archived_at ? 'Restaurer' : 'Archiver'} ${account.name}`}
-                      className="min-h-12 min-w-12"
-                      onClick={() => void toggleAccountArchive(account.id, account.archived_at)}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      {account.archived_at ? (
-                        <RotateCcw aria-hidden="true" size={17} />
-                      ) : (
-                        <Archive aria-hidden="true" size={17} />
-                      )}
-                    </Button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex shrink-0">
+                      <Button
+                        aria-label={`Modifier ${account.name}`}
+                        className="min-h-12 min-w-12"
+                        onClick={() =>
+                          setAccountDraft({
+                            id: account.id,
+                            name: account.name,
+                            type: account.type,
+                            initialBalance: String(account.initial_balance),
+                          })
+                        }
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <Pencil aria-hidden="true" size={17} />
+                      </Button>
+                      <Button
+                        aria-label={`${account.archived_at ? 'Restaurer' : 'Archiver'} ${account.name}`}
+                        className="min-h-12 min-w-12"
+                        onClick={() => void toggleAccountArchive(account.id, account.archived_at)}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        {account.archived_at ? (
+                          <RotateCcw aria-hidden="true" size={17} />
+                        ) : (
+                          <Archive aria-hidden="true" size={17} />
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </article>
               ))}
             </CardContent>
           </Card>
 
-          {accountDraft && (
+          {canEdit && accountDraft && (
             <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
               <CardHeader>
                 <CardTitle>{accountDraft.id ? 'Modifier le compte' : 'Nouveau compte'}</CardTitle>
@@ -675,22 +712,24 @@ export function LocalDataView({
                 <CardTitle>Catégories</CardTitle>
                 <CardDescription>Organise tes dépenses et tes revenus.</CardDescription>
               </div>
-              <Button
-                className="min-h-12 shrink-0"
-                onClick={() =>
-                  setCategoryDraft({
-                    id: null,
-                    name: '',
-                    kind: 'expense',
-                    icon: 'tag',
-                    color: '#3d8b8b',
-                  })
-                }
-                variant="outline"
-              >
-                <CirclePlus aria-hidden="true" size={18} />
-                Ajouter
-              </Button>
+              {canEdit && (
+                <Button
+                  className="min-h-12 shrink-0"
+                  onClick={() =>
+                    setCategoryDraft({
+                      id: null,
+                      name: '',
+                      kind: 'expense',
+                      icon: 'tag',
+                      color: '#3d8b8b',
+                    })
+                  }
+                  variant="outline"
+                >
+                  <CirclePlus aria-hidden="true" size={18} />
+                  Ajouter
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {categories.length === 0 && (
@@ -722,44 +761,48 @@ export function LocalDataView({
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0">
-                    <Button
-                      aria-label={`Modifier ${category.name}`}
-                      className="min-h-12 min-w-12"
-                      onClick={() =>
-                        setCategoryDraft({
-                          id: category.id,
-                          name: category.name,
-                          kind: category.kind,
-                          icon: category.icon ?? '',
-                          color: category.color ?? '#3d8b8b',
-                        })
-                      }
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <Pencil aria-hidden="true" size={17} />
-                    </Button>
-                    <Button
-                      aria-label={`${category.archived_at ? 'Restaurer' : 'Archiver'} ${category.name}`}
-                      className="min-h-12 min-w-12"
-                      onClick={() => void toggleCategoryArchive(category.id, category.archived_at)}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      {category.archived_at ? (
-                        <RotateCcw aria-hidden="true" size={17} />
-                      ) : (
-                        <Archive aria-hidden="true" size={17} />
-                      )}
-                    </Button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex shrink-0">
+                      <Button
+                        aria-label={`Modifier ${category.name}`}
+                        className="min-h-12 min-w-12"
+                        onClick={() =>
+                          setCategoryDraft({
+                            id: category.id,
+                            name: category.name,
+                            kind: category.kind,
+                            icon: category.icon ?? '',
+                            color: category.color ?? '#3d8b8b',
+                          })
+                        }
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <Pencil aria-hidden="true" size={17} />
+                      </Button>
+                      <Button
+                        aria-label={`${category.archived_at ? 'Restaurer' : 'Archiver'} ${category.name}`}
+                        className="min-h-12 min-w-12"
+                        onClick={() =>
+                          void toggleCategoryArchive(category.id, category.archived_at)
+                        }
+                        size="icon"
+                        variant="ghost"
+                      >
+                        {category.archived_at ? (
+                          <RotateCcw aria-hidden="true" size={17} />
+                        ) : (
+                          <Archive aria-hidden="true" size={17} />
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </article>
               ))}
             </CardContent>
           </Card>
 
-          {categoryDraft && (
+          {canEdit && categoryDraft && (
             <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
               <CardHeader>
                 <CardTitle>

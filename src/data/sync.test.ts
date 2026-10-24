@@ -381,6 +381,16 @@ describe('moteur de synchronisation', () => {
     expect(gateway.pushes).toEqual([])
   })
 
+  it('met à jour le rôle local lors de la synchronisation', async () => {
+    gateway.memberships = [{ ...makeMembership(), role: 'viewer' }]
+
+    await createSyncEngine(userId, gateway, database).synchronize(new AbortController().signal)
+
+    await expect(database.memberships.get([workspaceId, userId])).resolves.toMatchObject({
+      role: 'viewer',
+    })
+  })
+
   it('bloque la file après une erreur permanente et permet une reprise explicite', async () => {
     const repository = createRepository('accounts', database.accounts, database)
     await repository.create({

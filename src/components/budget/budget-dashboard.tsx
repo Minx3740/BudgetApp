@@ -12,6 +12,7 @@ type BudgetDashboardMode = 'home' | 'manage'
 interface BudgetDashboardProps {
   workspaceId: string | undefined
   currency: string
+  canEdit: boolean
   mode: BudgetDashboardMode
   onOpenBudgets?: () => void
 }
@@ -62,6 +63,7 @@ function defaultCategoryId(categoryIds: string[], budgets: Budget[], month: stri
 export function BudgetDashboard({
   workspaceId,
   currency,
+  canEdit,
   mode,
   onOpenBudgets,
 }: BudgetDashboardProps) {
@@ -132,6 +134,10 @@ export function BudgetDashboard({
     setFormError(null)
     setNotice(null)
 
+    if (!canEdit) {
+      setFormError('Tu as un accès en lecture seule à cet espace.')
+      return
+    }
     if (!workspaceId) {
       setFormError('Aucun espace local n’est disponible.')
       return
@@ -217,7 +223,7 @@ export function BudgetDashboard({
               {item.budgetAmount !== null && ` sur ${formatMoney(item.budgetAmount, currency)}`}
             </p>
           </div>
-          {item.budgetAmount !== null && (
+          {canEdit && item.budgetAmount !== null && (
             <Button
               aria-label={`Modifier le plafond ${item.categoryName}`}
               className="min-h-11"
@@ -367,14 +373,16 @@ export function BudgetDashboard({
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Plafonds par catégorie</h2>
-        <Button
-          className="min-h-12"
-          disabled={availableCategoryIds.length === 0}
-          onClick={startNewBudget}
-        >
-          <Plus aria-hidden="true" size={18} />
-          Ajouter un plafond
-        </Button>
+        {canEdit && (
+          <Button
+            className="min-h-12"
+            disabled={availableCategoryIds.length === 0}
+            onClick={startNewBudget}
+          >
+            <Plus aria-hidden="true" size={18} />
+            Ajouter un plafond
+          </Button>
+        )}
       </div>
 
       {notice && (
@@ -386,7 +394,7 @@ export function BudgetDashboard({
         </p>
       )}
 
-      {isEditing && (
+      {isEditing && canEdit && (
         <Card className="mt-4 rounded-2xl border-0 shadow-sm ring-stone-200">
           <CardHeader>
             <CardTitle>{editingBudgetId ? 'Modifier un plafond' : 'Nouveau plafond'}</CardTitle>
