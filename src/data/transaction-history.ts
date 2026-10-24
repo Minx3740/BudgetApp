@@ -48,11 +48,13 @@ export function filterAndSortTransactions(
   filters: TransactionHistoryFilters,
   categoryNames: ReadonlyMap<string, string>,
   memberNames: ReadonlyMap<string, string>,
+  month?: string,
 ): Transaction[] {
   const search = normalizeSearchText(filters.search)
 
   return transactions
     .filter((transaction) => {
+      if (month && !transaction.occurred_on.startsWith(`${month.slice(0, 7)}-`)) return false
       if (filters.startDate && transaction.occurred_on < filters.startDate) return false
       if (filters.endDate && transaction.occurred_on > filters.endDate) return false
       if (filters.categoryId && transaction.category_id !== filters.categoryId) return false

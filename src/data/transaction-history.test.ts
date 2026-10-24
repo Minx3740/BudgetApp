@@ -81,6 +81,25 @@ describe('transaction history', () => {
     ).toEqual([transaction])
   })
 
+  it('limits the transaction history to the selected month before applying filters', () => {
+    const octoberTransaction = createTransaction(1)
+    const novemberTransaction = {
+      ...octoberTransaction,
+      id: '00000000-0000-4000-8000-000000009999',
+      occurred_on: '2026-11-01',
+    }
+
+    expect(
+      filterAndSortTransactions(
+        [octoberTransaction, novemberTransaction],
+        createEmptyTransactionHistoryFilters(),
+        new Map(),
+        new Map(),
+        '2026-10-01',
+      ),
+    ).toEqual([octoberTransaction])
+  })
+
   it('keeps a 5,000-transaction history bounded to 50 visible rows per page', () => {
     const transactions = Array.from({ length: 5000 }, (_, index) => createTransaction(index))
     const filtered = filterAndSortTransactions(

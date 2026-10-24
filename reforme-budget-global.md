@@ -31,7 +31,8 @@ Windows 10, Node v22.14.0, projet dans `C:\Users\Laro\dev\budget-app`. Vite, Rea
 
 Situation actuelle :
 
-- Il n'y a pas de budget global indépendant. Le « budget total » est la somme des plafonds définis par catégorie.
+- L'application ne dispose pas encore d'une enveloppe globale mensuelle indépendante.
+  Le « budget total » actuellement affiché est la somme des plafonds définis par catégorie.
 - Toutes les dépenses du mois sont soustraites de cette somme, y compris celles des catégories sans plafond. Le résultat est déroutant.
 - La carte « Solde total » indique « Argent disponible sur mes comptes » alors que l'application n'a pas de comptes.
 - Les mots « plafond » et « plafonner » sont utilisés dans l'interface.

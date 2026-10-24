@@ -211,6 +211,54 @@ describe('calcul du budget mensuel local', () => {
     })
   })
 
+  it('déduit les remboursements des dépenses nettes et traite un seuil nul', () => {
+    const summary = calculateMonthlyBudgetSummary(
+      month,
+      [budget(foodCategoryId, month, 0)],
+      categories,
+      [
+        transaction(
+          '20000000-0000-4000-8000-000000000021',
+          'expense',
+          2_000,
+          '2026-10-02',
+          foodCategoryId,
+        ),
+        transaction(
+          '20000000-0000-4000-8000-000000000022',
+          'refund',
+          500,
+          '2026-10-03',
+          foodCategoryId,
+        ),
+      ],
+      new Date(2026, 9, 15),
+    )
+
+    expect(summary.totalSpent).toBe(1_500)
+    expect(summary.categories.find((item) => item.categoryId === foodCategoryId)).toMatchObject({
+      spentAmount: 1_500,
+      remainingAmount: -1_500,
+      progressPercentage: 100,
+      isOverBudget: true,
+    })
+
+    const unusedZeroThreshold = calculateMonthlyBudgetSummary(
+      month,
+      [budget(foodCategoryId, month, 0)],
+      categories,
+      [],
+      new Date(2026, 9, 15),
+    )
+    expect(
+      unusedZeroThreshold.categories.find((item) => item.categoryId === foodCategoryId),
+    ).toMatchObject({
+      spentAmount: 0,
+      progressPercentage: 0,
+      isOverBudget: false,
+    })
+  })
+
   it('gère les mois courts, le changement d’année et les mois à venir', () => {
     expect(shiftMonth('2026-01-01', -1)).toBe('2025-12-01')
     expect(shiftMonth('2026-12-01', 1)).toBe('2027-01-01')

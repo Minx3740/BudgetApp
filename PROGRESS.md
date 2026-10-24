@@ -2,20 +2,25 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-24 23:25 (UTC+03:00).
+- Dernière mise à jour : 2026-10-24 23:58 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R1 terminé — arrêter ici et attendre la validation de Laro avant R2.
-- Terminé et vérifié : migration Dexie v2→v4 vide les données/outbox de test, retire les
-  comptes et crée les tables R1. Synchronisation couvre les cinq tables éditables. Écran
-  transactionnel adapté aux dépenses, remboursements, revenus et ajustements. `npm test`
-  (56 tests), lint, typecheck, build et format check réussis.
+- Lot/tâche en cours : R2 — budget global mensuel, solde, report, seuils par catégorie et
+  sélecteur de mois partagé.
+- Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
+  et Budgets affichent budget, dépenses nettes et solde ; les décisions de report sont
+  réservées au propriétaire ; le mois partagé persiste dans `?mois=YYYY-MM` et filtre
+  l’historique. Format `Ar`, états seuil à 80/100 %, et remboursements pris en compte.
+  Validation complète : 58 tests, lint, typecheck, build et format check réussis ;
+  `prettier --check` ciblé et `git diff --check` confirmés le 2026-10-24.
+- Fait mais non vérifié à l’exécution : l’essai visuel mobile/hors ligne. L’outil navigateur
+  n’a pas démarré, car Chromium Playwright manque localement ; aucune installation n’a
+  été lancée. Ce n’est pas un blocage identifié dans le code.
+- Prochaine action exacte : committer les seuls fichiers R2, puis demander à Laro
+  l’essai manuel mobile/hors ligne et sa validation avant d’ouvrir R3.
 - Fait mais non vérifié à l’exécution : migration Supabase/RLS et pgTAP (`de32a7c`).
   Tests SQL indisponibles : `supabase`, `psql`, `postgres`, Docker et Podman absents.
   Aucune migration distante n’a été appliquée. Build réussi avec avertissement Vite sur
   un bundle JavaScript dépassant 500 kB.
-- Prochaine action exacte : demander à Laro s’il valide le passage à R2, en signalant
-  que les tests pgTAP restent à exécuter dans un environnement PostgreSQL local. Ne pas
-  lancer R2 ni pousser avant validation.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
   appliquer de migration au projet Supabase distant.
@@ -26,8 +31,9 @@
   de l’ancienne outbox ; première utilisation réelle : toutes les migrations devront
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
   prioritaire : adaptation minimale en R1, parcours complet en R4.
-- Questions encore ouvertes : tests SQL à exécuter lorsqu’un environnement PostgreSQL
-  local sera disponible ; aucune question métier bloquante pour R1.
+- Questions encore ouvertes : essai manuel mobile/hors ligne puis en ligne à faire sur le
+  téléphone de Laro ; tests pgTAP R1 à exécuter lorsqu’un environnement PostgreSQL local
+  sera disponible. Aucune question métier R2 ouverte.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration Supabase distante ne doit jamais être exécutée sans accord explicite ;
   workflow Cloudflare `deploy-pages.yml` doit se déclencher uniquement sur `main` ;
@@ -35,10 +41,11 @@
 
 ## État actuel
 
-- Jalon en cours : M9 (historique, finitions et robustesse)
-- Dernier jalon validé : M8 (2026-10-24)
-- Prochaine action : poursuivre M9 ; le test de conflit réel M6 entre appareils reste également à faire.
-- Réforme budget : R0 validé ; R1 en cours selon la décision destructive autorisée le 2026-10-24.
+- Jalon historique en cours : M9 (historique, finitions et robustesse).
+- Dernier jalon historique validé : M8 (2026-10-24).
+- Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
+  appareils reste également à faire.
+- Réforme budget : R0 et R1 terminés ; R2 approuvé et en cours.
 
 ## Jalons
 
@@ -62,15 +69,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                                                 | Date       |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                      | 2026-10-24 |
-| R1  | Implémentation et validations disponibles terminées ; pgTAP non exécuté faute d’outils locaux ; attente de validation de Laro avant R2 | 2026-10-24 |
-| R2  | À faire — budget, solde, seuils et écrans                                                                                              |            |
-| R3  | À faire — navigation, profil et réglages                                                                                               |            |
-| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                     |            |
-| R5  | À faire — forfaits                                                                                                                     |            |
-| R6  | À faire — analyses                                                                                                                     |            |
+| Lot | Statut                                                                                                                  | Date       |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                       | 2026-10-24 |
+| R1  | Implémentation terminée ; validations disponibles réussies ; pgTAP non exécuté faute d’outils locaux ; Laro a validé R2 | 2026-10-24 |
+| R2  | Implémentation et validations automatisées terminées ; essai mobile/hors ligne et validation de Laro attendus avant R3  | 2026-10-24 |
+| R3  | À faire — navigation, profil et réglages                                                                                |            |
+| R4  | À faire — transactions, remboursements, ajustements et responsable                                                      |            |
+| R5  | À faire — forfaits                                                                                                      |            |
+| R6  | À faire — analyses                                                                                                      |            |
 
 ### État des lieux vérifié pour R0
 
@@ -88,19 +95,30 @@ le suivant.
   les soldes, archiver les transferts, créer des reports historiques ni migrer l’ancienne
   outbox. Après la première utilisation réelle avec données à garder, toute migration
   devra être conservatrice.
+- Décision confirmée par Laro : budget global mensuel manuel et unique par espace/mois,
+  sans catégorie ; les seuils par catégorie sont indépendants.
 
 ### Tâches R1
 
 | Tâche                               | État                                                 | Détail                                                                                                            |
 | ----------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Contrats TypeScript/Zod             | Terminée, commitée ; revalidation R1 finale requise  | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                                |
-| Calculs purs et tests unitaires     | Terminée, commitée ; revalidation R1 finale requise  | Dépenses nettes, budget, reports et limites ; anciens calculs par comptes retirés                                 |
+| Contrats TypeScript/Zod             | Terminée, commitée et vérifiée                       | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                                |
+| Calculs purs et tests unitaires     | Terminée, commitée et vérifiée                       | Dépenses nettes, budget, reports et limites ; anciens calculs par comptes retirés                                 |
 | Migration Supabase et tests RLS     | Code simplifié et commité ; non validé à l’exécution | `de32a7c`; pgTAP réécrit ; outil PostgreSQL local absent, aucun accès distant autorisé                            |
 | Schéma local Dexie et remise à zéro | Terminée, commitée                                   | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis         |
 | Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis            | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                           |
 | Synchronisation                     | Terminée, commitée ; 14 tests ciblés réussis         | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report                 |
 | Écran transactions minimum          | Terminée, commitée (`823b636`)                       | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
 | Validation R1                       | Réussie sauf SQL non exécuté                         | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP bloqué par l’absence d’outils locaux          |
+
+### Tâches R2
+
+| Tâche                                  | État                              | Détail                                                                                                                         |
+| -------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Aligner la réforme et partager le mois | Terminée                          | Contradiction corrigée ; état partagé, URL `?mois=YYYY-MM`, filtrage de l’historique et date d’ajout liés au mois sélectionné. |
+| Enveloppe globale et seuils            | Terminée                          | Enveloppe manuelle distincte, reprise explicite du montant précédent, seuils indépendants et états à 80/100 %.                 |
+| Solde et décisions de report           | Terminée                          | Solde et résumé mensuel affichés ; report proposé selon les règles et décisions réservées au propriétaire.                     |
+| États et validations R2                | Automatisé OK ; manuel en attente | 58 tests, lint, typecheck, build et format check OK ; contrôle téléphone et hors ligne à faire avec Laro.                      |
 
 ## Décisions prises
 

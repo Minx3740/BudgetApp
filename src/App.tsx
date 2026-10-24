@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
+  ArrowLeft,
+  ArrowRight,
   ChartNoAxesColumn,
   CirclePlus,
   Home,
@@ -31,6 +33,7 @@ import {
   useTransactions,
   useWorkspaces,
 } from './data/hooks'
+import { monthKeyForDate, shiftMonth } from './data/calculations'
 import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync'
 import { supabase } from './lib/supabase'
 
@@ -57,8 +60,8 @@ const sectionDetails: Record<
   },
   budgets: {
     title: 'Budgets',
-    description: 'Retrouve ici tes plafonds mensuels et le reste à dépenser.',
-    milestone: 'Tes plafonds et dépenses sont calculés sur cet appareil.',
+    description: 'Retrouve ici l’enveloppe du mois et les seuils par catégorie.',
+    milestone: 'Ton enveloppe, ton solde et les seuils sont calculés sur cet appareil.',
   },
   spaces: {
     title: 'Espaces',
@@ -112,12 +115,31 @@ function getApplicationUrl(): string {
   return new URL(import.meta.env.BASE_URL, window.location.origin).toString()
 }
 
-function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency,
+function formatMoney(amount: number): string {
+  return `${new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
-  }).format(amount)
+  }).format(amount)} Ar`
+}
+
+function selectedMonthFromLocation(): string {
+  const month = new URLSearchParams(window.location.search).get('mois')
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    try {
+      return shiftMonth(`${month}-01`, 0)
+    } catch {
+      // An invalid URL month falls back to the current local month.
+    }
+  }
+  return monthKeyForDate(new Date())
+}
+
+function formatMonth(month: string): string {
+  const label = new Intl.DateTimeFormat('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${month}T00:00:00.000Z`))
+  return `${label.charAt(0).toLocaleUpperCase('fr-FR')}${label.slice(1)}`
 }
 
 function AuthForm({
@@ -410,6 +432,7 @@ function AuthForm({
 
 function SignedInView({ client, session }: { client: SupabaseClient; session: Session }) {
   const [activeSection, setActiveSection] = useState<AppSection>('home')
+  const [selectedMonth, setSelectedMonth] = useState(selectedMonthFromLocation)
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
     () => window.localStorage.getItem(`cashFlow.activeWorkspace.${session.user.id}`) ?? '',
   )
@@ -441,17 +464,21 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     activeWorkspace?.type === 'personal' ||
     activeMembership?.role === 'owner' ||
     activeMembership?.role === 'member'
+  const canManageWorkspace =
+    activeWorkspace?.type === 'personal' || activeMembership?.role === 'owner'
   const transactions = useTransactions(activeWorkspace?.id)
   const syncSummary = useSyncSummary()
   const activeTransactions = transactions.filter((transaction) => transaction.deleted_at === null)
-  const recentTransactions = [...activeTransactions]
+  const monthTransactions = activeTransactions.filter((transaction) =>
+    transaction.occurred_on.startsWith(`${selectedMonth.slice(0, 7)}-`),
+  )
+  const recentTransactions = [...monthTransactions]
     .sort(
       (left, right) =>
         right.occurred_on.localeCompare(left.occurred_on) ||
         right.created_at.localeCompare(left.created_at),
     )
     .slice(0, 5)
-  const currency = activeWorkspace?.currency ?? 'MGA'
   const metadataDisplayName = session.user.user_metadata['display_name']
   const displayName =
     (typeof metadataDisplayName === 'string' && metadataDisplayName.trim()) ||
@@ -462,6 +489,22 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
   const visibleSyncError = syncError ?? syncSummary.lastError
   const invitationToken = new URLSearchParams(window.location.hash.slice(1)).get('invite')
+  const currentMonth = monthKeyForDate(new Date())
+
+  useEffect(() => {
+    function restoreSelectedMonthFromHistory() {
+      setSelectedMonth(selectedMonthFromLocation())
+    }
+    window.addEventListener('popstate', restoreSelectedMonthFromHistory)
+    return () => window.removeEventListener('popstate', restoreSelectedMonthFromHistory)
+  }, [])
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('mois') === selectedMonth.slice(0, 7)) return
+    url.searchParams.set('mois', selectedMonth.slice(0, 7))
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [selectedMonth])
 
   useEffect(() => {
     function updateNetworkStatus() {
@@ -658,6 +701,13 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     window.localStorage.setItem(`cashFlow.activeWorkspace.${session.user.id}`, workspaceId)
   }
 
+  function changeMonth(month: string) {
+    setSelectedMonth(month)
+    const url = new URL(window.location.href)
+    url.searchParams.set('mois', month.slice(0, 7))
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
   function clearInvitationToken() {
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
   }
@@ -852,6 +902,33 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               </Button>
             </div>
           )}
+          <nav
+            aria-label="Sélection du mois"
+            className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white px-3 py-2"
+          >
+            <Button
+              aria-label="Mois précédent"
+              className="min-h-11 min-w-11"
+              onClick={() => changeMonth(shiftMonth(selectedMonth, -1))}
+              size="icon"
+              variant="outline"
+            >
+              <ArrowLeft aria-hidden="true" size={18} />
+            </Button>
+            <p aria-live="polite" className="text-center font-semibold">
+              {formatMonth(selectedMonth)}
+            </p>
+            <Button
+              aria-label="Mois suivant"
+              className="min-h-11 min-w-11"
+              disabled={selectedMonth >= currentMonth}
+              onClick={() => changeMonth(shiftMonth(selectedMonth, 1))}
+              size="icon"
+              variant="outline"
+            >
+              <ArrowRight aria-hidden="true" size={18} />
+            </Button>
+          </nav>
           {activeSection === 'home' ? (
             <>
               <div className="mb-8">
@@ -938,7 +1015,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                               : transaction.kind === 'income' || transaction.kind === 'refund'
                                 ? '+'
                                 : ''}
-                            {formatMoney(transaction.amount, currency)}
+                            {formatMoney(transaction.amount)}
                           </span>
                         </div>
                       ))
@@ -955,9 +1032,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               </section>
 
               <BudgetDashboard
-                canEdit={canEditWorkspace}
-                currency={currency}
-                key={activeWorkspace?.id}
+                canManageBudget={canManageWorkspace}
+                key={`${activeWorkspace?.id}:${selectedMonth}`}
+                month={selectedMonth}
                 mode="home"
                 onOpenBudgets={() => setActiveSection('budgets')}
                 workspaceId={activeWorkspace?.id}
@@ -966,10 +1043,10 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           ) : activeSection === 'transactions' ? (
             <LocalDataView
               canEdit={canEditWorkspace}
-              currency={currency}
               isSharedWorkspace={activeWorkspace?.type === 'shared'}
               isQuickEntryOpen={isQuickEntryOpen}
               key={activeWorkspace?.id}
+              month={selectedMonth}
               onQuickEntryOpenChange={setIsQuickEntryOpen}
               profiles={profiles}
               userId={session.user.id}
@@ -977,9 +1054,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
             />
           ) : activeSection === 'budgets' ? (
             <BudgetDashboard
-              canEdit={canEditWorkspace}
-              currency={currency}
-              key={activeWorkspace?.id}
+              canManageBudget={canManageWorkspace}
+              key={`${activeWorkspace?.id}:${selectedMonth}`}
+              month={selectedMonth}
               mode="manage"
               workspaceId={activeWorkspace?.id}
             />

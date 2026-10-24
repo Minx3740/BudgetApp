@@ -21,8 +21,8 @@ type TransactionKind = Transaction['kind']
 
 interface LocalDataViewProps {
   workspaceId: string | undefined
+  month: string
   userId: string
-  currency: string
   canEdit: boolean
   isSharedWorkspace: boolean
   profiles: Profile[]
@@ -58,24 +58,24 @@ function localDate(): string {
   return `${today.getFullYear()}-${month}-${day}`
 }
 
-function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency,
+function formatMoney(amount: number): string {
+  return `${new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
-  }).format(amount)
+  }).format(amount)} Ar`
 }
 
 function errorMessage(failure: unknown): string {
   return failure instanceof Error ? failure.message : 'Erreur inconnue.'
 }
 
-function newTransactionDraft(): TransactionDraft {
+function newTransactionDraft(month: string): TransactionDraft {
+  const today = localDate()
+  const selectedMonth = month.slice(0, 7)
   return {
     kind: 'expense',
     amount: '',
     categoryId: '',
-    occurredOn: localDate(),
+    occurredOn: today.startsWith(`${selectedMonth}-`) ? today : `${selectedMonth}-01`,
     note: '',
   }
 }
@@ -95,8 +95,8 @@ function transactionLabel(kind: TransactionKind): string {
 
 export function LocalDataView({
   workspaceId,
+  month,
   userId,
-  currency,
   canEdit,
   isSharedWorkspace,
   profiles,
@@ -109,7 +109,9 @@ export function LocalDataView({
   const [notice, setNotice] = useState<string | null>(null)
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null)
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
-  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(newTransactionDraft)
+  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(() =>
+    newTransactionDraft(month),
+  )
   const [historyState, setHistoryState] = useState(() => ({
     workspaceId,
     filters: createEmptyTransactionHistoryFilters(),
@@ -173,8 +175,9 @@ export function LocalDataView({
         historyFilters,
         historyNames.categories,
         historyNames.members,
+        month,
       ),
-    [historyFilters, historyNames, transactions],
+    [historyFilters, historyNames, month, transactions],
   )
   const transactionPage = useMemo(
     () =>
@@ -229,7 +232,7 @@ export function LocalDataView({
     setTransactionError(null)
     setNotice(null)
     setEditingTransactionId(null)
-    setTransactionDraft(newTransactionDraft())
+    setTransactionDraft(newTransactionDraft(month))
     onQuickEntryOpenChange(true)
   }
 
@@ -358,7 +361,7 @@ export function LocalDataView({
         setNotice('Transaction enregistrée sur cet appareil.')
       }
       setEditingTransactionId(null)
-      setTransactionDraft(newTransactionDraft())
+      setTransactionDraft(newTransactionDraft(month))
       closeTransactionDialog()
     } catch (failure) {
       setTransactionError(`Impossible d’enregistrer cette transaction. ${errorMessage(failure)}`)
@@ -603,7 +606,7 @@ export function LocalDataView({
                       <div className="flex shrink-0 items-center gap-1">
                         <span className="mr-2 text-right font-semibold">
                           {amountPrefix}
-                          {formatMoney(transaction.amount, currency)}
+                          {formatMoney(transaction.amount)}
                         </span>
                         {canEdit && (
                           <>
