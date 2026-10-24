@@ -39,7 +39,7 @@ import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
-type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces' | 'settings' | 'plus'
+type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces' | 'profile' | 'settings' | 'plus'
 
 const navigation: { id: AppSection; label: string; icon: LucideIcon }[] = [
   { id: 'home', label: 'Accueil', icon: Home },
@@ -70,6 +70,11 @@ const sectionDetails: Record<
     title: 'Espaces',
     description: 'Ton espace personnel est prêt pour la suite.',
     milestone: 'Les espaces partagés et invitations arrivent au jalon M8.',
+  },
+  profile: {
+    title: 'Mon profil',
+    description: 'Les informations de ton compte personnel.',
+    milestone: 'Tu peux consulter ici ton identité et ton rôle dans l’espace actif.',
   },
   settings: {
     title: 'Réglages de l’application',
@@ -881,11 +886,21 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   className="mt-1 min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800"
                   onClick={(event) => {
                     event.currentTarget.closest('details')?.removeAttribute('open')
+                    setActiveSection('profile')
+                  }}
+                  type="button"
+                >
+                  Mon profil
+                </button>
+                <button
+                  className="min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
                     setActiveSection('settings')
                   }}
                   type="button"
                 >
-                  Mon profil et réglages de l’application
+                  Réglages de l’application
                 </button>
                 <button
                   className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-800 disabled:opacity-50"
@@ -1127,6 +1142,66 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               userId={session.user.id}
               workspace={activeWorkspace}
             />
+          ) : activeSection === 'profile' ? (
+            <section aria-labelledby="section-title" className="max-w-3xl space-y-5">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
+                  Mon profil
+                </h1>
+                <p className="mt-2 leading-7 text-stone-600">
+                  Ton identité de compte, distincte des réglages de cet espace.
+                </p>
+              </div>
+              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                <CardHeader>
+                  <CardTitle>Informations du compte</CardTitle>
+                  <CardDescription>Ces informations sont associées à ta connexion.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <span
+                      aria-hidden="true"
+                      className="flex size-14 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg font-semibold text-emerald-950"
+                    >
+                      {initials || <UserRound size={24} />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{displayName}</p>
+                      <p className="truncate text-sm text-stone-600">{session.user.email}</p>
+                    </div>
+                  </div>
+                  <dl className="grid gap-3 border-t border-stone-100 pt-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-stone-500">Espace actif</dt>
+                      <dd className="mt-1 font-medium">
+                        {activeWorkspace?.name ?? 'Aucun espace'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-stone-500">Rôle dans cet espace</dt>
+                      <dd className="mt-1 font-medium">
+                        {activeWorkspace?.type === 'personal'
+                          ? 'Propriétaire'
+                          : activeMembership?.role === 'owner'
+                            ? 'Propriétaire'
+                            : activeMembership?.role === 'member'
+                              ? 'Membre'
+                              : activeMembership?.role === 'viewer'
+                                ? 'Lecture seule'
+                                : 'Non membre'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <Button
+                    className="min-h-11"
+                    onClick={() => setActiveSection('settings')}
+                    variant="outline"
+                  >
+                    Réglages de l’application
+                  </Button>
+                </CardContent>
+              </Card>
+            </section>
           ) : activeSection === 'plus' ? (
             <section aria-labelledby="section-title" className="max-w-4xl space-y-5">
               <div>

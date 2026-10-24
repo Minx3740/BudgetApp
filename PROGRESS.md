@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 00:23 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 00:27 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
 - Lot/tâche en cours : R3 — navigation, compte et réglages. R2 est validé par Laro ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -18,13 +18,14 @@
 - Terminé et vérifié en R3 : en-tête compact avec sélecteur d’espace mobile, indicateur de
   synchronisation uniquement lorsqu’il est utile, menu avatar et déconnexion regroupée ;
   salutation et actions rapides redondantes retirées ; barre mobile à cinq emplacements
-  avec « + » central et onglet Plus. `npm test` (58), lint, typecheck, format check, build
-  et `git diff --check` passent. Aucune vérification visuelle responsive ne peut être
-  revendiquée ; essai téléphone écarté à la demande de Laro.
-- Prochaine action exacte : poursuivre la navigation grand écran et séparer l’accès
-  « Mon profil » des réglages d’application ; ouvrir `src/App.tsx` et ajouter les vues
-  requises sans toucher aux changements préexistants. Avant la photo de profil, demander
-  la décision sur l’accès au bucket `avatars` (public ou URLs signées).
+  avec « + » central et onglet Plus ; accès distinct à une page Mon profil en lecture.
+  `npm test` (58), lint, typecheck, format check, build et `git diff --check` passent.
+  Aucune vérification visuelle responsive ne peut être revendiquée ; essai téléphone écarté
+  à la demande de Laro.
+- Prochaine action exacte : ouvrir `src/App.tsx` et remplacer la vue générique de réglages
+  par les réglages d’application distincts prévus en section 12.4 du cahier ; puis structurer
+  les réglages de l’espace. Avant la photo de profil, demander la décision sur l’accès au
+  bucket `avatars` (public ou URLs signées).
 - Fait mais non vérifié à l’exécution : migration Supabase/RLS et pgTAP (`de32a7c`).
   Tests SQL indisponibles : `supabase`, `psql`, `postgres`, Docker et Podman absents.
   Aucune migration distante n’a été appliquée. Build réussi avec avertissement Vite sur
@@ -134,7 +135,8 @@ le suivant.
 | ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | En-tête compact et état de synchronisation | Terminée et vérifiée | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée. |
 | Navigation mobile et grand écran           | Partielle            | Barre mobile 5 places et Plus livrés ; reste à structurer la barre latérale desktop selon le cahier.               |
-| Menu profil et réglages                    | Partielle            | Menu avatar ouvre la vue compte ; séparation profil/préférences et contenus de réglages restent à faire.           |
+| Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif.    |
+| Réglages de l’application et de l’espace   | À faire              | Remplacer la vue générique par les réglages prévus au cahier v1.2.                                                 |
 | Photo de profil                            | Bloquée              | Décision P7 requise : bucket public à chemin non devinable ou URLs signées.                                        |
 | Validation R3                              | À faire              | Tests ciblés, tests complets et responsive automatisé si disponible ; droits membres cohérents avec RLS.           |
 
