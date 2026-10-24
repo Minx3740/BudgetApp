@@ -13,7 +13,13 @@ import {
 
 const pageSize = 1000
 const cursorOverlapMs = 60_000
-const editableTables: EditableTable[] = ['accounts', 'categories', 'transactions', 'budgets']
+const editableTables: EditableTable[] = [
+  'categories',
+  'transactions',
+  'budgets',
+  'monthlyBudgets',
+  'monthCarryDecisions',
+]
 
 export type SyncFailureKind = 'network' | 'unauthorized' | 'forbidden' | 'permanent'
 
@@ -145,18 +151,6 @@ function createPageQuery(
   signal: AbortSignal,
 ): (from: number, to: number) => PromiseLike<PageResult> {
   switch (table) {
-    case 'accounts':
-      return (from, to) =>
-        client
-          .from('accounts')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .gt('updated_at', after)
-          .lte('updated_at', through)
-          .order('updated_at')
-          .order('id')
-          .abortSignal(signal)
-          .range(from, to)
     case 'categories':
       return (from, to) =>
         client
@@ -185,6 +179,30 @@ function createPageQuery(
       return (from, to) =>
         client
           .from('budgets')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .gt('updated_at', after)
+          .lte('updated_at', through)
+          .order('updated_at')
+          .order('id')
+          .abortSignal(signal)
+          .range(from, to)
+    case 'monthlyBudgets':
+      return (from, to) =>
+        client
+          .from('monthly_budgets')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .gt('updated_at', after)
+          .lte('updated_at', through)
+          .order('updated_at')
+          .order('id')
+          .abortSignal(signal)
+          .range(from, to)
+    case 'monthCarryDecisions':
+      return (from, to) =>
+        client
+          .from('month_carry_decisions')
           .select('*')
           .eq('workspace_id', workspaceId)
           .gt('updated_at', after)
@@ -232,16 +250,6 @@ export function createSupabaseSyncGateway(client: SupabaseClient): SyncGateway {
 
     async push(operation, signal) {
       switch (operation.table) {
-        case 'accounts': {
-          const { data, error } = await client
-            .from('accounts')
-            .upsert(operation.payload, { onConflict: 'id' })
-            .abortSignal(signal)
-            .select('*')
-            .single()
-          throwSupabaseError(error)
-          return data
-        }
         case 'categories': {
           const { data, error } = await client
             .from('categories')
@@ -265,6 +273,26 @@ export function createSupabaseSyncGateway(client: SupabaseClient): SyncGateway {
         case 'budgets': {
           const { data, error } = await client
             .from('budgets')
+            .upsert(operation.payload, { onConflict: 'id' })
+            .abortSignal(signal)
+            .select('*')
+            .single()
+          throwSupabaseError(error)
+          return data
+        }
+        case 'monthlyBudgets': {
+          const { data, error } = await client
+            .from('monthly_budgets')
+            .upsert(operation.payload, { onConflict: 'id' })
+            .abortSignal(signal)
+            .select('*')
+            .single()
+          throwSupabaseError(error)
+          return data
+        }
+        case 'monthCarryDecisions': {
+          const { data, error } = await client
+            .from('month_carry_decisions')
             .upsert(operation.payload, { onConflict: 'id' })
             .abortSignal(signal)
             .select('*')
