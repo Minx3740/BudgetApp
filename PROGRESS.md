@@ -2,10 +2,9 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-24 23:23 (UTC+03:00).
+- Dernière mise à jour : 2026-10-24 23:25 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R1 — finaliser le suivi des validations et committer l’adaptation
-  minimale de l’écran transactionnel.
+- Lot/tâche en cours : R1 terminé — arrêter ici et attendre la validation de Laro avant R2.
 - Terminé et vérifié : migration Dexie v2→v4 vide les données/outbox de test, retire les
   comptes et crée les tables R1. Synchronisation couvre les cinq tables éditables. Écran
   transactionnel adapté aux dépenses, remboursements, revenus et ajustements. `npm test`
@@ -14,8 +13,9 @@
   Tests SQL indisponibles : `supabase`, `psql`, `postgres`, Docker et Podman absents.
   Aucune migration distante n’a été appliquée. Build réussi avec avertissement Vite sur
   un bundle JavaScript dépassant 500 kB.
-- Prochaine action exacte : committer les changements R1 de l’écran, des calculs et de
-  l’historique, puis arrêter et demander validation avant R2. Ne pas pousser.
+- Prochaine action exacte : demander à Laro s’il valide le passage à R2, en signalant
+  que les tests pgTAP restent à exécuter dans un environnement PostgreSQL local. Ne pas
+  lancer R2 ni pousser avant validation.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
   appliquer de migration au projet Supabase distant.
@@ -99,7 +99,7 @@ le suivant.
 | Schéma local Dexie et remise à zéro | Terminée, commitée                                   | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis         |
 | Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis            | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                           |
 | Synchronisation                     | Terminée, commitée ; 14 tests ciblés réussis         | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report                 |
-| Écran transactions minimum          | Terminée, commit à faire                             | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
+| Écran transactions minimum          | Terminée, commitée (`823b636`)                       | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
 | Validation R1                       | Réussie sauf SQL non exécuté                         | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP bloqué par l’absence d’outils locaux          |
 
 ## Décisions prises
