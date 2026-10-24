@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(17);
+select plan(21);
 
 insert into auth.users (id, email)
 values
@@ -15,13 +15,11 @@ values
 select is(
   (select count(*)::integer
    from public.workspaces w
-   join public.accounts a on a.workspace_id = w.id
    where w.owner_id = '10000000-0000-0000-0000-000000000001'
      and w.type = 'personal'
-     and w.name = 'Perso'
-     and a.type = 'cash'),
+     and w.name = 'Perso'),
   1,
-  'new users receive a personal workspace and a default account'
+  'new users receive a personal workspace'
 );
 select is(
   (select count(*)::integer
@@ -32,6 +30,12 @@ select is(
      and c.kind = 'expense'),
   6,
   'new users receive default expense categories'
+);
+select is(
+  (select count(*)::integer from information_schema.tables
+   where table_schema = 'public' and table_name = 'accounts'),
+  0,
+  'the account table is removed by the R1 migration'
 );
 
 insert into public.workspaces (id, name, type, owner_id)
@@ -56,79 +60,84 @@ values (
   'viewer'
 );
 
-insert into public.accounts (id, workspace_id, name, type)
+insert into public.categories (id, workspace_id, name, kind)
 values
   (
-    '30000000-0000-0000-0000-000000000001',
+    '35000000-0000-0000-0000-000000000001',
     '20000000-0000-0000-0000-000000000001',
-    'Espèces',
-    'cash'
+    'Alimentation',
+    'expense'
   ),
   (
-    '30000000-0000-0000-0000-000000000002',
-    '20000000-0000-0000-0000-000000000002',
-    'Espèces',
-    'cash'
+    '35000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    'Salaire',
+    'income'
   );
-
-insert into public.categories (id, workspace_id, name, kind)
-values (
-  '35000000-0000-0000-0000-000000000001',
-  '20000000-0000-0000-0000-000000000001',
-  'Alimentation',
-  'expense'
-);
 
 select throws_ok(
   $$insert into public.transactions (
-      id, workspace_id, account_id, category_id, kind, amount, occurred_on, created_by
+      id, workspace_id, category_id, kind, amount, occurred_on, created_by, paid_by
     ) values (
       '36000000-0000-0000-0000-000000000001',
       '20000000-0000-0000-0000-000000000001',
-      '30000000-0000-0000-0000-000000000001',
-      '35000000-0000-0000-0000-000000000001',
+      '35000000-0000-0000-0000-000000000002',
       'expense',
       0,
       current_date,
+      '10000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001'
     )$$,
   '23514',
   null,
-  'transaction amount must be positive'
+  'transaction amount must be a non-zero safe integer'
 );
 select throws_ok(
   $$insert into public.transactions (
-      id, workspace_id, account_id, category_id, kind, amount, occurred_on, created_by
+      id, workspace_id, category_id, kind, amount, occurred_on, created_by, paid_by
     ) values (
       '36000000-0000-0000-0000-000000000002',
       '20000000-0000-0000-0000-000000000001',
-      '30000000-0000-0000-0000-000000000002',
       '35000000-0000-0000-0000-000000000001',
       'expense',
       100,
       current_date,
+      '10000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001'
     )$$,
-  '23503',
+  'P0001',
   null,
-  'a transaction cannot reference an account from another workspace'
+  'a transaction cannot use a category of the wrong kind'
 );
 select throws_ok(
   $$insert into public.transactions (
-      id, workspace_id, account_id, to_account_id, kind, amount, occurred_on, created_by
+      id, workspace_id, kind, amount, occurred_on, created_by, paid_by
     ) values (
       '36000000-0000-0000-0000-000000000003',
       '20000000-0000-0000-0000-000000000001',
-      '30000000-0000-0000-0000-000000000001',
-      '30000000-0000-0000-0000-000000000001',
-      'transfer',
-      100,
+      'adjustment',
+      0,
       current_date,
+      '10000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001'
     )$$,
   '23514',
   null,
-  'a transfer cannot target its source account'
+  'an adjustment cannot have a zero amount'
+);
+
+insert into public.transactions (
+  id, workspace_id, category_id, kind, amount, occurred_on, created_by, paid_by
+)
+values (
+  '36000000-0000-0000-0000-000000000010',
+  '20000000-0000-0000-0000-000000000001',
+  '35000000-0000-0000-0000-000000000001',
+  'expense',
+  100,
+  current_date,
+  '10000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001'
 );
 
 insert into public.invitations (
@@ -170,31 +179,67 @@ where id = '40000000-0000-0000-0000-000000000003';
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
 select is(
-  (select count(*)::integer from public.accounts
-   where id = '30000000-0000-0000-0000-000000000001'),
+  (select count(*)::integer from public.transactions
+   where workspace_id = '20000000-0000-0000-0000-000000000001'),
   1,
-  'owner can read workspace accounts'
+  'owner can read workspace transactions'
 );
 
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000002', true);
 select is(
-  (select count(*)::integer from public.accounts
-   where id = '30000000-0000-0000-0000-000000000001'),
+  (select count(*)::integer from public.transactions
+   where workspace_id = '20000000-0000-0000-0000-000000000001'),
   1,
-  'viewer can read workspace accounts'
+  'viewer can read workspace transactions'
 );
 select throws_ok(
-  $$insert into public.accounts (id, workspace_id, name, type)
+  $$insert into public.monthly_budgets (id, workspace_id, month, budget_amount)
     values (
-      '30000000-0000-0000-0000-000000000004',
+      '37000000-0000-0000-0000-000000000004',
       '20000000-0000-0000-0000-000000000001',
-      'Interdit',
-      'cash'
+      '2026-10-01',
+      1000
     )$$,
   '42501',
   null,
-  'viewer cannot create workspace accounts'
+  'viewer cannot create a monthly budget'
 );
+select throws_ok(
+  $$insert into public.month_carry_decisions (
+      id, workspace_id, month, accepted
+    ) values (
+      '38000000-0000-0000-0000-000000000004',
+      '20000000-0000-0000-0000-000000000001',
+      '2026-10-01',
+      true
+    )$$,
+  '42501',
+  null,
+  'viewer cannot decide a balance carry'
+);
+select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  $$insert into public.monthly_budgets (id, workspace_id, month, budget_amount)
+    values (
+      '37000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      '2026-10-01',
+      0
+    )$$,
+  'owner can create an explicit zero monthly budget'
+);
+select lives_ok(
+  $$insert into public.month_carry_decisions (
+      id, workspace_id, month, accepted
+    ) values (
+      '38000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      '2026-10-01',
+      true
+    )$$,
+  'owner can decide a balance carry'
+);
+select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000002', true);
 update public.memberships
 set role = 'member'
 where workspace_id = '20000000-0000-0000-0000-000000000001'
@@ -266,8 +311,8 @@ where workspace_id = '20000000-0000-0000-0000-000000000001'
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000002', true);
 select is(
-  (select count(*)::integer from public.accounts
-   where id = '30000000-0000-0000-0000-000000000001'),
+  (select count(*)::integer from public.transactions
+   where workspace_id = '20000000-0000-0000-0000-000000000001'),
   0,
   'a removed member loses access to workspace data'
 );

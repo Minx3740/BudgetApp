@@ -347,8 +347,9 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 ### R1. Données et calculs
 
 - [x] Schémas/types Zod et calculs purs avec tests ciblés.
-- [ ] Simplifier la migration Supabase en mode destructif pour les données de test ;
-      ajouter les tests RLS/schema correspondants.
+- [x] Simplifier la migration Supabase en mode destructif pour les données de test ;
+      écrire les tests RLS/schema correspondants. L'exécution pgTAP locale reste à
+      faire avant validation finale de R1.
 - [ ] Mettre à jour Dexie et vider l'ancienne base locale/outbox à l'upgrade.
 - [ ] Adapter repositories et bootstrap.
 - [ ] Adapter la synchronisation et l'outbox.

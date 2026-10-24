@@ -2,11 +2,11 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-24 22:11 (+03:00).
+- Dernière mise à jour : 2026-10-24 22:16 (+03:00).
 - Branche : `reforme-budget` (branche créée depuis `main` avec les modifications
   locales préexistantes conservées).
-- Lot/tâche en cours : R1 — tâche 2/7, simplification de la migration Supabase selon
-  la décision destructive et préparation de ses tests SQL.
+- Lot/tâche en cours : R1 — tâche 3/7, mise à jour de Dexie et suppression de
+  l'ancienne base locale/outbox à l'upgrade.
 - Terminé et vérifié :
   - R0 : cahier v1.2 et guide UI validés par Laro ; suivi R0–R6 présent.
   - Schémas et types Zod R1 pour budget mensuel, report, types de transactions réformés
@@ -17,23 +17,27 @@
     `npm run build`, Prettier ciblé et `git diff --check` réussis.
   - `deploy-pages.yml` est déclenché sur push vers `main` uniquement ; aucun push n’a
     été fait.
+  - Décision destructive mise à jour dans les deux documents et commitée
+    (`8b39932`).
+  - Contrats Zod et tests commités (`f0f48a9`) ; calculs purs et tests commités
+    (`54f6915`).
+  - Migration destructive R1 et tests pgTAP réécrits puis revus ; aucun compte,
+    transfert, solde initial ni opération en attente n'est conservé.
+  - Vérifié par `git diff --check` : aucune erreur d'espacement dans les changements.
 - Fait mais pas encore vérifié :
-  - La décision destructive est reportée dans le cahier v1.2 et la réforme ; les listes
-    R1 y sont simplifiées. Format et commit documentaire restent à faire.
-  - `supabase/migrations/20261024200000_r1_budget_model.sql` est un brouillon
-    incompatible avec la nouvelle décision (il archive/transfère les données et
-    convertit les soldes) ; il faut le remplacer par une migration destructive simple.
+  - Les tests pgTAP ne sont pas exécutés : `supabase`, `psql` et `docker` ne sont pas
+    disponibles localement ; ne pas remplacer cette vérification par le Supabase distant.
   - Les types/calculs R1 ne sont pas raccordés à Dexie, repositories, bootstrap,
     synchronisation ni écran actuel.
-- Prochaine action exacte : remplacer le contenu de
-  `supabase/migrations/20261024200000_r1_budget_model.sql` pour vider les anciennes
-  tables concernées et créer le schéma cible ; ne conserver aucune logique P11.
+- Prochaine action exacte : ouvrir `src/data/local-db.ts` et les tests Dexie associés
+  pour planifier le changement de schéma et la suppression de l'ancienne base/outbox.
 - Vérifications à exécuter avant R1 terminé : `npm run format`, `npm run lint`,
   `npm run typecheck`, `npm test`, `npm run build` et suite SQL pgTAP. Ne jamais
   appliquer une migration au Supabase distant sans accord explicite.
 - Décisions confirmées :
   - P8 : montants TypeScript `number` entier sûr validé par Zod.
   - P9 : suivre les conventions de nommage existantes.
+  - Travail sur branche `reforme-budget`, commits par tâche, pas de push demandé.
   - Données de test Supabase et locales supprimables : vider/supprimer les anciennes
     données, comptes, transferts et file d’attente ; aucun ajustement initial,
     archivage, report historique ou reprise des opérations en attente.
@@ -41,8 +45,9 @@
     être conservatrice.
   - Adaptation minimale de l’écran transactions en R1 : retirer uniquement la
     dépendance aux comptes/transferts ; parcours complet reporté à R4.
-- Questions ouvertes : aucune décision métier R1 ouverte. Aucun test SQL local dédié
-  n’a encore été exécuté ; il faut confirmer les outils disponibles avant validation.
+- Questions ouvertes : aucune décision métier R1 ouverte. L'exécution de la suite SQL
+  pgTAP reste bloquée par l'absence d'outils locaux ; choisir/installer un runner local
+  seulement si nécessaire, sans toucher au projet Supabase distant.
 - Pièges connus :
   - Le worktree avait des changements locaux antérieurs ; les préserver et ne
     committer que les fichiers de la tâche concernée.
@@ -80,15 +85,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                                               | Date       |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                    | 2026-10-24 |
-| R1  | En cours — contrats/calculs prêts ; migration destructive à simplifier ; stockage, sync, écran minimal et validation restent à faire | 2026-10-24 |
-| R2  | À faire — budget, solde, seuils et écrans                                                                                            |            |
-| R3  | À faire — navigation, profil et réglages                                                                                             |            |
-| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                   |            |
-| R5  | À faire — forfaits                                                                                                                   |            |
-| R6  | À faire — analyses                                                                                                                   |            |
+| Lot | Statut                                                                                                                                                      | Date       |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                                           | 2026-10-24 |
+| R1  | En cours — contrats/calculs et migration/tests SQL écrits ; pgTAP non exécuté ; Dexie, dépôts, synchronisation, écran minimal et validation restent à faire | 2026-10-24 |
+| R2  | À faire — budget, solde, seuils et écrans                                                                                                                   |            |
+| R3  | À faire — navigation, profil et réglages                                                                                                                    |            |
+| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                                          |            |
+| R5  | À faire — forfaits                                                                                                                                          |            |
+| R6  | À faire — analyses                                                                                                                                          |            |
 
 ### État des lieux vérifié pour R0
 
