@@ -352,7 +352,8 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
       faire avant validation finale de R1.
 - [x] Mettre à jour Dexie et vider l'ancienne base locale/outbox à l'upgrade ; test
       de migration ciblé réussi.
-- [ ] Adapter repositories et bootstrap.
+- [x] Adapter repositories et bootstrap aux transactions sans compte, budgets mensuels
+      et décisions de report.
 - [ ] Adapter la synchronisation et l'outbox.
 - [ ] Adapter minimalement l'écran Transactions pour supprimer comptes/transferts ;
       parcours complet réservé à R4.

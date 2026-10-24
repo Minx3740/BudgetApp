@@ -120,10 +120,14 @@ export function createRepository<K extends EditableTable>(
   }
 }
 
-export const accountsRepository = createRepository('accounts', db.accounts)
 export const categoriesRepository = createRepository('categories', db.categories)
 export const transactionsRepository = createRepository('transactions', db.transactions)
 export const budgetsRepository = createRepository('budgets', db.budgets)
+export const monthlyBudgetsRepository = createRepository('monthlyBudgets', db.monthlyBudgets)
+export const monthCarryDecisionsRepository = createRepository(
+  'monthCarryDecisions',
+  db.monthCarryDecisions,
+)
 
 export async function listOutbox(): Promise<OutboxOperation[]> {
   return db.outbox.orderBy('created_at').toArray()

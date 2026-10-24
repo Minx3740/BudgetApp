@@ -254,7 +254,7 @@ describe('moteur de synchronisation', () => {
     const upgradedDatabase = new BudgetDatabase(name)
     await upgradedDatabase.open()
 
-    expect(await upgradedDatabase.accounts.count()).toBe(0)
+    expect(upgradedDatabase.tables.map((table) => table.name)).not.toContain('accounts')
     expect(await upgradedDatabase.transactions.count()).toBe(0)
     expect(await upgradedDatabase.outbox.count()).toBe(0)
     expect(upgradedDatabase.tables.map((table) => table.name)).toContain('monthlyBudgets')

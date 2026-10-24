@@ -2,10 +2,10 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-24 22:22 (+03:00).
+- Dernière mise à jour : 2026-10-24 22:28 (+03:00).
 - Branche : `reforme-budget` (branche créée depuis `main` avec les modifications
   locales préexistantes conservées).
-- Lot/tâche en cours : R1 — tâche 4/7, adaptation des repositories et du bootstrap
+- Lot/tâche en cours : R1 — tâche 5/7, adaptation de la synchronisation et de l'outbox
   au nouveau modèle.
 - Terminé et vérifié :
   - R0 : cahier v1.2 et guide UI validés par Laro ; suivi R0–R6 présent.
@@ -26,13 +26,16 @@
   - Vérifié par `git diff --check` : aucune erreur d'espacement dans les changements.
   - Dexie v3 vide les anciennes données et l'outbox à l'upgrade, crée les tables de
     budget mensuel/report ; test ciblé Vitest, typecheck et Prettier réussis.
+  - Dexie v4 supprime l'ancienne table comptes et vide l'ancien schéma local.
+  - Repositories et bootstrap chargent maintenant les transactions sans compte, budgets
+    mensuels et décisions de report ; 12 tests Vitest ciblés réussis.
 - Fait mais pas encore vérifié :
   - Les tests pgTAP ne sont pas exécutés : `supabase`, `psql` et `docker` ne sont pas
     disponibles localement ; ne pas remplacer cette vérification par le Supabase distant.
   - Les types/calculs R1 ne sont pas encore raccordés aux repositories, au bootstrap,
-    à la synchronisation ni à l'écran actuel.
-- Prochaine action exacte : ouvrir `src/data/repositories.ts` et `src/data/bootstrap.ts`
-  pour remplacer les entités comptes/transactions/budgets par les entités R1.
+    à l'écran actuel.
+- Prochaine action exacte : ouvrir `src/data/sync.ts` et `src/data/sync.test.ts` pour
+  remplacer les opérations comptes/transactions héritées par les tables R1.
 - Vérifications à exécuter avant R1 terminé : `npm run format`, `npm run lint`,
   `npm run typecheck`, `npm test`, `npm run build` et suite SQL pgTAP. Ne jamais
   appliquer une migration au Supabase distant sans accord explicite.
@@ -87,15 +90,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                                                                        | Date       |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                                             | 2026-10-24 |
-| R1  | En cours — contrats/calculs, migration/tests SQL et Dexie v3 prêts ; pgTAP non exécuté ; dépôts, synchronisation, écran minimal et validation restent à faire | 2026-10-24 |
-| R2  | À faire — budget, solde, seuils et écrans                                                                                                                     |            |
-| R3  | À faire — navigation, profil et réglages                                                                                                                      |            |
-| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                                            |            |
-| R5  | À faire — forfaits                                                                                                                                            |            |
-| R6  | À faire — analyses                                                                                                                                            |            |
+| Lot | Statut                                                                                                                                                             | Date       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                                                  | 2026-10-24 |
+| R1  | En cours — contrats/calculs, migration SQL, Dexie v4, dépôts et bootstrap prêts ; pgTAP non exécuté ; synchronisation, écran minimal et validation restent à faire | 2026-10-24 |
+| R2  | À faire — budget, solde, seuils et écrans                                                                                                                          |            |
+| R3  | À faire — navigation, profil et réglages                                                                                                                           |            |
+| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                                                 |            |
+| R5  | À faire — forfaits                                                                                                                                                 |            |
+| R6  | À faire — analyses                                                                                                                                                 |            |
 
 ### État des lieux vérifié pour R0
 

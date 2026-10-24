@@ -80,35 +80,6 @@ export const categorySchema = z.object({
   archived_at: timestampSchema.nullable(),
 })
 
-export const transactionSchema = z
-  .object({
-    ...syncFields,
-    workspace_id: uuidSchema,
-    account_id: uuidSchema,
-    to_account_id: uuidSchema.nullable(),
-    category_id: uuidSchema.nullable(),
-    kind: z.enum(['expense', 'income', 'transfer']),
-    amount: moneySchema.positive(),
-    occurred_on: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .refine((value) => {
-        const date = new Date(`${value}T00:00:00.000Z`)
-        return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-      }),
-    note: z.string().nullable(),
-    created_by: uuidSchema,
-  })
-  .refine(
-    (transaction) =>
-      transaction.kind === 'transfer'
-        ? transaction.to_account_id !== null &&
-          transaction.to_account_id !== transaction.account_id &&
-          transaction.category_id === null
-        : transaction.to_account_id === null && transaction.category_id !== null,
-    { message: 'Transaction fields do not match its kind.' },
-  )
-
 export const budgetSchema = z.object({
   ...syncFields,
   workspace_id: uuidSchema,
@@ -205,27 +176,30 @@ export type Membership = z.infer<typeof membershipSchema>
 export type Invitation = z.infer<typeof invitationSchema>
 export type Account = z.infer<typeof accountSchema>
 export type Category = z.infer<typeof categorySchema>
-export type Transaction = z.infer<typeof transactionSchema>
 export type Budget = z.infer<typeof budgetSchema>
 export type MonthlyBudget = z.infer<typeof monthlyBudgetSchema>
 export type MonthCarryDecision = z.infer<typeof monthCarryDecisionSchema>
 export type CashflowTransaction = z.infer<typeof cashflowTransactionSchema>
+export type Transaction = CashflowTransaction
 export type LegacyTransfer = z.infer<typeof legacyTransferSchema>
 
-export type EditableTable = 'accounts' | 'categories' | 'transactions' | 'budgets'
+export type EditableTable =
+  'categories' | 'transactions' | 'budgets' | 'monthlyBudgets' | 'monthCarryDecisions'
 
 export interface EditableRows {
-  accounts: Account
   categories: Category
-  transactions: Transaction
+  transactions: CashflowTransaction
   budgets: Budget
+  monthlyBudgets: MonthlyBudget
+  monthCarryDecisions: MonthCarryDecision
 }
 
 export const editableRowSchemas: {
   [K in EditableTable]: z.ZodType<EditableRows[K]>
 } = {
-  accounts: accountSchema,
   categories: categorySchema,
-  transactions: transactionSchema,
+  transactions: cashflowTransactionSchema,
   budgets: budgetSchema,
+  monthlyBudgets: monthlyBudgetSchema,
+  monthCarryDecisions: monthCarryDecisionSchema,
 }
