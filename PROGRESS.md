@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 00:44 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 00:47 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
 - Lot/tâche en cours : R3 — navigation, compte et réglages. R2 est validé par Laro ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -135,15 +135,15 @@ le suivant.
 
 ### Tâches R3
 
-| Tâche                                      | État                 | Détail                                                                                                                                                             |
-| ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| En-tête compact et état de synchronisation | Terminée et vérifiée | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée.                                                 |
-| Navigation mobile et grand écran           | Terminée             | Barre mobile 5 places ; barre latérale groupée avec Forfaits désactivé jusqu’à R5, membres et réglages sous Espace ; Plus regroupe les outils.                     |
-| Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif.                                                    |
-| Réglages de l’application                  | Terminée             | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé.                                        |
-| Réglages de l’espace                       | Terminée             | Renommage pour le propriétaire ; archivage soft des espaces partagés, uniquement si un autre espace actif existe ; RLS existante demeure la protection serveur.    |
-| Photo de profil                            | Bloquée              | Décision P7 requise : bucket public à chemin non devinable ou URLs signées.                                                                                        |
-| Validation R3                              | En cours             | 60 tests, lint, typecheck, format check et build OK ; UI non vérifiée visuellement ; tests SQL/directs à exécuter avec un environnement Supabase local disponible. |
+| Tâche                                      | État                 | Détail                                                                                                                                                                            |
+| ------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| En-tête compact et état de synchronisation | Terminée et vérifiée | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée. Commit `b039624`.                                              |
+| Navigation mobile et grand écran           | Terminée             | Barre mobile 5 places ; barre latérale groupée avec Forfaits désactivé jusqu’à R5, membres et réglages sous Espace ; Plus regroupe les outils. Commit `b039624`.                  |
+| Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif. Commit `da2e431`.                                                 |
+| Réglages de l’application                  | Terminée             | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé. Commit `5108755`.                                     |
+| Réglages de l’espace                       | Terminée             | Renommage pour le propriétaire ; archivage soft des espaces partagés, uniquement si un autre espace actif existe ; RLS existante demeure la protection serveur. Commit `0e56945`. |
+| Photo de profil                            | Bloquée              | Décision P7 requise : bucket public à chemin non devinable ou URLs signées.                                                                                                       |
+| Validation R3                              | En cours             | 60 tests, lint, typecheck, format check et build OK ; UI non vérifiée visuellement ; tests SQL/directs à exécuter avec un environnement Supabase local disponible.                |
 
 ## Décisions prises
 
