@@ -285,9 +285,7 @@ export function WorkspaceManagement({
       <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
         <CardHeader>
           <CardTitle>Créer un espace</CardTitle>
-          <CardDescription>
-            Un espace partagé comprend des comptes et catégories de départ.
-          </CardDescription>
+          <CardDescription>Un espace partagé comprend des catégories de départ.</CardDescription>
         </CardHeader>
         <CardContent>
           <form

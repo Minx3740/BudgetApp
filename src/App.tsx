@@ -24,6 +24,7 @@ import {
   InvitationAcceptance,
   WorkspaceManagement,
 } from './components/workspaces/workspace-management'
+import { WorkspaceSettings } from './components/workspaces/workspace-settings'
 import { bootstrapFromSupabase } from './data/bootstrap'
 import { clearLocalData, db } from './data/database'
 import {
@@ -39,7 +40,15 @@ import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
-type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces' | 'profile' | 'settings' | 'plus'
+type AppSection =
+  | 'home'
+  | 'transactions'
+  | 'budgets'
+  | 'spaces'
+  | 'workspace-settings'
+  | 'profile'
+  | 'settings'
+  | 'plus'
 type ThemePreference = 'system' | 'light' | 'dark'
 
 function savedThemePreference(): ThemePreference {
@@ -72,6 +81,11 @@ const sectionDetails: Record<
     title: 'Espaces',
     description: 'Ton espace personnel est prêt pour la suite.',
     milestone: 'Les espaces partagés et invitations arrivent au jalon M8.',
+  },
+  'workspace-settings': {
+    title: 'Réglages de l’espace',
+    description: 'Le nom et les options de l’espace actif.',
+    milestone: 'Les changements de propriétaire sont contrôlés par les permissions Supabase.',
   },
   profile: {
     title: 'Mon profil',
@@ -476,6 +490,10 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     availableWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
     availableWorkspaces.find((workspace) => workspace.type === 'personal') ??
     availableWorkspaces[0]
+  const fallbackWorkspaceId =
+    availableWorkspaces.find(
+      (workspace) => workspace.id !== activeWorkspace?.id && workspace.type === 'personal',
+    )?.id ?? availableWorkspaces.find((workspace) => workspace.id !== activeWorkspace?.id)?.id
   const memberships = useMemberships(activeWorkspace?.id)
   const profiles = useProfiles()
   const invitations = useInvitations(activeWorkspace?.id)
@@ -908,6 +926,11 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               label: 'Membres et invitations',
               icon: UsersRound,
             })}
+            {renderNavigationItem({
+              id: 'workspace-settings',
+              label: 'Réglages de l’espace',
+              icon: Settings2,
+            })}
           </nav>
         </div>
 
@@ -1232,6 +1255,20 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               userId={session.user.id}
               workspace={activeWorkspace}
             />
+          ) : activeSection === 'workspace-settings' ? (
+            <WorkspaceSettings
+              client={client}
+              fallbackWorkspaceId={fallbackWorkspaceId}
+              isOnline={isOnline}
+              key={`${activeWorkspace?.id}:${activeWorkspace?.name}`}
+              memberships={memberships}
+              onRefresh={(workspaceId) => {
+                if (workspaceId) selectWorkspace(workspaceId)
+                setBootstrapAttempt((attempt) => attempt + 1)
+              }}
+              userId={session.user.id}
+              workspace={activeWorkspace}
+            />
           ) : activeSection === 'profile' ? (
             <section aria-labelledby="section-title" className="max-w-3xl space-y-5">
               <div>
@@ -1314,7 +1351,15 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   onClick={() => setActiveSection('spaces')}
                   variant="outline"
                 >
-                  Membres, invitations et réglages de l’espace
+                  Membres et invitations
+                  <UsersRound aria-hidden="true" size={18} />
+                </Button>
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  onClick={() => setActiveSection('workspace-settings')}
+                  variant="outline"
+                >
+                  Réglages de l’espace
                   <UsersRound aria-hidden="true" size={18} />
                 </Button>
                 <Button

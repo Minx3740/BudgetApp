@@ -4,11 +4,6 @@ import { invitationSchema, workspaceSchema, type Invitation, type Workspace } fr
 export type InvitationRole = 'member' | 'viewer'
 
 const sharedWorkspaceDefaults = {
-  accounts: [
-    { name: 'Espèces', type: 'cash' },
-    { name: 'Mobile money', type: 'mobile_money' },
-    { name: 'Banque', type: 'bank' },
-  ],
   categories: [
     { name: 'Alimentation', kind: 'expense', icon: 'shopping-basket', color: '#e07a5f' },
     { name: 'Transport', kind: 'expense', icon: 'bus', color: '#3d8b8b' },
@@ -57,10 +52,7 @@ export async function createSharedWorkspace(
   userId: string,
   name: string,
 ): Promise<Workspace> {
-  const normalizedName = name.trim()
-  if (normalizedName.length < 1 || normalizedName.length > 80) {
-    throw new Error('Le nom de l’espace doit contenir entre 1 et 80 caractères.')
-  }
+  const normalizedName = normalizeWorkspaceName(name)
 
   const { data, error } = await client
     .from('workspaces')
@@ -69,19 +61,6 @@ export async function createSharedWorkspace(
     .single()
   if (error) throw new Error(`Impossible de créer l’espace partagé. ${error.message}`)
   const workspace = parseWorkspace(data)
-
-  const { error: accountError } = await client.from('accounts').insert(
-    sharedWorkspaceDefaults.accounts.map((account) => ({
-      id: crypto.randomUUID(),
-      ...account,
-      workspace_id: workspace.id,
-    })),
-  )
-  if (accountError) {
-    throw new Error(
-      `L’espace « ${workspace.name} » a été créé, mais ses comptes par défaut n’ont pas pu être préparés. ${accountError.message}`,
-    )
-  }
 
   const { error: categoryError } = await client.from('categories').insert(
     sharedWorkspaceDefaults.categories.map((category) => ({
@@ -97,6 +76,48 @@ export async function createSharedWorkspace(
   }
 
   return workspace
+}
+
+export function normalizeWorkspaceName(name: string): string {
+  const normalizedName = name.trim()
+  if (normalizedName.length < 1 || normalizedName.length > 80) {
+    throw new Error('Le nom de l’espace doit contenir entre 1 et 80 caractères.')
+  }
+  return normalizedName
+}
+
+export async function updateWorkspaceName(
+  client: SupabaseClient,
+  workspaceId: string,
+  name: string,
+): Promise<Workspace> {
+  const normalizedName = normalizeWorkspaceName(name)
+  const { data, error } = await client
+    .from('workspaces')
+    .update({ name: normalizedName })
+    .eq('id', workspaceId)
+    .is('deleted_at', null)
+    .select('*')
+    .maybeSingle()
+  if (error) throw new Error(`Impossible de modifier le nom de l’espace. ${error.message}`)
+  if (!data) throw new Error('L’espace n’existe plus ou tu n’as pas le droit de le modifier.')
+  return parseWorkspace(data)
+}
+
+export async function archiveSharedWorkspace(
+  client: SupabaseClient,
+  workspaceId: string,
+): Promise<void> {
+  const { data, error } = await client
+    .from('workspaces')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', workspaceId)
+    .eq('type', 'shared')
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle()
+  if (error) throw new Error(`Impossible d’archiver l’espace. ${error.message}`)
+  if (!data) throw new Error('L’espace n’existe plus ou tu n’as pas le droit de l’archiver.')
 }
 
 export async function createWorkspaceInvitation(
