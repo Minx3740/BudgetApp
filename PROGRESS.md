@@ -2,25 +2,20 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-24 23:07 (UTC+03:00).
+- Dernière mise à jour : 2026-10-24 23:23 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R1 — adaptation minimale de l’écran et des calculs/historique
-  transactionnels aux nouveaux types.
-- Terminé et vérifié avant cette reprise : R0 validé ; contrats de domaine et calculs
-  purs ajoutés ; tests ciblés initiaux, typecheck, lint et build étaient verts. Les
-  revalidation finale R1 encore requise. Migration Dexie v2→v4 testée : données et
-  outbox de test vidées, comptes retirés, tables R1 présentes ; `database.test.ts` et
-  `reform-models.test.ts` réussis (9 tests). repositories/bootstrap ciblés réussis (13 tests), synchronisation réussie (14 tests)
-  et lint ciblé passé pour ces modules.
-- Fait mais pas encore vérifié : le typecheck global échoue encore sur les références
-  comptes/transferts restantes dans l’écran local, les hooks, calculs et historique ;
-  la synchronisation ne présente pas de diagnostic TypeScript. La migration Supabase/RLS
-  a été simplifiée et commitée (`de32a7c`), mais pgTAP
-  n’a pas pu être exécuté : `supabase`, `psql`, `postgres`, Docker et Podman ne sont
-  pas installés. Aucun accès distant n’a été fait.
-- Prochaine action exacte : ouvrir `src/components/budget/local-data-view.tsx` et
-  `src/data/hooks.ts`, retirer les parcours comptes/transferts qui empêchent le build,
-  puis adapter les calculs et l’historique aux transactions R1.
+- Lot/tâche en cours : R1 — finaliser le suivi des validations et committer l’adaptation
+  minimale de l’écran transactionnel.
+- Terminé et vérifié : migration Dexie v2→v4 vide les données/outbox de test, retire les
+  comptes et crée les tables R1. Synchronisation couvre les cinq tables éditables. Écran
+  transactionnel adapté aux dépenses, remboursements, revenus et ajustements. `npm test`
+  (56 tests), lint, typecheck, build et format check réussis.
+- Fait mais non vérifié à l’exécution : migration Supabase/RLS et pgTAP (`de32a7c`).
+  Tests SQL indisponibles : `supabase`, `psql`, `postgres`, Docker et Podman absents.
+  Aucune migration distante n’a été appliquée. Build réussi avec avertissement Vite sur
+  un bundle JavaScript dépassant 500 kB.
+- Prochaine action exacte : committer les changements R1 de l’écran, des calculs et de
+  l’historique, puis arrêter et demander validation avant R2. Ne pas pousser.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
   appliquer de migration au projet Supabase distant.
@@ -31,12 +26,12 @@
   de l’ancienne outbox ; première utilisation réelle : toutes les migrations devront
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
   prioritaire : adaptation minimale en R1, parcours complet en R4.
-- Questions encore ouvertes : aucune question métier bloquante pour R1. Ne pas pousser
-  avant vérification de la cible Cloudflare et de la branche de déploiement.
+- Questions encore ouvertes : tests SQL à exécuter lorsqu’un environnement PostgreSQL
+  local sera disponible ; aucune question métier bloquante pour R1.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration Supabase distante ne doit jamais être exécutée sans accord explicite ;
   workflow Cloudflare `deploy-pages.yml` doit se déclencher uniquement sur `main` ;
-  les anciennes tâches internes ne remplacent pas cette section de reprise.
+  vérifié : son déclencheur push ne cible que `main`. Aucun push n’a été effectué.
 
 ## État actuel
 
@@ -67,15 +62,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                                                                                                                      | Date       |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                                                                                           | 2026-10-24 |
-| R1  | En cours — contrats/calculs commités ; migration SQL simplifiée mais non exécutée ; schéma et reset Dexie testés ; repositories/bootstrap, synchronisation, écran minimal et validations restent à terminer | 2026-10-24 |
-| R2  | À faire — budget, solde, seuils et écrans                                                                                                                                                                   |            |
-| R3  | À faire — navigation, profil et réglages                                                                                                                                                                    |            |
-| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                                                                                          |            |
-| R5  | À faire — forfaits                                                                                                                                                                                          |            |
-| R6  | À faire — analyses                                                                                                                                                                                          |            |
+| Lot | Statut                                                                                                                                 | Date       |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                      | 2026-10-24 |
+| R1  | Implémentation et validations disponibles terminées ; pgTAP non exécuté faute d’outils locaux ; attente de validation de Laro avant R2 | 2026-10-24 |
+| R2  | À faire — budget, solde, seuils et écrans                                                                                              |            |
+| R3  | À faire — navigation, profil et réglages                                                                                               |            |
+| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                     |            |
+| R5  | À faire — forfaits                                                                                                                     |            |
+| R6  | À faire — analyses                                                                                                                     |            |
 
 ### État des lieux vérifié pour R0
 
@@ -96,18 +91,16 @@ le suivant.
 
 ### Tâches R1
 
-| Tâche                               | État                                                 | Détail                                                                                                       |
-| ----------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Tâche                               | État                                                 | Détail                                                                                                       |
-| -------------------------------     | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Contrats TypeScript/Zod             | Terminée, commitée ; revalidation R1 finale requise  | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                           |
-| Calculs purs et tests unitaires     | Terminée, commitée ; revalidation R1 finale requise  | Dépenses nettes, solde, budget, reports et limites                                                           |
-| Migration Supabase et tests RLS     | Code simplifié et commité ; non validé à l’exécution | `de32a7c`; pgTAP réécrit ; outil PostgreSQL local absent, aucun accès distant autorisé                       |
-| Schéma local Dexie et remise à zéro | Terminée, commitée                                   | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis    |
-| Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis            | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                      |
-| Synchronisation                     | Terminée, commit à faire ; 14 tests ciblés réussis   | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report            |
-| Écran transactions minimum          | En cours, non vérifié                                | Retirer uniquement les contrôles et données liés aux comptes/transferts ; parcours complet en R4             |
-| Validation R1 complète              | À faire en dernier                                   | `npm test`, tests SQL, lint, typecheck, build et format ; enregistrer les résultats                          |
+| Tâche                               | État                                                 | Détail                                                                                                            |
+| ----------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Contrats TypeScript/Zod             | Terminée, commitée ; revalidation R1 finale requise  | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                                |
+| Calculs purs et tests unitaires     | Terminée, commitée ; revalidation R1 finale requise  | Dépenses nettes, budget, reports et limites ; anciens calculs par comptes retirés                                 |
+| Migration Supabase et tests RLS     | Code simplifié et commité ; non validé à l’exécution | `de32a7c`; pgTAP réécrit ; outil PostgreSQL local absent, aucun accès distant autorisé                            |
+| Schéma local Dexie et remise à zéro | Terminée, commitée                                   | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis         |
+| Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis            | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                           |
+| Synchronisation                     | Terminée, commitée ; 14 tests ciblés réussis         | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report                 |
+| Écran transactions minimum          | Terminée, commit à faire                             | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
+| Validation R1                       | Réussie sauf SQL non exécuté                         | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP bloqué par l’absence d’outils locaux          |
 
 ## Décisions prises
 

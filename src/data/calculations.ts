@@ -1,4 +1,4 @@
-import type { Account, Budget, Category, Transaction } from './models'
+import type { Budget, Category, Transaction } from './models'
 
 export interface BudgetCategorySummary {
   categoryId: string
@@ -127,32 +127,4 @@ export function calculateMonthlyBudgetSummary(
     daysRemaining,
     categories: categorySummaries,
   }
-}
-
-export function calculateAccountBalance(account: Account, transactions: Transaction[]): number {
-  return transactions.reduce((balance, transaction) => {
-    if (transaction.deleted_at !== null) {
-      return balance
-    }
-
-    if (transaction.account_id === account.id) {
-      return balance + (transaction.kind === 'income' ? transaction.amount : -transaction.amount)
-    }
-
-    if (transaction.kind === 'transfer' && transaction.to_account_id === account.id) {
-      return balance + transaction.amount
-    }
-
-    return balance
-  }, account.initial_balance)
-}
-
-export function calculateWorkspaceBalance(
-  accounts: Account[],
-  transactions: Transaction[],
-): number {
-  return accounts.reduce(
-    (balance, account) => balance + calculateAccountBalance(account, transactions),
-    0,
-  )
 }

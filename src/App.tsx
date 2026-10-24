@@ -6,6 +6,7 @@ import {
   LogOut,
   ReceiptText,
   RefreshCw,
+  Settings2,
   UsersRound,
   Wifi,
   WifiOff,
@@ -21,10 +22,8 @@ import {
   WorkspaceManagement,
 } from './components/workspaces/workspace-management'
 import { bootstrapFromSupabase } from './data/bootstrap'
-import { calculateWorkspaceBalance } from './data/calculations'
 import { clearLocalData, db } from './data/database'
 import {
-  useAccounts,
   useInvitations,
   useMemberships,
   useProfiles,
@@ -36,14 +35,16 @@ import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
-type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces'
+type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces' | 'settings'
 
 const navigation: { id: AppSection; label: string; icon: LucideIcon }[] = [
   { id: 'home', label: 'Accueil', icon: Home },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
   { id: 'budgets', label: 'Budgets', icon: ChartNoAxesColumn },
   { id: 'spaces', label: 'Espaces', icon: UsersRound },
+  { id: 'settings', label: 'Paramètres', icon: Settings2 },
 ]
+const mobileNavigation = navigation.filter((item) => item.id !== 'spaces')
 
 const sectionDetails: Record<
   Exclude<AppSection, 'home'>,
@@ -51,7 +52,7 @@ const sectionDetails: Record<
 > = {
   transactions: {
     title: 'Transactions',
-    description: 'Tes dépenses, revenus et transferts apparaîtront ici.',
+    description: 'Tes dépenses, remboursements, revenus et ajustements apparaîtront ici.',
     milestone: 'La saisie locale arrive au jalon M5.',
   },
   budgets: {
@@ -63,6 +64,12 @@ const sectionDetails: Record<
     title: 'Espaces',
     description: 'Ton espace personnel est prêt pour la suite.',
     milestone: 'Les espaces partagés et invitations arrivent au jalon M8.',
+  },
+  settings: {
+    title: 'Paramètres',
+    description:
+      'Les préférences, les infos du compte et l’état de synchronisation sont regroupés ici.',
+    milestone: 'Le reste du menu est rangé pour garder la vue principale claire.',
   },
 }
 
@@ -99,6 +106,10 @@ function getAuthLinkError(): string | null {
     return 'Ce lien de confirmation n’est plus valide. Demande un nouvel e-mail de confirmation.'
   }
   return null
+}
+
+function getApplicationUrl(): string {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString()
 }
 
 function formatMoney(amount: number, currency: string): string {
@@ -138,7 +149,7 @@ function AuthForm({
     try {
       if (mode === 'forgot-password') {
         const { error: recoveryError } = await client.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: window.location.origin,
+          redirectTo: getApplicationUrl(),
         })
 
         if (recoveryError) {
@@ -163,7 +174,7 @@ function AuthForm({
           password,
           options: {
             data: { display_name: displayName.trim() },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: getApplicationUrl(),
           },
         })
 
@@ -207,7 +218,7 @@ function AuthForm({
       const { error: resendError } = await client.auth.resend({
         type: 'signup',
         email: email.trim(),
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: getApplicationUrl() },
       })
 
       if (resendError) {
@@ -430,7 +441,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     activeWorkspace?.type === 'personal' ||
     activeMembership?.role === 'owner' ||
     activeMembership?.role === 'member'
-  const accounts = useAccounts(activeWorkspace?.id)
   const transactions = useTransactions(activeWorkspace?.id)
   const syncSummary = useSyncSummary()
   const activeTransactions = transactions.filter((transaction) => transaction.deleted_at === null)
@@ -442,7 +452,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     )
     .slice(0, 5)
   const currency = activeWorkspace?.currency ?? 'MGA'
-  const totalBalance = calculateWorkspaceBalance(accounts, activeTransactions)
   const metadataDisplayName = session.user.user_metadata['display_name']
   const displayName =
     (typeof metadataDisplayName === 'string' && metadataDisplayName.trim()) ||
@@ -702,8 +711,16 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   return (
     <div className="min-h-svh bg-stone-50 text-stone-950 md:flex">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-stone-200 bg-white px-4 py-6 md:flex">
-        <a className="mb-9 flex items-center gap-3 px-3" href="/" aria-label="cashFlow+, accueil">
-          <img alt="" className="size-10 rounded-xl" src="/budget-app-icon.svg" />
+        <a
+          className="mb-9 flex items-center gap-3 px-3"
+          href={import.meta.env.BASE_URL}
+          aria-label="cashFlow+, accueil"
+        >
+          <img
+            alt=""
+            className="size-10 rounded-xl"
+            src={`${import.meta.env.BASE_URL}budget-app-icon.svg`}
+          />
           <span className="text-lg font-bold tracking-tight">cashFlow+</span>
         </a>
 
@@ -743,20 +760,26 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between border-b border-stone-200 bg-white/95 px-4 backdrop-blur sm:px-8 md:px-10">
-          <div className="flex items-center gap-3 md:hidden">
-            <img alt="" className="size-9 rounded-xl" src="/budget-app-icon.svg" />
-            <span className="font-bold">cashFlow+</span>
+          <div className="flex items-center gap-3">
+            <img
+              alt=""
+              className="size-9 rounded-xl"
+              src={`${import.meta.env.BASE_URL}budget-app-icon.svg`}
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold tracking-tight text-stone-900">cashFlow+</p>
+              <p className="truncate text-[11px] text-stone-500 md:hidden">
+                {activeWorkspace?.name ?? 'Perso'}
+              </p>
+            </div>
           </div>
-          <div className="hidden md:block">
-            <p className="text-sm text-stone-500">Espace actif</p>
-            <p className="font-semibold">{activeWorkspace?.name ?? 'Perso'}</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2 sm:gap-4">
+
+          <div className="hidden min-w-0 flex-1 justify-center md:flex">
             <label className="sr-only" htmlFor="active-workspace">
               Espace actif
             </label>
             <select
-              className="min-h-10 max-w-32 rounded-lg border border-stone-300 bg-white px-2 text-xs font-medium sm:max-w-48 sm:text-sm"
+              className="min-h-10 max-w-xs rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium"
               id="active-workspace"
               onChange={(event) => selectWorkspace(event.target.value)}
               value={activeWorkspace?.id ?? ''}
@@ -767,61 +790,16 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 </option>
               ))}
             </select>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${
-                isOnline ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
-              }`}
-              role="status"
-            >
-              {isOnline ? (
-                <Wifi aria-hidden="true" size={15} />
-              ) : (
-                <WifiOff aria-hidden="true" size={15} />
-              )}
-              <span>{isOnline ? 'En ligne' : 'Hors-ligne'}</span>
-            </span>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3 py-2 text-xs font-medium text-stone-700"
-              role="status"
-              title={
-                syncSummary.lastSuccessfulSync
-                  ? `Dernière synchronisation : ${new Date(syncSummary.lastSuccessfulSync).toLocaleString('fr-FR')}`
-                  : 'Aucune synchronisation terminée'
-              }
-            >
-              <RefreshCw
-                aria-hidden="true"
-                className={isSyncing ? 'animate-spin' : undefined}
-                size={14}
-              />
-              <span>
-                {isSyncing
-                  ? 'Sync…'
-                  : syncSummary.failedCount > 0
-                    ? 'Échec'
-                    : syncSummary.pendingCount > 0
-                      ? `${syncSummary.pendingCount} en attente`
-                      : syncSummary.lastSuccessfulSync
-                        ? 'Synchronisé'
-                        : 'À synchroniser'}
-              </span>
-            </span>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <Button
-              className="hidden min-h-12 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900 sm:inline-flex"
+              aria-label="Ajouter une transaction"
+              className="hidden min-h-11 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900 md:inline-flex"
               onClick={addTransaction}
             >
               <CirclePlus aria-hidden="true" size={18} />
               Ajouter
-            </Button>
-            <Button
-              aria-label="Se déconnecter"
-              className="min-h-12 min-w-12 md:hidden"
-              disabled={isSigningOut}
-              onClick={() => void signOut()}
-              size="icon"
-              variant="ghost"
-            >
-              <LogOut aria-hidden="true" size={19} />
             </Button>
           </div>
         </header>
@@ -884,35 +862,63 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   Bonjour, {displayName}
                 </h1>
                 <p className="mt-3 max-w-2xl leading-7 text-stone-600">
-                  Ton espace « {activeWorkspace?.name ?? 'Perso'} » est prêt. Tes comptes et
-                  transactions sont enregistrés sur cet appareil.
+                  Ton espace « {activeWorkspace?.name ?? 'Perso'} » est prêt. Fais le point sur ton
+                  budget ou ajoute une transaction en quelques secondes.
                 </p>
               </div>
 
-              <section aria-label="Aperçu du budget" className="grid gap-4 sm:grid-cols-2">
+              <section
+                aria-label="Aperçu du budget"
+                className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr]"
+              >
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
-                    <CardTitle>Solde total des comptes</CardTitle>
-                    <CardDescription>
-                      Calculé localement à partir de tes transactions.
-                    </CardDescription>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardTitle>Transactions</CardTitle>
+                        <CardDescription>
+                          Les opérations de ton espace, à jour sur cet appareil.
+                        </CardDescription>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-900">
+                        {activeWorkspace?.type === 'shared' ? 'Partagé' : 'Perso'}
+                      </span>
+                    </div>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold tracking-tight">
-                      {formatMoney(totalBalance, currency)}
+                  <CardContent className="space-y-4">
+                    <p className="text-4xl font-bold tracking-tight text-emerald-950">
+                      {activeTransactions.length}
                     </p>
+                    <p className="text-sm text-stone-600">
+                      {activeTransactions.length === 1 ? 'transaction' : 'transactions'} enregistrée
+                      {activeTransactions.length === 1 ? '' : 's'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button className="min-h-11" onClick={addTransaction} variant="default">
+                        <CirclePlus aria-hidden="true" size={18} />
+                        Ajouter
+                      </Button>
+                      <Button
+                        className="min-h-11"
+                        onClick={() => setActiveSection('budgets')}
+                        variant="outline"
+                      >
+                        Budgets
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
+
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
-                    <CardTitle>Dernières transactions</CardTitle>
-                    <CardDescription>Les mouvements récents de ton espace.</CardDescription>
+                    <CardTitle>Ce mois</CardTitle>
+                    <CardDescription>Le point clé pour savoir où tu en es.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {recentTransactions.length === 0 ? (
-                      <p className="text-sm text-stone-500">Aucune transaction pour le moment.</p>
+                      <p className="text-sm text-stone-500">Aucune transaction récente.</p>
                     ) : (
-                      recentTransactions.map((transaction) => (
+                      recentTransactions.slice(0, 3).map((transaction) => (
                         <div
                           className="flex items-center justify-between gap-3 text-sm"
                           key={transaction.id}
@@ -920,18 +926,16 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                           <span className="truncate text-stone-600">
                             {transaction.kind === 'expense'
                               ? 'Dépense'
-                              : transaction.kind === 'income'
-                                ? 'Revenu'
-                                : 'Transfert'}
-                            {' · '}
-                            {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
-                              'fr-FR',
-                            )}
+                              : transaction.kind === 'refund'
+                                ? 'Remboursement'
+                                : transaction.kind === 'income'
+                                  ? 'Revenu'
+                                  : 'Ajustement'}
                           </span>
                           <span className="shrink-0 font-semibold">
                             {transaction.kind === 'expense'
                               ? '−'
-                              : transaction.kind === 'income'
+                              : transaction.kind === 'income' || transaction.kind === 'refund'
                                 ? '+'
                                 : ''}
                             {formatMoney(transaction.amount, currency)}
@@ -939,6 +943,13 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                         </div>
                       ))
                     )}
+                    <Button
+                      className="mt-2 min-h-11 w-full"
+                      onClick={() => setActiveSection('transactions')}
+                      variant="outline"
+                    >
+                      Voir les transactions
+                    </Button>
                   </CardContent>
                 </Card>
               </section>
@@ -951,33 +962,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 onOpenBudgets={() => setActiveSection('budgets')}
                 workspaceId={activeWorkspace?.id}
               />
-
-              <Card className="mt-4 rounded-2xl border-0 bg-emerald-900 text-white shadow-sm">
-                <CardContent className="flex flex-col gap-5 py-6 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      {canEditWorkspace
-                        ? 'Prêt à suivre tes dépenses ?'
-                        : 'Espace consultable en lecture seule'}
-                    </h2>
-                    <p className="mt-1 text-sm text-emerald-100">
-                      {canEditWorkspace
-                        ? 'Ajoute une dépense ou un revenu en quelques secondes, même hors-ligne.'
-                        : 'Tu peux consulter les comptes et transactions de cet espace.'}
-                    </p>
-                  </div>
-                  <Button
-                    className="min-h-12 shrink-0 rounded-xl bg-white px-5 text-emerald-950 hover:bg-emerald-50"
-                    disabled={!canEditWorkspace}
-                    onClick={addTransaction}
-                    title={!canEditWorkspace ? 'Accès en lecture seule' : undefined}
-                    variant="secondary"
-                  >
-                    <CirclePlus aria-hidden="true" size={18} />
-                    Ajouter une transaction
-                  </Button>
-                </CardContent>
-              </Card>
             </>
           ) : activeSection === 'transactions' ? (
             <LocalDataView
@@ -1015,16 +999,126 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               workspace={activeWorkspace}
             />
           ) : (
-            <section aria-labelledby="section-title" className="max-w-3xl">
-              <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
-                {activeDetails.title}
-              </h1>
-              <Card className="mt-6 rounded-2xl border-0 shadow-sm ring-stone-200">
+            <section aria-labelledby="section-title" className="space-y-6">
+              <div>
+                <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
+                  {activeDetails.title}
+                </h1>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>Compte</CardTitle>
+                    <CardDescription>Informations utiles pour ton espace.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-stone-600">
+                    <p>
+                      <span className="font-medium text-stone-900">Utilisateur :</span>{' '}
+                      {displayName}
+                    </p>
+                    <p>
+                      <span className="font-medium text-stone-900">Espace :</span>{' '}
+                      {activeWorkspace?.name ?? 'Perso'}
+                    </p>
+                    <p>
+                      <span className="font-medium text-stone-900">Rôle :</span>{' '}
+                      {canEditWorkspace ? 'Modifiable' : 'Lecture seule'}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>Connexion</CardTitle>
+                    <CardDescription>État local de synchronisation et de réseau.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-stone-600">
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2">
+                      <span className="font-medium text-stone-800">Réseau</span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                          isOnline ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
+                        }`}
+                      >
+                        {isOnline ? (
+                          <Wifi aria-hidden="true" size={12} />
+                        ) : (
+                          <WifiOff aria-hidden="true" size={12} />
+                        )}
+                        {isOnline ? 'En ligne' : 'Hors-ligne'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2">
+                      <span className="font-medium text-stone-800">Synchronisation</span>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700">
+                        <RefreshCw
+                          aria-hidden="true"
+                          className={isSyncing ? 'animate-spin' : undefined}
+                          size={12}
+                        />
+                        {isSyncing
+                          ? 'Sync…'
+                          : syncSummary.failedCount > 0
+                            ? 'Échec'
+                            : syncSummary.pendingCount > 0
+                              ? `${syncSummary.pendingCount} en attente`
+                              : syncSummary.lastSuccessfulSync
+                                ? 'À jour'
+                                : 'À synchroniser'}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                 <CardHeader>
-                  <CardTitle>{activeDetails.description}</CardTitle>
-                  <CardDescription>{activeDetails.milestone}</CardDescription>
+                  <CardTitle>Actions rapides</CardTitle>
+                  <CardDescription>
+                    Les fonctions utiles restent visibles, sans surcharge.
+                  </CardDescription>
                 </CardHeader>
+                <CardContent className="grid gap-3 sm:grid-cols-2">
+                  <Button
+                    className="min-h-12 justify-start"
+                    onClick={() => setActiveSection('home')}
+                    variant="outline"
+                  >
+                    Accueil
+                  </Button>
+                  <Button
+                    className="min-h-12 justify-start"
+                    onClick={() => setActiveSection('budgets')}
+                    variant="outline"
+                  >
+                    Budgets
+                  </Button>
+                  <Button
+                    className="min-h-12 justify-start"
+                    onClick={() => setActiveSection('transactions')}
+                    variant="outline"
+                  >
+                    Transactions
+                  </Button>
+                  <Button
+                    className="min-h-12 justify-start"
+                    onClick={() => setActiveSection('spaces')}
+                    variant="outline"
+                  >
+                    Espaces
+                  </Button>
+                  <Button
+                    className="min-h-12 justify-start sm:col-span-2"
+                    disabled={isSigningOut}
+                    onClick={() => void signOut()}
+                    variant="secondary"
+                  >
+                    <LogOut aria-hidden="true" size={18} />
+                    {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
+                  </Button>
+                </CardContent>
               </Card>
             </section>
           )}
@@ -1033,51 +1127,54 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
       <nav
         aria-label="Navigation principale"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-stone-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-stretch border-t border-stone-200 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur md:hidden"
       >
-        {navigation.slice(0, 2).map((item) => {
+        {mobileNavigation.slice(0, 2).map((item) => {
           const Icon = item.icon
           const isActive = activeSection === item.id
           return (
             <button
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
-                isActive ? 'text-emerald-900' : 'text-stone-500'
+              className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
+                isActive ? 'bg-emerald-50 text-emerald-900' : 'text-stone-500'
               }`}
               key={item.id}
               onClick={() => setActiveSection(item.id)}
               type="button"
             >
               <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
-              {item.label}
+              <span className="max-w-full truncate px-0.5">{item.label}</span>
             </button>
           )
         })}
         <button
           aria-label="Ajouter une transaction"
-          className="mx-auto my-1 flex size-12 items-center justify-center self-center rounded-2xl bg-emerald-800 text-white shadow-md transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
+          className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold text-emerald-900 focus-visible:outline-2 focus-visible:outline-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!canEditWorkspace}
           onClick={addTransaction}
           title={!canEditWorkspace ? 'Accès en lecture seule' : undefined}
           type="button"
         >
-          <CirclePlus aria-hidden="true" size={23} />
+          <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-800 text-white">
+            <CirclePlus aria-hidden="true" size={20} />
+          </span>
+          <span>Ajouter</span>
         </button>
-        {navigation.slice(2).map((item) => {
+        {mobileNavigation.slice(2).map((item) => {
           const Icon = item.icon
           const isActive = activeSection === item.id
           return (
             <button
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
-                isActive ? 'text-emerald-900' : 'text-stone-500'
+              className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
+                isActive ? 'bg-emerald-50 text-emerald-900' : 'text-stone-500'
               }`}
               key={item.id}
               onClick={() => setActiveSection(item.id)}
               type="button"
             >
               <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
-              {item.label}
+              <span className="max-w-full truncate px-0.5">{item.label}</span>
             </button>
           )
         })}

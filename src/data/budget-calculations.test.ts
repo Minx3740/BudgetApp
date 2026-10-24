@@ -6,8 +6,7 @@ const workspaceId = '00000000-0000-4000-8000-000000000001'
 const expenseCategoryId = '00000000-0000-4000-8000-000000000002'
 const foodCategoryId = '00000000-0000-4000-8000-000000000003'
 const incomeCategoryId = '00000000-0000-4000-8000-000000000004'
-const accountId = '00000000-0000-4000-8000-000000000005'
-const userId = '00000000-0000-4000-8000-000000000006'
+const userId = '00000000-0000-4000-8000-000000000005'
 const timestamp = '2026-10-15T12:00:00.000Z'
 
 function category(id: string, name: string, kind: Category['kind'] = 'expense'): Category {
@@ -54,14 +53,13 @@ function transaction(
   return {
     id,
     workspace_id: workspaceId,
-    account_id: accountId,
-    to_account_id: kind === 'transfer' ? '00000000-0000-4000-8000-000000000007' : null,
     category_id: categoryId,
     kind,
     amount,
     occurred_on: occurredOn,
     note: null,
     created_by: userId,
+    paid_by: userId,
     created_at: timestamp,
     updated_at: timestamp,
     deleted_at: deletedAt,
@@ -103,7 +101,13 @@ describe('calcul du budget mensuel local', () => {
           '2026-10-10',
           incomeCategoryId,
         ),
-        transaction('20000000-0000-4000-8000-000000000004', 'transfer', 4_000, '2026-10-12', null),
+        transaction(
+          '20000000-0000-4000-8000-000000000004',
+          'adjustment',
+          -4_000,
+          '2026-10-12',
+          null,
+        ),
         transaction(
           '20000000-0000-4000-8000-000000000005',
           'expense',

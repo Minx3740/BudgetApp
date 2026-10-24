@@ -1,19 +1,22 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Archive, CirclePlus, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Archive, CirclePlus, Pencil, RotateCcw, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  accountsRepository,
-  categoriesRepository,
-  transactionsRepository,
-} from '@/data/repositories'
+import { categoriesRepository, transactionsRepository } from '@/data/repositories'
 import type { Category, Transaction } from '@/data/models'
 import type { Profile } from '@/data/models'
 import { db } from '@/data/database'
-import { useAccounts, useCategories, useTransactions } from '@/data/hooks'
-import { calculateAccountBalance } from '@/data/calculations'
+import { useCategories, useTransactions } from '@/data/hooks'
+import {
+  createEmptyTransactionHistoryFilters,
+  filterAndSortTransactions,
+  hasTransactionHistoryFilters,
+  paginateTransactions,
+  TRANSACTION_HISTORY_PAGE_SIZE,
+  type TransactionHistoryFilters,
+} from '@/data/transaction-history'
 
-type DataTab = 'transactions' | 'accounts' | 'categories'
+type DataTab = 'transactions' | 'categories'
 type TransactionKind = Transaction['kind']
 
 interface LocalDataViewProps {
@@ -27,13 +30,6 @@ interface LocalDataViewProps {
   onQuickEntryOpenChange: (isOpen: boolean) => void
 }
 
-interface AccountDraft {
-  id: string | null
-  name: string
-  type: string
-  initialBalance: string
-}
-
 interface CategoryDraft {
   id: string | null
   name: string
@@ -45,8 +41,6 @@ interface CategoryDraft {
 interface TransactionDraft {
   kind: TransactionKind
   amount: string
-  accountId: string
-  toAccountId: string
   categoryId: string
   occurredOn: string
   note: string
@@ -54,7 +48,6 @@ interface TransactionDraft {
 
 const dataTabs: { id: DataTab; label: string }[] = [
   { id: 'transactions', label: 'Transactions' },
-  { id: 'accounts', label: 'Comptes' },
   { id: 'categories', label: 'Catégories' },
 ]
 
@@ -81,8 +74,6 @@ function newTransactionDraft(): TransactionDraft {
   return {
     kind: 'expense',
     amount: '',
-    accountId: '',
-    toAccountId: '',
     categoryId: '',
     occurredOn: localDate(),
     note: '',
@@ -90,9 +81,16 @@ function newTransactionDraft(): TransactionDraft {
 }
 
 function transactionLabel(kind: TransactionKind): string {
-  if (kind === 'expense') return 'Dépense'
-  if (kind === 'income') return 'Revenu'
-  return 'Transfert'
+  switch (kind) {
+    case 'expense':
+      return 'Dépense'
+    case 'refund':
+      return 'Remboursement'
+    case 'income':
+      return 'Revenu'
+    case 'adjustment':
+      return 'Ajustement'
+  }
 }
 
 export function LocalDataView({
@@ -109,12 +107,15 @@ export function LocalDataView({
   const [error, setError] = useState<string | null>(null)
   const [transactionError, setTransactionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [accountDraft, setAccountDraft] = useState<AccountDraft | null>(null)
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null)
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(newTransactionDraft)
+  const [historyState, setHistoryState] = useState(() => ({
+    workspaceId,
+    filters: createEmptyTransactionHistoryFilters(),
+    page: 1,
+  }))
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const accounts = useAccounts(workspaceId)
   const categories = useCategories(workspaceId)
   const transactions = useTransactions(workspaceId)
 
@@ -131,7 +132,6 @@ export function LocalDataView({
     }
   }, [canEdit, isQuickEntryOpen, onQuickEntryOpenChange])
 
-  const activeAccounts = accounts.filter((account) => account.archived_at === null)
   const expenseCategories = categories.filter(
     (category) => category.kind === 'expense' && category.archived_at === null,
   )
@@ -141,49 +141,86 @@ export function LocalDataView({
   const currentCategory = categories.find((category) => category.id === transactionDraft.categoryId)
   const availableCategories =
     transactionDraft.kind === 'income' ? incomeCategories : expenseCategories
-  const transactionAccount = accounts.find((account) => account.id === transactionDraft.accountId)
-  const selectedAccountId = transactionAccount
-    ? transactionAccount.id
-    : (activeAccounts[0]?.id ?? '')
-  const transactionAccountChoices = [...activeAccounts]
-  if (
-    editingTransactionId &&
-    transactionAccount?.archived_at &&
-    !transactionAccountChoices.some((account) => account.id === transactionAccount.id)
-  ) {
-    transactionAccountChoices.push(transactionAccount)
-  }
-  const transactionDestination = accounts.find(
-    (account) => account.id === transactionDraft.toAccountId,
-  )
-  const destinationAccounts = activeAccounts.filter((account) => account.id !== selectedAccountId)
-  if (
-    editingTransactionId &&
-    transactionDestination?.archived_at &&
-    !destinationAccounts.some((account) => account.id === transactionDestination.id)
-  ) {
-    destinationAccounts.push(transactionDestination)
-  }
-  const selectedDestinationId =
-    destinationAccounts.find((account) => account.id === transactionDraft.toAccountId)?.id ??
-    destinationAccounts[0]?.id ??
-    ''
   if (
     editingTransactionId &&
     currentCategory?.archived_at &&
-    currentCategory.kind === transactionDraft.kind &&
+    currentCategory.kind === (transactionDraft.kind === 'income' ? 'income' : 'expense') &&
     !availableCategories.some((category) => category.id === currentCategory.id)
   ) {
     availableCategories.push(currentCategory)
   }
   const selectedCategoryId =
-    availableCategories.find((category) => category.id === transactionDraft.categoryId)?.id ??
-    availableCategories[0]?.id ??
-    ''
-  const orderedTransactions = [...transactions].sort(
-    (left, right) =>
-      right.occurred_on.localeCompare(left.occurred_on) ||
-      right.created_at.localeCompare(left.created_at),
+    transactionDraft.kind === 'adjustment'
+      ? ''
+      : (availableCategories.find((category) => category.id === transactionDraft.categoryId)?.id ??
+        availableCategories[0]?.id ??
+        '')
+  const historyFilters =
+    historyState.workspaceId === workspaceId
+      ? historyState.filters
+      : createEmptyTransactionHistoryFilters()
+  const historyNames = useMemo(
+    () => ({
+      categories: new Map(categories.map((category) => [category.id, category.name])),
+      members: new Map(profiles.map((profile) => [profile.id, profile.display_name])),
+    }),
+    [categories, profiles],
+  )
+  const filteredTransactions = useMemo(
+    () =>
+      filterAndSortTransactions(
+        transactions,
+        historyFilters,
+        historyNames.categories,
+        historyNames.members,
+      ),
+    [historyFilters, historyNames, transactions],
+  )
+  const transactionPage = useMemo(
+    () =>
+      paginateTransactions(
+        filteredTransactions,
+        historyState.workspaceId === workspaceId ? historyState.page : 1,
+      ),
+    [filteredTransactions, historyState, workspaceId],
+  )
+  const transactionMembers = useMemo(() => {
+    const memberIds = [...new Set(transactions.map((transaction) => transaction.created_by))]
+    return memberIds
+      .map((id) => ({
+        id,
+        name: historyNames.members.get(id) ?? id,
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'fr'))
+  }, [historyNames.members, transactions])
+
+  function updateHistoryFilter<Key extends keyof TransactionHistoryFilters>(
+    key: Key,
+    value: TransactionHistoryFilters[Key],
+  ) {
+    setHistoryState({
+      workspaceId,
+      filters: { ...historyFilters, [key]: value },
+      page: 1,
+    })
+  }
+
+  function clearHistoryFilters() {
+    setHistoryState({
+      workspaceId,
+      filters: createEmptyTransactionHistoryFilters(),
+      page: 1,
+    })
+  }
+
+  const hasActiveHistoryFilters = hasTransactionHistoryFilters(historyFilters)
+  const firstVisibleTransaction =
+    filteredTransactions.length === 0
+      ? 0
+      : (transactionPage.page - 1) * TRANSACTION_HISTORY_PAGE_SIZE + 1
+  const lastVisibleTransaction = Math.min(
+    transactionPage.page * TRANSACTION_HISTORY_PAGE_SIZE,
+    filteredTransactions.length,
   )
 
   function openNewTransaction() {
@@ -199,52 +236,6 @@ export function LocalDataView({
   function closeTransactionDialog() {
     setTransactionError(null)
     onQuickEntryOpenChange(false)
-  }
-
-  async function saveAccount(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!canEdit || !workspaceId || !accountDraft) return
-    setError(null)
-    setNotice(null)
-
-    try {
-      const initialBalance = accountDraft.initialBalance.trim()
-        ? Number(accountDraft.initialBalance)
-        : Number.NaN
-      if (accountDraft.id) {
-        await accountsRepository.update(accountDraft.id, workspaceId, {
-          name: accountDraft.name,
-          type: accountDraft.type,
-          initial_balance: initialBalance,
-        })
-      } else {
-        await accountsRepository.create({
-          workspace_id: workspaceId,
-          name: accountDraft.name,
-          type: accountDraft.type,
-          initial_balance: initialBalance,
-          archived_at: null,
-        })
-      }
-      setAccountDraft(null)
-      setNotice('Compte enregistré sur cet appareil.')
-    } catch (failure) {
-      setError(`Impossible d’enregistrer ce compte. ${errorMessage(failure)}`)
-    }
-  }
-
-  async function toggleAccountArchive(accountId: string, archivedAt: string | null) {
-    if (!canEdit || !workspaceId) return
-    setError(null)
-    setNotice(null)
-    try {
-      await accountsRepository.update(accountId, workspaceId, {
-        archived_at: archivedAt === null ? new Date().toISOString() : null,
-      })
-      setNotice(archivedAt === null ? 'Compte archivé.' : 'Compte restauré.')
-    } catch (failure) {
-      setError(`Impossible de modifier ce compte. ${errorMessage(failure)}`)
-    }
   }
 
   async function saveCategory(event: FormEvent<HTMLFormElement>) {
@@ -314,8 +305,6 @@ export function LocalDataView({
     setTransactionDraft({
       kind: transaction.kind,
       amount: String(transaction.amount),
-      accountId: transaction.account_id,
-      toAccountId: transaction.to_account_id ?? '',
       categoryId: transaction.category_id ?? '',
       occurredOn: transaction.occurred_on,
       note: transaction.note ?? '',
@@ -334,15 +323,7 @@ export function LocalDataView({
       setTransactionError('Aucun espace local n’est disponible. Recharge les données en ligne.')
       return
     }
-    if (!selectedAccountId) {
-      setTransactionError('Crée un compte avant d’ajouter une transaction.')
-      return
-    }
-    if (transactionDraft.kind === 'transfer' && !selectedDestinationId) {
-      setTransactionError('Ajoute un deuxième compte avant de créer un transfert.')
-      return
-    }
-    if (transactionDraft.kind !== 'transfer' && !selectedCategoryId) {
+    if (transactionDraft.kind !== 'adjustment' && !selectedCategoryId) {
       setTransactionError('Ajoute une catégorie correspondante avant de créer cette transaction.')
       return
     }
@@ -351,26 +332,24 @@ export function LocalDataView({
     setNotice(null)
     const input = {
       workspace_id: workspaceId,
-      account_id: selectedAccountId,
-      to_account_id: transactionDraft.kind === 'transfer' ? selectedDestinationId : null,
-      category_id: transactionDraft.kind === 'transfer' ? null : selectedCategoryId,
+      category_id: transactionDraft.kind === 'adjustment' ? null : selectedCategoryId,
       kind: transactionDraft.kind,
       amount: Number(transactionDraft.amount),
       occurred_on: transactionDraft.occurredOn,
       note: transactionDraft.note.trim() || null,
       created_by: userId,
+      paid_by: userId,
     }
 
     try {
       if (editingTransactionId) {
         const changes = {
-          account_id: input.account_id,
-          to_account_id: input.to_account_id,
           category_id: input.category_id,
           kind: input.kind,
           amount: input.amount,
           occurred_on: input.occurred_on,
           note: input.note,
+          paid_by: input.paid_by,
         }
         await transactionsRepository.update(editingTransactionId, workspaceId, changes)
         setNotice('Transaction mise à jour sur cet appareil.')
@@ -402,7 +381,7 @@ export function LocalDataView({
     <section aria-labelledby="section-title" className="max-w-3xl">
       <p className="mb-2 text-sm font-medium text-emerald-800">Données de l’espace actif</p>
       <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
-        Transactions, comptes et catégories
+        Transactions et catégories
       </h1>
       <p className="mt-3 leading-7 text-stone-600">
         {canEdit
@@ -431,7 +410,7 @@ export function LocalDataView({
 
       <nav
         aria-label="Données du budget"
-        className="mt-6 grid grid-cols-3 gap-2 rounded-2xl bg-stone-100 p-1"
+        className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-stone-100 p-1"
       >
         {dataTabs.map((tab) => (
           <button
@@ -481,17 +460,124 @@ export function LocalDataView({
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="space-y-3">
-              {orderedTransactions.length === 0 ? (
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
+                  <span className="flex items-center gap-2">
+                    <Search aria-hidden="true" size={16} />
+                    Rechercher
+                  </span>
+                  <input
+                    autoComplete="off"
+                    className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                    onChange={(event) => updateHistoryFilter('search', event.target.value)}
+                    placeholder="Note, catégorie, membre, montant…"
+                    type="search"
+                    value={historyFilters.search}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Du
+                  <input
+                    aria-label="Date de début"
+                    className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                    max={historyFilters.endDate || undefined}
+                    onChange={(event) => updateHistoryFilter('startDate', event.target.value)}
+                    type="date"
+                    value={historyFilters.startDate}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Au
+                  <input
+                    aria-label="Date de fin"
+                    className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                    min={historyFilters.startDate || undefined}
+                    onChange={(event) => updateHistoryFilter('endDate', event.target.value)}
+                    type="date"
+                    value={historyFilters.endDate}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Catégorie
+                  <select
+                    className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 font-normal"
+                    onChange={(event) => updateHistoryFilter('categoryId', event.target.value)}
+                    value={historyFilters.categoryId}
+                  >
+                    <option value="">Toutes les catégories</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {isSharedWorkspace && (
+                  <label className="grid gap-1.5 text-sm font-medium">
+                    Membre
+                    <select
+                      className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 font-normal"
+                      onChange={(event) => updateHistoryFilter('memberId', event.target.value)}
+                      value={historyFilters.memberId}
+                    >
+                      <option value="">Tous les membres</option>
+                      {transactionMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+
+              <div
+                aria-live="polite"
+                className="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-600"
+                role="status"
+              >
+                <span>
+                  {filteredTransactions.length === 0
+                    ? `Aucune transaction sur ${transactions.length}`
+                    : `Transactions ${firstVisibleTransaction} à ${lastVisibleTransaction} sur ${filteredTransactions.length}`}
+                </span>
+                {hasActiveHistoryFilters && (
+                  <Button
+                    className="min-h-10"
+                    onClick={clearHistoryFilters}
+                    type="button"
+                    variant="ghost"
+                  >
+                    Effacer les filtres
+                  </Button>
+                )}
+              </div>
+
+              {transactions.length === 0 ? (
                 <p className="py-5 text-center text-sm text-stone-500">
                   Aucune transaction. Tu peux ajouter ta première dépense.
                 </p>
+              ) : filteredTransactions.length === 0 ? (
+                <div className="space-y-2 py-5 text-center">
+                  <p className="text-sm text-stone-600">
+                    Aucune transaction ne correspond à ces critères.
+                  </p>
+                  {hasActiveHistoryFilters && (
+                    <Button onClick={clearHistoryFilters} type="button" variant="outline">
+                      Effacer les filtres
+                    </Button>
+                  )}
+                </div>
               ) : (
-                orderedTransactions.map((transaction) => {
+                transactionPage.items.map((transaction) => {
                   const category = categories.find((item) => item.id === transaction.category_id)
-                  const account = accounts.find((item) => item.id === transaction.account_id)
                   const amountPrefix =
-                    transaction.kind === 'income' ? '+' : transaction.kind === 'expense' ? '−' : ''
+                    transaction.kind === 'income' || transaction.kind === 'refund'
+                      ? '+'
+                      : transaction.kind === 'expense'
+                        ? '−'
+                        : ''
 
                   return (
                     <article
@@ -506,7 +592,6 @@ export function LocalDataView({
                           {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
                             'fr-FR',
                           )}
-                          {account ? ` · ${account.name}` : ''}
                           {transaction.note ? ` · ${transaction.note}` : ''}
                           {isSharedWorkspace &&
                             ` · par ${
@@ -547,160 +632,46 @@ export function LocalDataView({
                   )
                 })
               )}
+              {transactionPage.pageCount > 1 && (
+                <nav
+                  aria-label="Pagination de l’historique"
+                  className="flex items-center justify-between gap-3 border-t border-stone-200 pt-4"
+                >
+                  <Button
+                    disabled={transactionPage.page === 1}
+                    onClick={() =>
+                      setHistoryState({
+                        workspaceId,
+                        filters: historyFilters,
+                        page: Math.max(1, transactionPage.page - 1),
+                      })
+                    }
+                    type="button"
+                    variant="outline"
+                  >
+                    Page précédente
+                  </Button>
+                  <span aria-live="polite" className="text-sm text-stone-600">
+                    Page {transactionPage.page} sur {transactionPage.pageCount}
+                  </span>
+                  <Button
+                    disabled={transactionPage.page === transactionPage.pageCount}
+                    onClick={() =>
+                      setHistoryState({
+                        workspaceId,
+                        filters: historyFilters,
+                        page: Math.min(transactionPage.pageCount, transactionPage.page + 1),
+                      })
+                    }
+                    type="button"
+                    variant="outline"
+                  >
+                    Page suivante
+                  </Button>
+                </nav>
+              )}
             </CardContent>
           </Card>
-        </div>
-      )}
-
-      {workspaceId && activeTab === 'accounts' && (
-        <div className="mt-5 space-y-4">
-          <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
-              <div>
-                <CardTitle>Comptes et portefeuilles</CardTitle>
-                <CardDescription>
-                  Le solde est calculé à partir du solde initial et des transactions.
-                </CardDescription>
-              </div>
-              {canEdit && (
-                <Button
-                  className="min-h-12 shrink-0"
-                  onClick={() =>
-                    setAccountDraft({ id: null, name: '', type: 'cash', initialBalance: '0' })
-                  }
-                  variant="outline"
-                >
-                  <CirclePlus aria-hidden="true" size={18} />
-                  Ajouter
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {accounts.length === 0 && (
-                <p className="py-4 text-center text-sm text-stone-500">
-                  Aucun compte pour le moment.
-                </p>
-              )}
-              {accounts.map((account) => (
-                <article
-                  className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
-                  key={account.id}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {account.name}
-                      {account.archived_at && (
-                        <span className="ml-2 text-xs font-normal text-stone-500">Archivé</span>
-                      )}
-                    </p>
-                    <p className="text-sm text-stone-500">
-                      {formatMoney(calculateAccountBalance(account, transactions), currency)}
-                    </p>
-                  </div>
-                  {canEdit && (
-                    <div className="flex shrink-0">
-                      <Button
-                        aria-label={`Modifier ${account.name}`}
-                        className="min-h-12 min-w-12"
-                        onClick={() =>
-                          setAccountDraft({
-                            id: account.id,
-                            name: account.name,
-                            type: account.type,
-                            initialBalance: String(account.initial_balance),
-                          })
-                        }
-                        size="icon"
-                        variant="ghost"
-                      >
-                        <Pencil aria-hidden="true" size={17} />
-                      </Button>
-                      <Button
-                        aria-label={`${account.archived_at ? 'Restaurer' : 'Archiver'} ${account.name}`}
-                        className="min-h-12 min-w-12"
-                        onClick={() => void toggleAccountArchive(account.id, account.archived_at)}
-                        size="icon"
-                        variant="ghost"
-                      >
-                        {account.archived_at ? (
-                          <RotateCcw aria-hidden="true" size={17} />
-                        ) : (
-                          <Archive aria-hidden="true" size={17} />
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </article>
-              ))}
-            </CardContent>
-          </Card>
-
-          {canEdit && accountDraft && (
-            <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-              <CardHeader>
-                <CardTitle>{accountDraft.id ? 'Modifier le compte' : 'Nouveau compte'}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form
-                  className="grid gap-4 sm:grid-cols-2"
-                  onSubmit={(event) => void saveAccount(event)}
-                >
-                  <label className="grid gap-2 text-sm font-medium">
-                    Nom
-                    <input
-                      autoComplete="off"
-                      className="min-h-12 rounded-xl border border-stone-300 px-3"
-                      maxLength={80}
-                      onChange={(event) =>
-                        setAccountDraft({ ...accountDraft, name: event.target.value })
-                      }
-                      required
-                      value={accountDraft.name}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium">
-                    Type
-                    <input
-                      className="min-h-12 rounded-xl border border-stone-300 px-3"
-                      maxLength={40}
-                      onChange={(event) =>
-                        setAccountDraft({ ...accountDraft, type: event.target.value })
-                      }
-                      required
-                      value={accountDraft.type}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium sm:col-span-2">
-                    Solde initial (montant entier)
-                    <input
-                      className="min-h-12 rounded-xl border border-stone-300 px-3"
-                      inputMode="numeric"
-                      onChange={(event) =>
-                        setAccountDraft({ ...accountDraft, initialBalance: event.target.value })
-                      }
-                      required
-                      step="1"
-                      type="number"
-                      value={accountDraft.initialBalance}
-                    />
-                  </label>
-                  <div className="flex gap-3 sm:col-span-2">
-                    <Button className="min-h-12" type="submit">
-                      Enregistrer
-                    </Button>
-                    <Button
-                      className="min-h-12"
-                      onClick={() => setAccountDraft(null)}
-                      type="button"
-                      variant="outline"
-                    >
-                      Annuler
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 
@@ -910,8 +881,8 @@ export function LocalDataView({
             </Button>
           </div>
 
-          <div aria-label="Type de transaction" className="grid grid-cols-3 gap-2" role="group">
-            {(['expense', 'income', 'transfer'] as const).map((kind) => (
+          <div aria-label="Type de transaction" className="grid grid-cols-2 gap-2" role="group">
+            {(['expense', 'refund', 'income', 'adjustment'] as const).map((kind) => (
               <button
                 aria-pressed={transactionDraft.kind === kind}
                 className={`min-h-12 rounded-xl text-sm font-semibold focus-visible:outline-2 focus-visible:outline-emerald-800 ${
@@ -935,16 +906,16 @@ export function LocalDataView({
           )}
 
           <label className="grid gap-2 text-sm font-medium">
-            Montant
+            {transactionDraft.kind === 'adjustment' ? 'Montant signé' : 'Montant'}
             <input
               autoFocus
               className="min-h-14 rounded-xl border border-stone-300 px-4 text-2xl font-semibold"
               inputMode="numeric"
-              min="1"
+              min={transactionDraft.kind === 'adjustment' ? undefined : '1'}
               onChange={(event) =>
                 setTransactionDraft({ ...transactionDraft, amount: event.target.value })
               }
-              placeholder="0"
+              placeholder={transactionDraft.kind === 'adjustment' ? '-500 ou 500' : '0'}
               required
               step="1"
               type="number"
@@ -952,64 +923,25 @@ export function LocalDataView({
             />
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {transactionDraft.kind !== 'adjustment' && (
             <label className="grid gap-2 text-sm font-medium">
-              {transactionDraft.kind === 'transfer' ? 'Compte source' : 'Compte'}
+              Catégorie
               <select
                 className="min-h-12 rounded-xl border border-stone-300 bg-white px-3"
                 onChange={(event) =>
-                  setTransactionDraft({ ...transactionDraft, accountId: event.target.value })
+                  setTransactionDraft({ ...transactionDraft, categoryId: event.target.value })
                 }
                 required
-                value={selectedAccountId}
+                value={selectedCategoryId}
               >
-                {transactionAccountChoices.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                    {account.archived_at ? ' (archivé)' : ''}
+                {availableCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
                   </option>
                 ))}
               </select>
             </label>
-
-            {transactionDraft.kind === 'transfer' ? (
-              <label className="grid gap-2 text-sm font-medium">
-                Compte destinataire
-                <select
-                  className="min-h-12 rounded-xl border border-stone-300 bg-white px-3"
-                  onChange={(event) =>
-                    setTransactionDraft({ ...transactionDraft, toAccountId: event.target.value })
-                  }
-                  required
-                  value={selectedDestinationId}
-                >
-                  {destinationAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label className="grid gap-2 text-sm font-medium">
-                Catégorie
-                <select
-                  className="min-h-12 rounded-xl border border-stone-300 bg-white px-3"
-                  onChange={(event) =>
-                    setTransactionDraft({ ...transactionDraft, categoryId: event.target.value })
-                  }
-                  required
-                  value={selectedCategoryId}
-                >
-                  {availableCategories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-2 text-sm font-medium">
