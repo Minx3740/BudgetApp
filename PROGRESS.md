@@ -4,20 +4,19 @@
 
 - Dernière mise à jour : 2026-10-24 22:36 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R1 — tâche documentaire terminée ; la prochaine tâche est la
-  simplification de la migration Supabase/RLS selon la décision destructive.
+- Lot/tâche en cours : R1 — migration Supabase/RLS simplifiée et pgTAP réécrit ;
+  l’exécution SQL reste impossible tant qu’un outil PostgreSQL local n’est pas disponible.
 - Terminé et vérifié avant cette reprise : R0 validé ; contrats de domaine et calculs
   purs ajoutés ; tests ciblés initiaux, typecheck, lint et build étaient verts. Les
   premiers travaux R1 existent sur la branche en commits dédiés, mais doivent être
   revérifiés avec la décision destructive ci-dessous.
-- Fait mais pas encore revérifié : migration Supabase/RLS, reset de Dexie,
-  repositories/bootstrap et tests correspondants ; des modifications locales non
-  commitées touchent ces zones ainsi que `App.tsx` et `local-data-view.tsx`.
-- Prochaine action exacte : ouvrir
-  `supabase/migrations/20261024200000_r1_budget_model.sql` et
-  `supabase/tests/database/001_rls_and_invitations.test.sql`; supprimer les étapes
-  d’archivage/conversion des anciennes données et adapter les tests à la remise à zéro
-  des données de test.
+- Fait mais pas encore vérifié : le SQL R1 vide les transactions et seuils de test,
+  supprime les comptes/colonnes de transfert, et n’a ni conversion de soldes ni archive.
+  Le fichier pgTAP couvre le nouveau schéma et les droits, mais aucun `supabase`,
+  `psql`, `postgres`, Docker ou Podman local n’est installé pour l’exécuter.
+- Prochaine action exacte : ouvrir `src/data/database.ts` et
+  `src/data/bootstrap.ts`; vérifier que Dexie vide l’ancienne base/outbox comme prévu,
+  puis intégrer monthly budgets/report decisions et retirer les comptes.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
   appliquer de migration au projet Supabase distant.
@@ -93,18 +92,18 @@ le suivant.
 
 ### Tâches R1
 
-| Tâche                           | État                                                | Détail                                                                                             |
-| ------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Contrats TypeScript/Zod         | Terminée, commitée ; revalidation R1 finale requise | Montants sûrs, modèles du budget global, reports, dépenses, remboursements, revenus et ajustements |
-| Calculs purs et tests unitaires | Terminée, commitée ; revalidation R1 finale requise | Dépenses nettes, solde, budget, reports et limite de chaîne                                        |
-| Contrats TypeScript/Zod         | Terminée, commitée ; revalidation finale requise    | Montants sûrs, modèles du budget global, reports et nouveaux types de transaction                  |
-| Calculs purs et tests unitaires | Terminée, commitée ; revalidation finale requise    | Dépenses nettes, solde, budget et reports                                                          |
-| Migration Supabase et tests RLS | En cours, non committée                             | Retirer archivage/conversions historiques et tester suppression des comptes/transferts             |
-| Migration locale Dexie          | Terminée, commitée ; revalidation requise           | Remise à zéro des tables et de l’ancienne outbox, sans conversion                                  |
-| Repositories et bootstrap       | Terminés, commités ; revalidation requise           | Utiliser les nouveaux modèles et tables                                                            |
-| Synchronisation                 | À faire                                             | Push/pull des tables R1, suppression des chemins comptes/transferts                                |
-| Écran transactions minimum      | En cours, non committé                              | Retirer uniquement les contrôles et données liés aux comptes/transferts ; parcours complet en R4   |
-| Validation R1 complète          | À faire en dernier                                  | `npm test`, tests SQL, lint, typecheck, build et format ; enregistrer les résultats                |
+| Tâche                           | État                                                | Détail                                                                                                     |
+| ------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Contrats TypeScript/Zod         | Terminée, commitée ; revalidation R1 finale requise | Montants sûrs, modèles du budget global, reports, dépenses, remboursements, revenus et ajustements         |
+| Calculs purs et tests unitaires | Terminée, commitée ; revalidation R1 finale requise | Dépenses nettes, solde, budget, reports et limite de chaîne                                                |
+| Contrats TypeScript/Zod         | Terminée, commitée ; revalidation finale requise    | Montants sûrs, modèles du budget global, reports et nouveaux types de transaction                          |
+| Calculs purs et tests unitaires | Terminée, commitée ; revalidation finale requise    | Dépenses nettes, solde, budget et reports                                                                  |
+| Migration Supabase et tests RLS | Code simplifié, non validé à l’exécution            | Remise à zéro de test ; tests pgTAP réécrits ; outil PostgreSQL local absent, aucun accès distant autorisé |
+| Migration locale Dexie          | Terminée, commitée ; revalidation requise           | Remise à zéro des tables et de l’ancienne outbox, sans conversion                                          |
+| Repositories et bootstrap       | Terminés, commités ; revalidation requise           | Utiliser les nouveaux modèles et tables                                                                    |
+| Synchronisation                 | À faire                                             | Push/pull des tables R1, suppression des chemins comptes/transferts                                        |
+| Écran transactions minimum      | En cours, non committé                              | Retirer uniquement les contrôles et données liés aux comptes/transferts ; parcours complet en R4           |
+| Validation R1 complète          | À faire en dernier                                  | `npm test`, tests SQL, lint, typecheck, build et format ; enregistrer les résultats                        |
 
 ## Décisions prises
 
