@@ -205,16 +205,41 @@ describe('moteur de synchronisation', () => {
     expect(await database.outbox.count()).toBe(0)
   })
 
-  it('préserve les tables et lignes existantes lors de la migration Dexie vers le schéma M6', async () => {
+  it('vide les données locales et la file lors de la migration vers le modèle R1', async () => {
     const name = `sync-upgrade-${crypto.randomUUID()}`
     const legacyDatabase = new Dexie(name)
-    legacyDatabase.version(1).stores({
+    legacyDatabase.version(2).stores({
+      profiles: 'id, updated_at',
+      workspaces: 'id, owner_id, type, updated_at',
+      memberships: '[workspace_id+user_id], workspace_id, user_id',
+      invitations: 'id, workspace_id, expires_at, updated_at',
       accounts: 'id, workspace_id, updated_at, deleted_at',
+      categories: 'id, workspace_id, kind, updated_at, deleted_at',
+      transactions:
+        'id, workspace_id, occurred_on, account_id, category_id, created_by, updated_at, deleted_at',
+      budgets: 'id, workspace_id, category_id, month, &[workspace_id+category_id+month]',
       outbox: 'op_id, status, created_at, [status+created_at]',
+      syncCursors: 'id, workspace_id, table',
+      syncMetadata: 'key',
     })
     await legacyDatabase.open()
     const account = makeAccount(accountId)
     await legacyDatabase.table('accounts').put(account)
+    await legacyDatabase.table('transactions').put({
+      id: secondAccountId,
+      workspace_id: workspaceId,
+      account_id: accountId,
+      to_account_id: null,
+      category_id: null,
+      kind: 'expense',
+      amount: 250,
+      occurred_on: '2026-10-24',
+      note: null,
+      created_by: userId,
+      created_at: epoch,
+      updated_at: epoch,
+      deleted_at: null,
+    })
     await legacyDatabase.table('outbox').put({
       op_id: '00000000-0000-4000-8000-000000000005',
       table: 'accounts',
@@ -229,8 +254,11 @@ describe('moteur de synchronisation', () => {
     const upgradedDatabase = new BudgetDatabase(name)
     await upgradedDatabase.open()
 
-    expect(await upgradedDatabase.accounts.get(accountId)).toEqual(account)
-    expect(await upgradedDatabase.outbox.count()).toBe(1)
+    expect(await upgradedDatabase.accounts.count()).toBe(0)
+    expect(await upgradedDatabase.transactions.count()).toBe(0)
+    expect(await upgradedDatabase.outbox.count()).toBe(0)
+    expect(upgradedDatabase.tables.map((table) => table.name)).toContain('monthlyBudgets')
+    expect(upgradedDatabase.tables.map((table) => table.name)).toContain('monthCarryDecisions')
     expect(upgradedDatabase.tables.map((table) => table.name)).toContain('syncCursors')
     expect(upgradedDatabase.tables.map((table) => table.name)).toContain('syncMetadata')
 

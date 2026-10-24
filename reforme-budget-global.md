@@ -350,7 +350,8 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 - [x] Simplifier la migration Supabase en mode destructif pour les données de test ;
       écrire les tests RLS/schema correspondants. L'exécution pgTAP locale reste à
       faire avant validation finale de R1.
-- [ ] Mettre à jour Dexie et vider l'ancienne base locale/outbox à l'upgrade.
+- [x] Mettre à jour Dexie et vider l'ancienne base locale/outbox à l'upgrade ; test
+      de migration ciblé réussi.
 - [ ] Adapter repositories et bootstrap.
 - [ ] Adapter la synchronisation et l'outbox.
 - [ ] Adapter minimalement l'écran Transactions pour supprimer comptes/transferts ;

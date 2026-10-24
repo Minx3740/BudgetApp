@@ -7,6 +7,8 @@ import type {
   EditableTable,
   Invitation,
   Membership,
+  MonthCarryDecision,
+  MonthlyBudget,
   Profile,
   Transaction,
   Workspace,
@@ -46,6 +48,8 @@ export class BudgetDatabase extends Dexie {
   categories!: Table<Category, string>
   transactions!: Table<Transaction, string>
   budgets!: Table<Budget, string>
+  monthlyBudgets!: Table<MonthlyBudget, string>
+  monthCarryDecisions!: Table<MonthCarryDecision, string>
   outbox!: Table<OutboxOperation, string>
   syncCursors!: Table<SyncCursor, string>
   syncMetadata!: Table<SyncMetadata, string>
@@ -78,6 +82,42 @@ export class BudgetDatabase extends Dexie {
       syncCursors: 'id, workspace_id, table',
       syncMetadata: 'key',
     })
+    this.version(3)
+      .stores({
+        profiles: 'id, updated_at',
+        workspaces: 'id, owner_id, type, updated_at',
+        memberships: '[workspace_id+user_id], workspace_id, user_id',
+        invitations: 'id, workspace_id, expires_at, updated_at',
+        accounts: 'id, workspace_id, updated_at, deleted_at',
+        categories: 'id, workspace_id, kind, updated_at, deleted_at',
+        transactions:
+          'id, workspace_id, occurred_on, account_id, category_id, paid_by, created_by, updated_at, deleted_at',
+        budgets: 'id, workspace_id, category_id, month, &[workspace_id+category_id+month]',
+        monthlyBudgets: 'id, workspace_id, month, updated_at, deleted_at, &[workspace_id+month]',
+        monthCarryDecisions:
+          'id, workspace_id, month, updated_at, deleted_at, &[workspace_id+month]',
+        outbox: 'op_id, status, created_at, [status+created_at]',
+        syncCursors: 'id, workspace_id, table',
+        syncMetadata: 'key',
+      })
+      .upgrade(async (transaction) => {
+        const tableNames = [
+          'profiles',
+          'workspaces',
+          'memberships',
+          'invitations',
+          'accounts',
+          'categories',
+          'transactions',
+          'budgets',
+          'monthlyBudgets',
+          'monthCarryDecisions',
+          'outbox',
+          'syncCursors',
+          'syncMetadata',
+        ]
+        await Promise.all(tableNames.map((tableName) => transaction.table(tableName).clear()))
+      })
   }
 }
 
