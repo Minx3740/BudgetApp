@@ -4,24 +4,24 @@ import { z } from 'zod'
 import { db, type BudgetDatabase, type OutboxOperation } from './database'
 import {
   budgetSchema,
-  cashflowTransactionSchema,
   categorySchema,
   invitationSchema,
   membershipSchema,
   monthCarryDecisionSchema,
   monthlyBudgetSchema,
   profileSchema,
+  transactionSchema,
   workspaceSchema,
   type Budget,
-  type CashflowTransaction,
   type Category,
   type EditableRows,
   type EditableTable,
   type Invitation,
-  type MonthCarryDecision,
   type Membership,
+  type MonthCarryDecision,
   type MonthlyBudget,
   type Profile,
+  type Transaction,
   type Workspace,
 } from './models'
 
@@ -43,7 +43,7 @@ export interface WorkspaceSnapshot {
   memberships: Membership[]
   invitations: Invitation[]
   categories: Category[]
-  transactions: CashflowTransaction[]
+  transactions: Transaction[]
   budgets: Budget[]
   monthlyBudgets: MonthlyBudget[]
   monthCarryDecisions: MonthCarryDecision[]
@@ -206,6 +206,7 @@ export function createSupabaseSnapshotSource(
             .select('*')
             .in('workspace_id', workspaceIds)
             .order('id')
+            .abortSignal(signal)
             .range(from, to),
         ),
         fetchAllPages((from, to) =>
@@ -223,7 +224,6 @@ export function createSupabaseSnapshotSource(
             .select('*')
             .in('workspace_id', workspaceIds)
             .order('id')
-            .abortSignal(signal)
             .range(from, to),
         ),
       ])
@@ -289,7 +289,7 @@ export async function bootstrapLocalData(
     memberships: parseRows('memberships', membershipSchema, raw.memberships),
     invitations: parseRows('invitations', invitationSchema, raw.invitations),
     categories: parseRows('categories', categorySchema, raw.categories),
-    transactions: parseRows('transactions', cashflowTransactionSchema, raw.transactions),
+    transactions: parseRows('transactions', transactionSchema, raw.transactions),
     budgets: parseRows('budgets', budgetSchema, raw.budgets),
     monthlyBudgets: parseRows('monthly_budgets', monthlyBudgetSchema, raw.monthlyBudgets),
     monthCarryDecisions: parseRows(

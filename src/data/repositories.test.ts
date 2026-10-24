@@ -9,37 +9,47 @@ import {
 } from './repositories'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
-const transactionId = '00000000-0000-4000-8000-000000000002'
-const categoryId = '00000000-0000-4000-8000-000000000003'
+const categoryId = '00000000-0000-4000-8000-000000000002'
+const transactionId = '00000000-0000-4000-8000-000000000003'
 const userId = '00000000-0000-4000-8000-000000000004'
-const month = '2026-10-01'
 
-describe('repositories locaux R1', () => {
+const categoryInput = {
+  workspace_id: workspaceId,
+  name: 'Repas',
+  kind: 'expense' as const,
+  icon: null,
+  color: null,
+  archived_at: null,
+}
+
+const transactionInput = {
+  workspace_id: workspaceId,
+  category_id: categoryId,
+  kind: 'expense' as const,
+  amount: 1_200,
+  occurred_on: '2026-10-24',
+  note: 'Déjeuner',
+  created_by: userId,
+  paid_by: userId,
+}
+
+describe('repositories locaux', () => {
   beforeEach(async () => {
     await clearLocalData()
   })
 
-  it('crée une transaction de caisse avec une entrée outbox atomique', async () => {
-    const transaction = await transactionsRepository.create({
-      workspace_id: workspaceId,
-      category_id: categoryId,
-      kind: 'expense',
-      amount: 250,
-      occurred_on: '2026-10-24',
-      note: 'Repas',
-      created_by: userId,
-      paid_by: userId,
-    })
+  it('crée une catégorie avec un UUID client et une entrée outbox atomique', async () => {
+    const category = await categoriesRepository.create(categoryInput)
 
-    expect(transaction.id).toMatch(/^[0-9a-f-]{36}$/i)
-    expect(transaction.deleted_at).toBeNull()
-    expect(await db.transactions.get(transaction.id)).toEqual(transaction)
+    expect(category.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+    expect(category.deleted_at).toBeNull()
+    expect(await db.categories.get(category.id)).toEqual(category)
     expect(await db.outbox.toArray()).toMatchObject([
-      { table: 'transactions', action: 'upsert', payload: transaction, status: 'pending' },
+      { table: 'categories', action: 'upsert', payload: category, status: 'pending', attempts: 0 },
     ])
   })
 
-  it('annule la ligne si la création de son entrée outbox échoue', async () => {
+  it('annule la catégorie si la création de son entrée outbox échoue', async () => {
     const failOutboxCreate = () => {
       throw new Error('Outbox indisponible')
     }
@@ -47,50 +57,30 @@ describe('repositories locaux R1', () => {
 
     try {
       await expect(
-        transactionsRepository.create({
-          id: transactionId,
-          workspace_id: workspaceId,
-          category_id: categoryId,
-          kind: 'expense',
-          amount: 250,
-          occurred_on: '2026-10-24',
-          note: null,
-          created_by: userId,
-          paid_by: userId,
-        }),
+        categoriesRepository.create({ ...categoryInput, id: categoryId }),
       ).rejects.toThrow('Outbox indisponible')
     } finally {
       db.outbox.hook.creating.unsubscribe(failOutboxCreate)
     }
 
-    expect(await db.transactions.get(transactionId)).toBeUndefined()
+    expect(await db.categories.get(categoryId)).toBeUndefined()
     expect(await db.outbox.count()).toBe(0)
   })
 
-  it('met à jour et supprime logiquement une ligne sans exposer les lignes supprimées', async () => {
-    const transaction = await transactionsRepository.create({
-      id: transactionId,
-      workspace_id: workspaceId,
-      category_id: categoryId,
-      kind: 'expense',
-      amount: 250,
-      occurred_on: '2026-10-24',
-      note: null,
-      created_by: userId,
-      paid_by: userId,
-    })
+  it('met à jour et supprime logiquement une ligne', async () => {
+    const category = await categoriesRepository.create({ ...categoryInput, id: categoryId })
 
-    const updated = await transactionsRepository.update(transaction.id, workspaceId, {
-      amount: 300,
+    const updated = await categoriesRepository.update(category.id, workspaceId, {
+      name: 'Alimentation',
     })
-    expect(updated.amount).toBe(300)
-    expect(updated.id).toBe(transaction.id)
-    expect(updated.updated_at).not.toBe(transaction.created_at)
+    expect(updated.name).toBe('Alimentation')
+    expect(updated.id).toBe(category.id)
+    expect(updated.updated_at).not.toBe(category.created_at)
 
-    const deleted = await transactionsRepository.softDelete(transaction.id, workspaceId)
+    const deleted = await categoriesRepository.softDelete(category.id, workspaceId)
     expect(deleted.deleted_at).not.toBeNull()
-    expect(await transactionsRepository.list(workspaceId)).toEqual([])
-    expect(await transactionsRepository.list(workspaceId, true)).toEqual([deleted])
+    expect(await categoriesRepository.list(workspaceId)).toEqual([])
+    expect(await categoriesRepository.list(workspaceId, true)).toEqual([deleted])
     expect(await db.outbox.orderBy('created_at').toArray()).toMatchObject([
       { action: 'upsert' },
       { action: 'upsert' },
@@ -98,17 +88,12 @@ describe('repositories locaux R1', () => {
     ])
   })
 
-  it('rejette les données invalides sans créer de ligne ni entrée outbox', async () => {
+  it('refuse une transaction invalide sans créer de ligne ni entrée outbox', async () => {
     await expect(
       transactionsRepository.create({
-        workspace_id: workspaceId,
-        category_id: null,
-        kind: 'expense',
+        ...transactionInput,
         amount: 0,
         occurred_on: '2026-02-30',
-        note: null,
-        created_by: userId,
-        paid_by: userId,
       }),
     ).rejects.toThrow()
 
@@ -116,70 +101,77 @@ describe('repositories locaux R1', () => {
     expect(await db.outbox.count()).toBe(0)
   })
 
-  it('crée les budgets mensuels et décisions de report via leurs dépôts', async () => {
-    const budget = await monthlyBudgetsRepository.create({
+  it('ajoute les budgets mensuels et décisions de report à la file de synchronisation', async () => {
+    const monthlyBudget = await monthlyBudgetsRepository.create({
       workspace_id: workspaceId,
-      month,
+      month: '2026-10-01',
       budget_amount: 0,
     })
-    const decision = await monthCarryDecisionsRepository.create({
+    const carryDecision = await monthCarryDecisionsRepository.create({
       workspace_id: workspaceId,
-      month,
-      accepted: true,
+      month: '2026-10-01',
+      accepted: false,
     })
 
-    expect(await db.monthlyBudgets.get(budget.id)).toEqual(budget)
-    expect(await db.monthCarryDecisions.get(decision.id)).toEqual(decision)
-    const operations = await db.outbox.toArray()
-    expect(operations.map(({ table, action }) => ({ table, action }))).toEqual(
-      expect.arrayContaining([
-        { table: 'monthlyBudgets', action: 'upsert' },
-        { table: 'monthCarryDecisions', action: 'upsert' },
-      ]),
+    expect(await db.monthlyBudgets.get(monthlyBudget.id)).toEqual(monthlyBudget)
+    expect(await db.monthCarryDecisions.get(carryDecision.id)).toEqual(carryDecision)
+    expect(await db.outbox.orderBy('created_at').toArray()).toMatchObject([
+      { table: 'monthlyBudgets', action: 'upsert', payload: monthlyBudget },
+      { table: 'monthCarryDecisions', action: 'upsert', payload: carryDecision },
+    ])
+  })
+
+  it('enregistre une transaction et synchronise ses modifications et suppression', async () => {
+    await categoriesRepository.create({ ...categoryInput, id: categoryId })
+    const transaction = await transactionsRepository.create({
+      ...transactionInput,
+      id: transactionId,
+    })
+
+    expect(transaction.amount).toBe(1_200)
+    expect(transaction.paid_by).toBe(userId)
+
+    const updated = await transactionsRepository.update(transaction.id, workspaceId, {
+      amount: 2_000,
+    })
+    expect(updated.amount).toBe(2_000)
+
+    await transactionsRepository.softDelete(updated.id, workspaceId)
+    expect(await transactionsRepository.list(workspaceId)).toEqual([])
+    expect(await db.outbox.filter((operation) => operation.table === 'transactions').count()).toBe(
+      3,
     )
   })
 
   it('refuse une modification depuis un autre espace', async () => {
-    const transaction = await transactionsRepository.create({
-      id: transactionId,
-      workspace_id: workspaceId,
-      category_id: categoryId,
-      kind: 'expense',
-      amount: 250,
-      occurred_on: '2026-10-24',
-      note: null,
-      created_by: userId,
-      paid_by: userId,
-    })
+    await categoriesRepository.create({ ...categoryInput, id: categoryId })
 
     await expect(
-      transactionsRepository.update(transaction.id, '00000000-0000-4000-8000-000000000005', {
-        note: 'Intrusion',
+      categoriesRepository.update(categoryId, '00000000-0000-4000-8000-000000000005', {
+        name: 'Intrusion',
       }),
     ).rejects.toThrow('is not available')
-    expect((await db.transactions.get(transactionId))?.note).toBeNull()
+    expect((await db.categories.get(categoryId))?.name).toBe('Repas')
     expect(await db.outbox.count()).toBe(1)
   })
 
-  it('efface les données locales et la file au complet', async () => {
-    await categoriesRepository.create({
-      workspace_id: workspaceId,
-      name: 'Alimentation',
-      kind: 'expense',
-      icon: null,
-      color: null,
-      archived_at: null,
-    })
+  it('efface toutes les données locales', async () => {
+    await categoriesRepository.create(categoryInput)
     await monthlyBudgetsRepository.create({
       workspace_id: workspaceId,
-      month,
-      budget_amount: 1000,
+      month: '2026-10-01',
+      budget_amount: 100_000,
     })
-
+    await monthCarryDecisionsRepository.create({
+      workspace_id: workspaceId,
+      month: '2026-10-01',
+      accepted: true,
+    })
     await clearLocalData()
 
     expect(await db.categories.count()).toBe(0)
     expect(await db.monthlyBudgets.count()).toBe(0)
+    expect(await db.monthCarryDecisions.count()).toBe(0)
     expect(await db.outbox.count()).toBe(0)
   })
 })

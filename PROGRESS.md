@@ -2,23 +2,24 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-24 22:54 (UTC+03:00).
+- Dernière mise à jour : 2026-10-24 23:00 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R1 — repositories/bootstrap, après finalisation du schéma et
-  de la remise à zéro Dexie.
+- Lot/tâche en cours : R1 — synchronisation, après finalisation du schéma Dexie et
+  des repositories/bootstrap.
 - Terminé et vérifié avant cette reprise : R0 validé ; contrats de domaine et calculs
   purs ajoutés ; tests ciblés initiaux, typecheck, lint et build étaient verts. Les
-  premiers travaux R1 existent sur la branche en commits dédiés, mais doivent être
-  revérifiés avec la décision destructive ci-dessous. Migration Dexie v2→v4 testée :
-  données et outbox de test vidées, comptes retirés, tables R1 présentes ; tests
-  `database.test.ts` et `reform-models.test.ts` réussis (9 tests).
-- Fait mais pas encore vérifié : les changements repositories/bootstrap en cours
-  éliminent les comptes et ajoutent les nouvelles tables aux instantanés/imports.
-  La migration Supabase/RLS a été simplifiée et commitée (`de32a7c`), mais pgTAP
+  revalidation finale R1 encore requise. Migration Dexie v2→v4 testée : données et
+  outbox de test vidées, comptes retirés, tables R1 présentes ; `database.test.ts` et
+  `reform-models.test.ts` réussis (9 tests). Repositories/bootstrap ciblés réussis
+  (13 tests) et lint ciblé passé.
+- Fait mais pas encore vérifié : le typecheck global échoue encore sur les références
+  comptes/transferts restantes dans UI, historique et synchronisation ; ces tâches
+  R1 ne sont pas terminées. La migration Supabase/RLS a été simplifiée et commitée
+  (`de32a7c`), mais pgTAP
   n’a pas pu être exécuté : `supabase`, `psql`, `postgres`, Docker et Podman ne sont
   pas installés. Aucun accès distant n’a été fait.
-- Prochaine action exacte : ouvrir `src/data/bootstrap.ts` et `src/data/repositories.ts`,
-  puis mettre en cohérence les dépôts et tests avec les modèles R1 et la remise à zéro.
+- Prochaine action exacte : ouvrir `src/data/sync.ts` et `src/data/sync.test.ts`,
+  remplacer le routage `accounts` par les tables R1 et tester push/pull.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
   appliquer de migration au projet Supabase distant.
@@ -102,7 +103,7 @@ le suivant.
 | Calculs purs et tests unitaires     | Terminée, commitée ; revalidation R1 finale requise  | Dépenses nettes, solde, budget, reports et limites                                                           |
 | Migration Supabase et tests RLS     | Code simplifié et commité ; non validé à l’exécution | `de32a7c`; pgTAP réécrit ; outil PostgreSQL local absent, aucun accès distant autorisé                       |
 | Schéma local Dexie et remise à zéro | Terminée, commitée                                   | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis    |
-| Repositories et bootstrap           | En cours, non vérifiés                               | Réconcilier modèles et imports/snapshots avec les nouvelles tables ; vérifier les tests correspondants       |
+| Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis            | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                      |
 | Synchronisation                     | À faire                                              | Push/pull des tables R1, suppression des chemins comptes/transferts                                          |
 | Écran transactions minimum          | En cours, non committé                               | Retirer uniquement les contrôles et données liés aux comptes/transferts ; parcours complet en R4             |
 | Validation R1 complète              | À faire en dernier                                   | `npm test`, tests SQL, lint, typecheck, build et format ; enregistrer les résultats                          |
