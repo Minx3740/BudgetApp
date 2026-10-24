@@ -4,9 +4,8 @@
 
 - Dernière mise à jour : 2026-10-24 22:36 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R1 — appliquer la nouvelle décision destructive aux documents,
-  simplifier migration/Dexie, terminer la synchronisation et retirer les dépendances
-  comptes/transferts de l’écran transactions.
+- Lot/tâche en cours : R1 — tâche documentaire terminée ; la prochaine tâche est la
+  simplification de la migration Supabase/RLS selon la décision destructive.
 - Terminé et vérifié avant cette reprise : R0 validé ; contrats de domaine et calculs
   purs ajoutés ; tests ciblés initiaux, typecheck, lint et build étaient verts. Les
   premiers travaux R1 existent sur la branche en commits dédiés, mais doivent être
@@ -14,10 +13,11 @@
 - Fait mais pas encore revérifié : migration Supabase/RLS, reset de Dexie,
   repositories/bootstrap et tests correspondants ; des modifications locales non
   commitées touchent ces zones ainsi que `App.tsx` et `local-data-view.tsx`.
-- Prochaine action exacte : ouvrir la migration
-  `supabase/migrations/20261024200000_r1_budget_model.sql` et son test
-  `supabase/tests/database/001_rls_and_invitations.test.sql`; simplifier selon la
-  décision destructive, puis vérifier leurs cas de test.
+- Prochaine action exacte : ouvrir
+  `supabase/migrations/20261024200000_r1_budget_model.sql` et
+  `supabase/tests/database/001_rls_and_invitations.test.sql`; supprimer les étapes
+  d’archivage/conversion des anciennes données et adapter les tests à la remise à zéro
+  des données de test.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
   appliquer de migration au projet Supabase distant.
@@ -25,7 +25,7 @@
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
   aucune archive de transfert, aucune décision de report historique, aucune migration
-  de l’ancienne outbox ; première utilisation réelle : toutes les migrations doivent
+  de l’ancienne outbox ; première utilisation réelle : toutes les migrations devront
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
   prioritaire : adaptation minimale en R1, parcours complet en R4.
 - Questions encore ouvertes : aucune question métier bloquante pour R1. Ne pas pousser
@@ -64,15 +64,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                                                                                                   | Date       |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                                                                        | 2026-10-24 |
-| R1  | En cours — contrats, calculs, migration/RLS, Dexie et repositories/bootstrap engagés ; décision destructive à appliquer, synchronisation, écran minimal et validation restent à terminer | 2026-10-24 |
-| R2  | À faire — budget, solde, seuils et écrans                                                                                                                                                |            |
-| R3  | À faire — navigation, profil et réglages                                                                                                                                                 |            |
-| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                                                                       |            |
-| R5  | À faire — forfaits                                                                                                                                                                       |            |
-| R6  | À faire — analyses                                                                                                                                                                       |            |
+| Lot | Statut                                                                                                                                                             | Date       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                                                                  | 2026-10-24 |
+| R1  | En cours — contrats/calculs, Dexie et repositories/bootstrap engagés ; migration/RLS à simplifier, synchronisation, écran minimal et validation restent à terminer | 2026-10-24 |
+| R2  | À faire — budget, solde, seuils et écrans                                                                                                                          |            |
+| R3  | À faire — navigation, profil et réglages                                                                                                                           |            |
+| R4  | À faire — transactions, remboursements, ajustements et responsable                                                                                                 |            |
+| R5  | À faire — forfaits                                                                                                                                                 |            |
+| R6  | À faire — analyses                                                                                                                                                 |            |
 
 ### État des lieux vérifié pour R0
 
@@ -85,24 +85,26 @@ le suivant.
   Aucun autre fichier de test SQL n’a été trouvé dans `supabase/tests/`.
 - Playwright n’est pas déclaré dans le `package.json` inspecté.
 - Le déploiement Cloudflare est décrit dans `.github/workflows/deploy-pages.yml`.
-- Décisions P8 et P9 confirmées. Décision ultérieure remplaçant P11 : Supabase et
-  Dexie contiennent seulement des données de test et peuvent être vidés ; ne pas
-  convertir les soldes, archiver les transferts, créer des reports historiques ni
-  migrer l’ancienne outbox. Après la première utilisation réelle avec données à garder,
-  toute migration devra être conservatrice.
+- Décisions P8 et P9 confirmées. P11 est retirée et remplacée : Supabase et Dexie
+  contiennent seulement des données de test et peuvent être vidés ; ne pas convertir
+  les soldes, archiver les transferts, créer des reports historiques ni migrer l’ancienne
+  outbox. Après la première utilisation réelle avec données à garder, toute migration
+  devra être conservatrice.
 
 ### Tâches R1
 
-| Tâche                           | État                                                | Détail                                                                                                        |
-| ------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Contrats TypeScript/Zod         | Terminée, commitée ; revalidation R1 finale requise | Montants sûrs, modèles du budget global, reports, dépenses, remboursements, revenus et ajustements            |
-| Calculs purs et tests unitaires | Terminée, commitée ; revalidation R1 finale requise | Dépenses nettes, solde, budget, reports et limite de chaîne                                                   |
-| Migration Supabase et tests RLS | À simplifier et revérifier                          | La décision destructive autorise la suppression des comptes/transferts et la remise à zéro des tables de test |
-| Migration locale Dexie          | Déjà destructive, à vérifier                        | Vider les tables locales et l’outbox ; aucune conversion des lignes ou opérations historiques                 |
-| Repositories et bootstrap       | Commencés/commités, à vérifier après simplification | Importer seulement le nouveau modèle et nouvelles tables                                                      |
-| Synchronisation                 | À terminer                                          | Ajouter les nouvelles tables au push/pull et supprimer les chemins comptes/transferts                         |
-| Écran transactions minimum      | À terminer                                          | Retirer uniquement les comptes et transferts ; ajouter aucun parcours R4                                      |
-| Validation R1 complète          | À faire en dernier                                  | `npm test`, tests SQL, lint, typecheck, build et format ; enregistrer les résultats                           |
+| Tâche                           | État                                                | Détail                                                                                             |
+| ------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Contrats TypeScript/Zod         | Terminée, commitée ; revalidation R1 finale requise | Montants sûrs, modèles du budget global, reports, dépenses, remboursements, revenus et ajustements |
+| Calculs purs et tests unitaires | Terminée, commitée ; revalidation R1 finale requise | Dépenses nettes, solde, budget, reports et limite de chaîne                                        |
+| Contrats TypeScript/Zod         | Terminée, commitée ; revalidation finale requise    | Montants sûrs, modèles du budget global, reports et nouveaux types de transaction                  |
+| Calculs purs et tests unitaires | Terminée, commitée ; revalidation finale requise    | Dépenses nettes, solde, budget et reports                                                          |
+| Migration Supabase et tests RLS | En cours, non committée                             | Retirer archivage/conversions historiques et tester suppression des comptes/transferts             |
+| Migration locale Dexie          | Terminée, commitée ; revalidation requise           | Remise à zéro des tables et de l’ancienne outbox, sans conversion                                  |
+| Repositories et bootstrap       | Terminés, commités ; revalidation requise           | Utiliser les nouveaux modèles et tables                                                            |
+| Synchronisation                 | À faire                                             | Push/pull des tables R1, suppression des chemins comptes/transferts                                |
+| Écran transactions minimum      | En cours, non committé                              | Retirer uniquement les contrôles et données liés aux comptes/transferts ; parcours complet en R4   |
+| Validation R1 complète          | À faire en dernier                                  | `npm test`, tests SQL, lint, typecheck, build et format ; enregistrer les résultats                |
 
 ## Décisions prises
 

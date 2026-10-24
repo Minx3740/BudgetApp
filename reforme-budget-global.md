@@ -198,23 +198,21 @@ Colonnes : `id`, `series_id`, `space_id`, `label`, `amount` (bigint > 0), `categ
 
 Ajouter `avatar_path` (text, nullable) et un nom d'affichage si absent. **[à vérifier dans le dépôt]**
 
-### 8.6 Migration des données — décision confirmée
+### 8.6 Dexie
 
-Les données présentes dans Supabase et Dexie sont des données de test supprimables.
-Pour R1, la migration peut vider les anciennes transactions, budgets, comptes et
-opérations en attente, puis supprimer les comptes, transferts et colonnes obsolètes.
-Ne pas convertir les soldes initiaux, archiver les transferts ni créer des décisions de
-report pour les anciens mois. Aucun budget global n'est créé automatiquement.
+Pour la coupure R1, les données présentes dans Dexie sont des données de test :
+réinitialiser les tables de données concernées et l'ancienne file de synchronisation.
+Aucune conversion des soldes initiaux, aucun archivage de transfert, aucune décision
+de report historique et aucune migration des anciennes opérations en attente.
 
-Dès la première utilisation avec des données à conserver, toute migration devra être
-conservatrice, préserver les données et être vérifiée avant application. Aucune
-migration Supabase distante sans accord explicite de Laro.
+Dès la première utilisation réelle avec des données à conserver, toute évolution du
+schéma local doit préserver les données et l'outbox, ou faire l'objet d'une décision
+explicite et documentée. Le schéma R1 comprend les tables `monthlyBudgets`,
+`carryDecisions` et `recurringExpenses`, ainsi que les index utiles aux
+`transactions` (`occurred_on`, `kind`, `category_id`, `recurring_id`). La file R1
+inclut les mutations de budget mensuel et de décision de report.
 
-### 8.7 Dexie
-
-Mettre à jour le schéma local : tables `monthlyBudgets`, `carryDecisions`, `recurringExpenses`, index sur `transactions` (`month` ou `date`, `type`, `categoryId`, `recurringId`). Incrémenter la version Dexie avec une fonction d'upgrade qui conserve les données. Ajouter à la file de synchronisation hors ligne les types de mutation « enregistrer le budget du mois » et « enregistrer la décision de report ».
-
-### 8.8 Règles SQL générales
+### 8.7 Règles SQL générales
 
 Migrations versionnées dans le dépôt (dossier existant), RLS activée sur chaque nouvelle table, contraintes CHECK pour tout ce qui peut l'être, une migration par sujet.
 
@@ -340,24 +338,32 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
       nommage existantes).
 - Validation : documents contrôlés et propositions nécessaires à R1 confirmées le
   2026-10-24.
-- Décision R1 : données Supabase/Dexie de test supprimables ; voir la politique de
-  migration destructive ci-dessus. Toute migration après le début de l'utilisation
-  réelle devra être conservatrice.
+- Décision R1 : aucune version antérieure n’ayant été déployée, aucun pont de
+  compatibilité n’est requis. Les données Supabase et Dexie actuelles sont des données
+  de test supprimables ; la migration R1 ne convertit pas les soldes initiaux,
+  n’archive pas les transferts, ne crée pas de reports historiques et ne migre pas
+  l’ancienne outbox. La migration distante nécessite l’accord explicite de Laro.
+  Après le début de l’utilisation réelle avec des données à conserver, toute migration
+  doit être conservatrice.
 
 ### R1. Données et calculs
 
-- [x] Schémas/types Zod et calculs purs avec tests ciblés.
-- [x] Simplifier la migration Supabase en mode destructif pour les données de test ;
-      écrire les tests RLS/schema correspondants. L'exécution pgTAP locale reste à
-      faire avant validation finale de R1.
-- [x] Mettre à jour Dexie et vider l'ancienne base locale/outbox à l'upgrade ; test
-      de migration ciblé réussi.
-- [x] Adapter repositories et bootstrap aux transactions sans compte, budgets mensuels
-      et décisions de report.
-- [ ] Adapter la synchronisation et l'outbox.
-- [ ] Adapter minimalement l'écran Transactions pour supprimer comptes/transferts ;
-      parcours complet réservé à R4.
-- [ ] Validation finale : tests Vitest, SQL pgTAP, lint, typecheck et build.
+- [ ] Simplifier la migration Supabase/RLS selon la coupure destructive des données de
+      test ; ne pas convertir les soldes initiaux, archiver les transferts ni créer de
+      reports historiques. Ajouter les tests SQL correspondants.
+- [ ] Réinitialiser les données locales R1 et l’ancienne outbox dans Dexie ; ajouter
+      les nouvelles tables et index, sans migration des opérations en attente.
+- [ ] Adapter repositories, bootstrap et synchronisation aux nouvelles tables et
+      supprimer les chemins des comptes/transferts.
+- [ ] Adapter minimalement l’écran Transactions en retirant les contrôles et données
+      liés aux comptes/transferts ; garder le parcours complet pour R4.
+- [ ] Fonctions pures de calcul (B9) et tests unitaires.
+- [ ] Remplacer l'ancien calcul du « budget total » et connecter les nouveaux calculs.
+- [ ] Exécuter tests unitaires, tests SQL, lint, typecheck, build et format ; mettre à
+      jour `PROGRESS.md`.
+- Validation : aucun écran R1 n'utilise la somme des seuils comme budget ; aucun
+  compte/transfert n'est requis pour saisir et consulter une dépense/revenu. Aucune
+  migration Supabase distante sans accord explicite de Laro.
 
 ### R2. Budget, solde et seuils à l'écran
 

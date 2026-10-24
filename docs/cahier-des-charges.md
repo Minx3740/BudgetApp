@@ -34,10 +34,10 @@ validation par Laro.
    d’accès suffisant.
 8. **Fin d’un lot** : donner la liste des livrables, les contrôles exécutés et leurs
    résultats, les éléments non terminés, et attendre la validation de Laro.
-9. **Migration selon le cycle de vie des données** : tant que les données sont des
-   données de test, Laro autorise leur suppression pour la réforme. Dès la première
-   utilisation avec des données à conserver, toute migration doit être conservatrice,
-   documentée et vérifiée avant exécution.
+9. **Migrations** : la coupure R1 peut supprimer les données de test Supabase et
+   Dexie. Dès la première utilisation réelle avec des données à conserver, toute
+   migration doit être conservatrice et son traitement expliqué avant exécution sur
+   Supabase hébergé.
 
 ### 0.1 Environnement constaté
 
@@ -77,9 +77,9 @@ Le dépôt contient aujourd’hui des comptes/portefeuilles avec soldes initiaux
 transferts entre comptes et des catégories obligatoires pour les dépenses et revenus.
 Le solde affiché est calculé à partir de ces comptes. La cible de la réforme retire
 les comptes et transferts et rend la catégorie facultative pour les dépenses et
-remboursements. Les données actuelles sont des données de test supprimables selon la
-section 8. Dès la première utilisation avec des données à conserver, toute migration
-devra être conservatrice.
+remboursements. Ces enregistrements sont des données de test : la coupure R1 peut
+supprimer les lignes et tables concernées, sans conversion des soldes initiaux,
+d’archivage des transferts ni création de reports historiques.
 
 ---
 
@@ -297,24 +297,18 @@ Le projet utilise actuellement `workspaces` et `workspace_id`, non `spaces` et
 - Aucun budget global n’est créé automatiquement. Les mois existants sans budget
   montrent l’invitation à le définir.
 - Le calcul du budget ne lit plus la somme des seuils.
-- Les données présentes dans Supabase et Dexie sont des données de test supprimables.
-  Pour le passage au nouveau modèle, la migration peut vider les anciennes
-  transactions, budgets, comptes et opérations en attente, puis supprimer les comptes,
-  transferts et colonnes obsolètes.
-- Ne pas convertir les soldes initiaux en ajustement, archiver les transferts, ni créer
-  de décisions de report pour les anciens mois.
-- Aucun budget global n’est créé automatiquement ; un mois sans budget invite à le
-  définir. Le calcul du budget ne lit jamais la somme des seuils.
-- **Dès la première utilisation avec des données à conserver, toute migration doit
-  devenir conservatrice** : préserver et vérifier les données avant exécution, et
-  obtenir l’accord de Laro pour tout traitement destructif.
+- Les transactions existantes doivent être converties sans perte silencieuse et le
+  solde calculé avant/après migration doit être vérifié.
+- Les transferts entre comptes et soldes initiaux existants nécessitent une règle de
+  migration compatible avec la cible sans comptes. Cette règle doit être explicitée,
+  testée et validée avant exécution sur la base hébergée.
+- Les données de compte actuelles ne doivent pas être supprimées avant validation de
+  la migration et vérification des montants conservés.
 
 ### 8.3 Dexie et synchronisation
 
-- Ajouter les tables locales des budgets mensuels, décisions de report et forfaits.
-  Comme les données locales actuelles sont des données de test, l’upgrade R1 peut vider
-  les anciennes tables et l’outbox ; toute migration après le début de l’utilisation
-  réelle devra conserver les données.
+- Ajouter les tables locales des budgets mensuels, décisions de report et forfaits ;
+  migrer la version Dexie en conservant les données déjà installées.
 - Mettre à jour les schémas Zod, repositories, hooks réactifs, import initial et
   opérations d’outbox pour couvrir toutes les nouvelles données.
 - Les écritures hors ligne du budget et du report sont locales et mises en file, puis
@@ -568,8 +562,9 @@ Tester au minimum :
 14. Forfait appelé deux fois sans doublon, aucun mois futur, refus du non-membre,
     occurrence supprimée non recréée.
 15. Mauvaise version de forfait refusée.
-16. L’upgrade Dexie R1 vide les données de test et l’ancienne outbox ; la synchronisation
-    et le pull incluent les nouvelles tables.
+16. Pour la coupure R1, Dexie peut vider les tables concernées et l’ancienne outbox.
+    Après le début de l’utilisation réelle, les mises à niveau doivent préserver les
+    données et l’outbox ; le push/pull inclut les nouvelles tables.
 
 ### 15.3 Parcours de bout en bout
 
@@ -607,13 +602,17 @@ le lot correspondant.
 | P9  | Confirmée : noms alignés sur les conventions existantes du dépôt            | R1  |
 | P10 | Analyses comme volet de Budgets                                             | R3  |
 
-Décision confirmée par Laro : les données Supabase et Dexie actuelles sont des données
-de test supprimables. R1 peut vider les transactions, budgets, comptes et opérations
-en attente obsolètes, puis supprimer les tables/colonnes de comptes et transferts. Ne
-pas créer d’ajustement initial, d’archive de transferts ni de reports historiques.
-Dès la première utilisation avec des données à conserver, toute migration devra être
-conservatrice. Aucune migration ne sera appliquée au Supabase distant sans accord
+### Décision de migration R1
+
+Les données actuellement présentes dans Supabase et Dexie sont des données de test et
+peuvent être supprimées. R1 ne convertit pas les soldes initiaux, n’archive pas les
+transferts, ne crée pas de décisions de report pour les anciens mois et ne migre pas
+l’ancienne file d’attente. La migration distante ne sera pas appliquée sans accord
 explicite de Laro.
+
+Dès la première utilisation réelle avec des données à conserver, toute migration devra
+être conservatrice : préserver les données, l’outbox et l’historique ou documenter et
+faire valider explicitement toute transformation avant application.
 
 ---
 
@@ -630,25 +629,24 @@ R0–R6 suivent l’implémentation de la réforme.
 - [x] Faire valider le présent brouillon v1.2.
 - [x] Mettre à jour `docs/cahier-des-charges.md` en v1.2 après validation.
 - [x] Créer `docs/guide-ui.md` et ajouter R0–R6 à `PROGRESS.md`.
-- [x] Faire confirmer P8 et P9 avant d’ouvrir R1.
+- [x] Confirmer P8 et P9 ; remplacer P11 par la règle destructive R1.
 - **État vérifié** : migrations présentes ; tests SQL présents dans
   `supabase/tests/database/`; `PROGRESS.md` présent ; `docs/guide-ui.md` créé.
 - Validation : documents relus, contrôles de documentation disponibles passés et
-  propositions nécessaires à R1 confirmées le 2026-10-24.
+  décisions nécessaires à R1 confirmées le 2026-10-24.
 
 ### R1 — Données et calculs
 
-- [x] Ajouter les schémas/types Zod R1 et les calculs purs ; tests ciblés réussis.
-- [ ] Simplifier la migration Supabase en mode destructif pour les données de test,
-      créer le nouveau schéma et couvrir les contraintes/RLS par tests SQL.
-- [ ] Mettre à jour Dexie ; supprimer les données locales et l’ancienne outbox lors
-      de l’upgrade de schéma.
-- [ ] Adapter repositories et bootstrap au nouveau modèle.
-- [ ] Adapter synchronisation et outbox aux nouvelles tables.
-- [ ] Adapter minimalement l’écran Transactions pour supprimer les comptes/transferts
-      et garder l’application utilisable ; le parcours complet reste en R4.
-- [ ] Valider : `npm test`, tests SQL, lint, typecheck et build ; mettre à jour le
-      compte-rendu et demander validation avant R2.
+- Migration Supabase/RLS du modèle R1 ; données de test concernées supprimables.
+- Dexie : vider les tables concernées et l’ancienne outbox pour la coupure R1.
+- Repositories, bootstrap et synchronisation avec le nouveau modèle et les nouvelles
+  tables.
+- Adaptation minimale de l’écran transactions : retirer les comptes et transferts ;
+  le parcours complet reste en R4.
+- Fonctions pures de calcul et tests.
+- Supprimer le calcul du budget global basé sur la somme des seuils.
+- Validation : tests unitaires et RLS verts ; aucune lecture du budget global à partir
+  des seuils. Aucune migration Supabase distante sans accord explicite de Laro.
 
 ### R2 — Budget, solde et seuils
 
