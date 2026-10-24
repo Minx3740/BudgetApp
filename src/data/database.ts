@@ -89,7 +89,7 @@ export class BudgetDatabase extends Dexie {
         accounts: 'id, workspace_id, updated_at, deleted_at',
         categories: 'id, workspace_id, kind, updated_at, deleted_at',
         transactions:
-          'id, workspace_id, occurred_on, account_id, category_id, paid_by, created_by, updated_at, deleted_at',
+          'id, workspace_id, occurred_on, category_id, paid_by, created_by, updated_at, deleted_at',
         budgets: 'id, workspace_id, category_id, month, &[workspace_id+category_id+month]',
         monthlyBudgets: 'id, workspace_id, month, updated_at, deleted_at, &[workspace_id+month]',
         monthCarryDecisions:

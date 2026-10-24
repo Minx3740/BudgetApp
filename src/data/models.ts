@@ -61,15 +61,6 @@ export const invitationSchema = z.object({
   created_by: uuidSchema,
 })
 
-export const accountSchema = z.object({
-  ...syncFields,
-  workspace_id: uuidSchema,
-  name: z.string().trim().min(1).max(80),
-  type: z.string().trim().min(1).max(40),
-  initial_balance: moneySchema,
-  archived_at: timestampSchema.nullable(),
-})
-
 export const categorySchema = z.object({
   ...syncFields,
   workspace_id: uuidSchema,
@@ -91,7 +82,7 @@ export const budgetSchema = z.object({
       const date = new Date(`${value}T00:00:00.000Z`)
       return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
     }),
-  limit_amount: moneySchema.positive(),
+  limit_amount: moneySchema.nonnegative(),
 })
 
 export const monthlyBudgetSchema = z.object({
@@ -155,33 +146,18 @@ export const cashflowTransactionSchema = z
     }
   })
 
-export const legacyTransferSchema = z.object({
-  id: uuidSchema,
-  workspace_id: uuidSchema,
-  source_account_id: uuidSchema,
-  destination_account_id: uuidSchema,
-  amount: moneySchema.positive(),
-  occurred_on: dateSchema,
-  note: z.string().nullable(),
-  created_by: uuidSchema,
-  created_at: timestampSchema,
-  updated_at: timestampSchema,
-  deleted_at: timestampSchema.nullable(),
-  archived_at: timestampSchema,
-})
+export const transactionSchema = cashflowTransactionSchema
 
 export type Profile = z.infer<typeof profileSchema>
 export type Workspace = z.infer<typeof workspaceSchema>
 export type Membership = z.infer<typeof membershipSchema>
 export type Invitation = z.infer<typeof invitationSchema>
-export type Account = z.infer<typeof accountSchema>
 export type Category = z.infer<typeof categorySchema>
+export type Transaction = z.infer<typeof cashflowTransactionSchema>
 export type Budget = z.infer<typeof budgetSchema>
 export type MonthlyBudget = z.infer<typeof monthlyBudgetSchema>
 export type MonthCarryDecision = z.infer<typeof monthCarryDecisionSchema>
 export type CashflowTransaction = z.infer<typeof cashflowTransactionSchema>
-export type Transaction = CashflowTransaction
-export type LegacyTransfer = z.infer<typeof legacyTransferSchema>
 
 export type EditableTable =
   'categories' | 'transactions' | 'budgets' | 'monthlyBudgets' | 'monthCarryDecisions'

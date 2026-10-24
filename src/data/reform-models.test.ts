@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  cashflowTransactionSchema,
-  legacyTransferSchema,
-  monthCarryDecisionSchema,
-  monthlyBudgetSchema,
-} from './models'
+import { cashflowTransactionSchema, monthCarryDecisionSchema, monthlyBudgetSchema } from './models'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
 const categoryId = '00000000-0000-4000-8000-000000000002'
@@ -90,24 +85,5 @@ describe('modèles du budget réformé', () => {
       cashflowTransactionSchema.safeParse(transaction('adjustment', 1, categoryId)).success,
     ).toBe(false)
     expect(cashflowTransactionSchema.safeParse(transaction('income', 1, null)).success).toBe(false)
-  })
-
-  it('reconnaît les transferts historiques dans l’archive en lecture seule', () => {
-    expect(
-      legacyTransferSchema.safeParse({
-        id: '00000000-0000-4000-8000-000000000007',
-        workspace_id: workspaceId,
-        source_account_id: categoryId,
-        destination_account_id: '00000000-0000-4000-8000-000000000008',
-        amount: 120,
-        occurred_on: '2026-10-15',
-        note: null,
-        created_by: userId,
-        created_at: timestamp,
-        updated_at: timestamp,
-        deleted_at: null,
-        archived_at: timestamp,
-      }).success,
-    ).toBe(true)
   })
 })
