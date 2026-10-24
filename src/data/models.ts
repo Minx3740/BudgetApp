@@ -3,6 +3,20 @@ import { z } from 'zod'
 const uuidSchema = z.string().uuid()
 const timestampSchema = z.string().datetime({ offset: true })
 const moneySchema = z.number().int().safe()
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  })
+const monthSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-01$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  })
 
 const syncFields = {
   id: uuidSchema,
@@ -109,6 +123,82 @@ export const budgetSchema = z.object({
   limit_amount: moneySchema.positive(),
 })
 
+export const monthlyBudgetSchema = z.object({
+  ...syncFields,
+  workspace_id: uuidSchema,
+  month: monthSchema,
+  budget_amount: moneySchema.nonnegative(),
+})
+
+export const monthCarryDecisionSchema = z.object({
+  ...syncFields,
+  workspace_id: uuidSchema,
+  month: monthSchema,
+  accepted: z.boolean(),
+})
+
+export const cashflowTransactionSchema = z
+  .object({
+    ...syncFields,
+    workspace_id: uuidSchema,
+    category_id: uuidSchema.nullable(),
+    kind: z.enum(['expense', 'refund', 'income', 'adjustment']),
+    amount: moneySchema,
+    occurred_on: dateSchema,
+    note: z.string().nullable(),
+    created_by: uuidSchema,
+    paid_by: uuidSchema,
+  })
+  .superRefine((transaction, context) => {
+    if (transaction.kind === 'adjustment') {
+      if (transaction.amount === 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['amount'],
+          message: 'An adjustment amount must not be zero.',
+        })
+      }
+      if (transaction.category_id !== null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['category_id'],
+          message: 'An adjustment cannot have a category.',
+        })
+      }
+      return
+    }
+
+    if (transaction.amount <= 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['amount'],
+        message: 'A transaction amount must be positive.',
+      })
+    }
+    if (transaction.kind === 'income' && transaction.category_id === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['category_id'],
+        message: 'An income must have a category.',
+      })
+    }
+  })
+
+export const legacyTransferSchema = z.object({
+  id: uuidSchema,
+  workspace_id: uuidSchema,
+  source_account_id: uuidSchema,
+  destination_account_id: uuidSchema,
+  amount: moneySchema.positive(),
+  occurred_on: dateSchema,
+  note: z.string().nullable(),
+  created_by: uuidSchema,
+  created_at: timestampSchema,
+  updated_at: timestampSchema,
+  deleted_at: timestampSchema.nullable(),
+  archived_at: timestampSchema,
+})
+
 export type Profile = z.infer<typeof profileSchema>
 export type Workspace = z.infer<typeof workspaceSchema>
 export type Membership = z.infer<typeof membershipSchema>
@@ -117,6 +207,10 @@ export type Account = z.infer<typeof accountSchema>
 export type Category = z.infer<typeof categorySchema>
 export type Transaction = z.infer<typeof transactionSchema>
 export type Budget = z.infer<typeof budgetSchema>
+export type MonthlyBudget = z.infer<typeof monthlyBudgetSchema>
+export type MonthCarryDecision = z.infer<typeof monthCarryDecisionSchema>
+export type CashflowTransaction = z.infer<typeof cashflowTransactionSchema>
+export type LegacyTransfer = z.infer<typeof legacyTransferSchema>
 
 export type EditableTable = 'accounts' | 'categories' | 'transactions' | 'budgets'
 
