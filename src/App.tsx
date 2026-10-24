@@ -9,6 +9,7 @@ import {
   ReceiptText,
   RefreshCw,
   Settings2,
+  UserRound,
   UsersRound,
   Wifi,
   WifiOff,
@@ -38,16 +39,18 @@ import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
-type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces' | 'settings'
+type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces' | 'settings' | 'plus'
 
 const navigation: { id: AppSection; label: string; icon: LucideIcon }[] = [
   { id: 'home', label: 'Accueil', icon: Home },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
   { id: 'budgets', label: 'Budgets', icon: ChartNoAxesColumn },
   { id: 'spaces', label: 'Espaces', icon: UsersRound },
-  { id: 'settings', label: 'Paramètres', icon: Settings2 },
 ]
-const mobileNavigation = navigation.filter((item) => item.id !== 'spaces')
+const mobileNavigation = [
+  ...navigation.filter((item) => item.id !== 'spaces'),
+  { id: 'plus' as const, label: 'Plus', icon: Settings2 },
+]
 
 const sectionDetails: Record<
   Exclude<AppSection, 'home'>,
@@ -69,10 +72,14 @@ const sectionDetails: Record<
     milestone: 'Les espaces partagés et invitations arrivent au jalon M8.',
   },
   settings: {
-    title: 'Paramètres',
-    description:
-      'Les préférences, les infos du compte et l’état de synchronisation sont regroupés ici.',
-    milestone: 'Le reste du menu est rangé pour garder la vue principale claire.',
+    title: 'Réglages de l’application',
+    description: 'Ton profil, tes préférences et les informations de connexion.',
+    milestone: 'Les réglages de l’espace se trouvent dans Plus.',
+  },
+  plus: {
+    title: 'Plus',
+    description: 'Les outils moins fréquents et les réglages de l’espace.',
+    milestone: 'Les fonctions de forfaits seront disponibles dans le lot R5.',
   },
 }
 
@@ -488,6 +495,21 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const isBootstrapping = bootstrapResult?.key !== bootstrapKey
   const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
   const visibleSyncError = syncError ?? syncSummary.lastError
+  const syncStatusLabel = isSyncing
+    ? 'Synchronisation en cours'
+    : visibleSyncError || syncSummary.failedCount > 0
+      ? 'Échec de la synchronisation'
+      : syncSummary.pendingCount > 0
+        ? `${syncSummary.pendingCount} en attente`
+        : !isOnline
+          ? 'Hors ligne'
+          : null
+  const initials = displayName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toLocaleUpperCase('fr-FR'))
+    .join('')
   const invitationToken = new URLSearchParams(window.location.hash.slice(1)).get('invite')
   const currentMonth = monthKeyForDate(new Date())
 
@@ -795,42 +817,21 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
         </nav>
 
         <div className="mt-auto border-t border-stone-200 pt-5">
-          <p className="truncate px-3 text-sm font-medium">{displayName}</p>
-          <Button
-            className="mt-2 min-h-12 w-full justify-start px-3"
-            disabled={isSigningOut}
-            onClick={() => void signOut()}
-            variant="ghost"
-          >
-            <LogOut aria-hidden="true" size={18} />
-            {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
-          </Button>
+          <p className="truncate px-3 text-xs text-stone-500">
+            {activeWorkspace?.name ?? 'Aucun espace sélectionné'}
+          </p>
         </div>
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between border-b border-stone-200 bg-white/95 px-4 backdrop-blur sm:px-8 md:px-10">
-          <div className="flex items-center gap-3">
-            <img
-              alt=""
-              className="size-9 rounded-xl"
-              src={`${import.meta.env.BASE_URL}budget-app-icon.svg`}
-            />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold tracking-tight text-stone-900">cashFlow+</p>
-              <p className="truncate text-[11px] text-stone-500 md:hidden">
-                {activeWorkspace?.name ?? 'Perso'}
-              </p>
-            </div>
-          </div>
-
-          <div className="hidden min-w-0 flex-1 justify-center md:flex">
-            <label className="sr-only" htmlFor="active-workspace">
-              Espace actif
+        <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-3 border-b border-stone-200 bg-white/95 px-4 backdrop-blur sm:px-8 md:px-10">
+          <div className="min-w-0 md:hidden">
+            <label className="sr-only" htmlFor="active-workspace-mobile">
+              Choisir l’espace actif
             </label>
             <select
-              className="min-h-10 max-w-xs rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium"
-              id="active-workspace"
+              className="min-h-11 max-w-[55vw] truncate rounded-xl border border-stone-300 bg-white px-3 text-sm font-semibold"
+              id="active-workspace-mobile"
               onChange={(event) => selectWorkspace(event.target.value)}
               value={activeWorkspace?.id ?? ''}
             >
@@ -843,6 +844,63 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            {syncStatusLabel && (
+              <span
+                aria-label={syncStatusLabel}
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ${
+                  syncSummary.failedCount > 0 || visibleSyncError
+                    ? 'bg-red-50 text-red-800'
+                    : !isOnline
+                      ? 'bg-amber-50 text-amber-900'
+                      : 'bg-stone-100 text-stone-700'
+                }`}
+                role="status"
+                title={syncStatusLabel}
+              >
+                {!isOnline ? (
+                  <WifiOff aria-hidden="true" size={14} />
+                ) : (
+                  <RefreshCw aria-hidden="true" size={14} />
+                )}
+                <span className="hidden sm:inline">{syncStatusLabel}</span>
+              </span>
+            )}
+            <details className="relative">
+              <summary
+                aria-label={`Profil de ${displayName}`}
+                className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-950 outline-offset-2 focus-visible:outline-2 focus-visible:outline-emerald-800"
+              >
+                {initials || <UserRound aria-hidden="true" size={20} />}
+              </summary>
+              <div className="absolute right-0 top-14 z-40 w-64 rounded-2xl border border-stone-200 bg-white p-2 shadow-lg">
+                <div className="border-b border-stone-100 px-3 py-2">
+                  <p className="truncate text-sm font-semibold">{displayName}</p>
+                  <p className="truncate text-xs text-stone-500">{session.user.email}</p>
+                </div>
+                <button
+                  className="mt-1 min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    setActiveSection('settings')
+                  }}
+                  type="button"
+                >
+                  Mon profil et réglages de l’application
+                </button>
+                <button
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-800 disabled:opacity-50"
+                  disabled={isSigningOut}
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    void signOut()
+                  }}
+                  type="button"
+                >
+                  <LogOut aria-hidden="true" size={17} />
+                  {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
+                </button>
+              </div>
+            </details>
             <Button
               aria-label="Ajouter une transaction"
               className="hidden min-h-11 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900 md:inline-flex"
@@ -932,15 +990,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           {activeSection === 'home' ? (
             <>
               <div className="mb-8">
-                <p className="mb-2 text-sm font-medium text-emerald-800">
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Vue du mois</h1>
+                <p className="mt-1 text-sm text-stone-600">
                   {activeWorkspace?.type === 'shared' ? 'Espace partagé' : 'Espace personnel'}
-                </p>
-                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Bonjour, {displayName}
-                </h1>
-                <p className="mt-3 max-w-2xl leading-7 text-stone-600">
-                  Ton espace « {activeWorkspace?.name ?? 'Perso'} » est prêt. Fais le point sur ton
-                  budget ou ajoute une transaction en quelques secondes.
                 </p>
               </div>
 
@@ -1075,6 +1127,42 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               userId={session.user.id}
               workspace={activeWorkspace}
             />
+          ) : activeSection === 'plus' ? (
+            <section aria-labelledby="section-title" className="max-w-4xl space-y-5">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
+                  Plus
+                </h1>
+                <p className="mt-2 leading-7 text-stone-600">{sectionDetails.plus.description}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  onClick={() => setActiveSection('budgets')}
+                  variant="outline"
+                >
+                  Catégories et seuils
+                  <ChartNoAxesColumn aria-hidden="true" size={18} />
+                </Button>
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  onClick={() => setActiveSection('spaces')}
+                  variant="outline"
+                >
+                  Membres, invitations et espace
+                  <UsersRound aria-hidden="true" size={18} />
+                </Button>
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  disabled
+                  title="Disponible dans le lot R5"
+                  variant="outline"
+                >
+                  Forfaits · bientôt disponibles
+                  <RefreshCw aria-hidden="true" size={18} />
+                </Button>
+              </div>
+            </section>
           ) : (
             <section aria-labelledby="section-title" className="space-y-6">
               <div>
@@ -1149,54 +1237,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   </CardContent>
                 </Card>
               </div>
-
-              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                <CardHeader>
-                  <CardTitle>Actions rapides</CardTitle>
-                  <CardDescription>
-                    Les fonctions utiles restent visibles, sans surcharge.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2">
-                  <Button
-                    className="min-h-12 justify-start"
-                    onClick={() => setActiveSection('home')}
-                    variant="outline"
-                  >
-                    Accueil
-                  </Button>
-                  <Button
-                    className="min-h-12 justify-start"
-                    onClick={() => setActiveSection('budgets')}
-                    variant="outline"
-                  >
-                    Budgets
-                  </Button>
-                  <Button
-                    className="min-h-12 justify-start"
-                    onClick={() => setActiveSection('transactions')}
-                    variant="outline"
-                  >
-                    Transactions
-                  </Button>
-                  <Button
-                    className="min-h-12 justify-start"
-                    onClick={() => setActiveSection('spaces')}
-                    variant="outline"
-                  >
-                    Espaces
-                  </Button>
-                  <Button
-                    className="min-h-12 justify-start sm:col-span-2"
-                    disabled={isSigningOut}
-                    onClick={() => void signOut()}
-                    variant="secondary"
-                  >
-                    <LogOut aria-hidden="true" size={18} />
-                    {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
-                  </Button>
-                </CardContent>
-              </Card>
             </section>
           )}
         </main>

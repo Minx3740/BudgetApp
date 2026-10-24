@@ -2,21 +2,29 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-24 23:58 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 00:23 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R2 — budget global mensuel, solde, report, seuils par catégorie et
-  sélecteur de mois partagé.
+- Lot/tâche en cours : R3 — navigation, compte et réglages. R2 est validé par Laro ;
+  l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
 - Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
   et Budgets affichent budget, dépenses nettes et solde ; les décisions de report sont
   réservées au propriétaire ; le mois partagé persiste dans `?mois=YYYY-MM` et filtre
   l’historique. Format `Ar`, états seuil à 80/100 %, et remboursements pris en compte.
   Validation complète : 58 tests, lint, typecheck, build et format check réussis ;
   `prettier --check` ciblé et `git diff --check` confirmés le 2026-10-24.
-- Fait mais non vérifié à l’exécution : l’essai visuel mobile/hors ligne. L’outil navigateur
-  n’a pas démarré, car Chromium Playwright manque localement ; aucune installation n’a
-  été lancée. Ce n’est pas un blocage identifié dans le code.
-- Prochaine action exacte : committer les seuls fichiers R2, puis demander à Laro
-  l’essai manuel mobile/hors ligne et sa validation avant d’ouvrir R3.
+- Fait mais non vérifié à l’exécution : aucun essai manuel téléphone/hors ligne (non
+  souhaité par Laro). L’outil navigateur précédent n’a pas démarré, car Chromium
+  Playwright manque localement ; aucune installation n’a été lancée.
+- Terminé et vérifié en R3 : en-tête compact avec sélecteur d’espace mobile, indicateur de
+  synchronisation uniquement lorsqu’il est utile, menu avatar et déconnexion regroupée ;
+  salutation et actions rapides redondantes retirées ; barre mobile à cinq emplacements
+  avec « + » central et onglet Plus. `npm test` (58), lint, typecheck, format check, build
+  et `git diff --check` passent. Aucune vérification visuelle responsive ne peut être
+  revendiquée ; essai téléphone écarté à la demande de Laro.
+- Prochaine action exacte : poursuivre la navigation grand écran et séparer l’accès
+  « Mon profil » des réglages d’application ; ouvrir `src/App.tsx` et ajouter les vues
+  requises sans toucher aux changements préexistants. Avant la photo de profil, demander
+  la décision sur l’accès au bucket `avatars` (public ou URLs signées).
 - Fait mais non vérifié à l’exécution : migration Supabase/RLS et pgTAP (`de32a7c`).
   Tests SQL indisponibles : `supabase`, `psql`, `postgres`, Docker et Podman absents.
   Aucune migration distante n’a été appliquée. Build réussi avec avertissement Vite sur
@@ -73,8 +81,8 @@ le suivant.
 | --- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
 | R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                       | 2026-10-24 |
 | R1  | Implémentation terminée ; validations disponibles réussies ; pgTAP non exécuté faute d’outils locaux ; Laro a validé R2 | 2026-10-24 |
-| R2  | Implémentation et validations automatisées terminées ; essai mobile/hors ligne et validation de Laro attendus avant R3  | 2026-10-24 |
-| R3  | À faire — navigation, profil et réglages                                                                                |            |
+| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande                             | 2026-10-25 |
+| R3  | Démarré après validation de R2 — navigation, compte et réglages                                                         | 2026-10-25 |
 | R4  | À faire — transactions, remboursements, ajustements et responsable                                                      |            |
 | R5  | À faire — forfaits                                                                                                      |            |
 | R6  | À faire — analyses                                                                                                      |            |
@@ -113,12 +121,22 @@ le suivant.
 
 ### Tâches R2
 
-| Tâche                                  | État                              | Détail                                                                                                                         |
-| -------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Aligner la réforme et partager le mois | Terminée                          | Contradiction corrigée ; état partagé, URL `?mois=YYYY-MM`, filtrage de l’historique et date d’ajout liés au mois sélectionné. |
-| Enveloppe globale et seuils            | Terminée                          | Enveloppe manuelle distincte, reprise explicite du montant précédent, seuils indépendants et états à 80/100 %.                 |
-| Solde et décisions de report           | Terminée                          | Solde et résumé mensuel affichés ; report proposé selon les règles et décisions réservées au propriétaire.                     |
-| États et validations R2                | Automatisé OK ; manuel en attente | 58 tests, lint, typecheck, build et format check OK ; contrôle téléphone et hors ligne à faire avec Laro.                      |
+| Tâche                                  | État                    | Détail                                                                                                                         |
+| -------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Aligner la réforme et partager le mois | Terminée                | Contradiction corrigée ; état partagé, URL `?mois=YYYY-MM`, filtrage de l’historique et date d’ajout liés au mois sélectionné. |
+| Enveloppe globale et seuils            | Terminée                | Enveloppe manuelle distincte, reprise explicite du montant précédent, seuils indépendants et états à 80/100 %.                 |
+| Solde et décisions de report           | Terminée                | Solde et résumé mensuel affichés ; report proposé selon les règles et décisions réservées au propriétaire.                     |
+| États et validations R2                | Terminé ; automatisé OK | 58 tests, lint, typecheck, build et format check OK ; essai téléphone/hors ligne explicitement écarté par Laro.                |
+
+### Tâches R3
+
+| Tâche                                      | État                 | Détail                                                                                                             |
+| ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| En-tête compact et état de synchronisation | Terminée et vérifiée | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée. |
+| Navigation mobile et grand écran           | Partielle            | Barre mobile 5 places et Plus livrés ; reste à structurer la barre latérale desktop selon le cahier.               |
+| Menu profil et réglages                    | Partielle            | Menu avatar ouvre la vue compte ; séparation profil/préférences et contenus de réglages restent à faire.           |
+| Photo de profil                            | Bloquée              | Décision P7 requise : bucket public à chemin non devinable ou URLs signées.                                        |
+| Validation R3                              | À faire              | Tests ciblés, tests complets et responsive automatisé si disponible ; droits membres cohérents avec RLS.           |
 
 ## Décisions prises
 
