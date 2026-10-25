@@ -1,5 +1,13 @@
-import { useMemo } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  isMobileAnalyticsViewport,
+  loadAnalyticsChartVisibility,
+  saveAnalyticsChartVisibility,
+  type AnalyticsChartId,
+  type AnalyticsChartVisibility,
+} from '@/data/analytics-preferences'
 import {
   calculateAnalyticsIndicators,
   calculateCategoryMonthComparison,
@@ -27,6 +35,50 @@ const chartColors = {
   expense: 'var(--chart-5)',
   grid: 'var(--border)',
   text: 'var(--muted-foreground)',
+}
+
+interface AnalyticsChartCardProps {
+  chartId: AnalyticsChartId
+  title: string
+  summary: string
+  expanded: boolean
+  onToggle: () => void
+  children: ReactNode
+}
+
+function AnalyticsChartCard({
+  chartId,
+  title,
+  summary,
+  expanded,
+  onToggle,
+  children,
+}: AnalyticsChartCardProps) {
+  return (
+    <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+      <CardHeader className="pb-3">
+        <button
+          aria-controls={`analytics-chart-${chartId}`}
+          aria-expanded={expanded}
+          className="flex min-h-11 w-full items-center justify-between gap-3 text-left"
+          onClick={onToggle}
+          type="button"
+        >
+          <span className="min-w-0">
+            <span className="block font-semibold">{title}</span>
+            <span className="mt-1 block text-sm font-normal text-muted-foreground">{summary}</span>
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className={`size-5 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </CardHeader>
+      <div hidden={!expanded} id={`analytics-chart-${chartId}`}>
+        {expanded ? children : null}
+      </div>
+    </Card>
+  )
 }
 
 function formatMoney(amount: number): string {
@@ -82,7 +134,12 @@ function CategorySpendingChart({
   categories,
   budgets,
   transactions,
-}: Pick<BudgetAnalyticsViewProps, 'month' | 'categories' | 'budgets' | 'transactions'>) {
+  expanded,
+  onToggle,
+}: Pick<BudgetAnalyticsViewProps, 'month' | 'categories' | 'budgets' | 'transactions'> & {
+  expanded: boolean
+  onToggle: () => void
+}) {
   const values = calculateCategorySpending(month, categories, budgets, transactions)
   const chartHeight = Math.max(84, values.length * 34 + 24)
   const plotLeft = 120
@@ -92,14 +149,13 @@ function CategorySpendingChart({
   const zeroX = plotLeft + scalePosition(0, minimum, maximum, plotWidth)
 
   return (
-    <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-      <CardHeader>
-        <CardTitle>Où va l’argent ?</CardTitle>
-        <CardDescription>
-          Dépenses nettes par catégorie en {formatMonthLabel(month)} ; le trait pointillé indique le
-          seuil défini.
-        </CardDescription>
-      </CardHeader>
+    <AnalyticsChartCard
+      chartId="categorySpending"
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={`${formatMoney(values.reduce((total, item) => total + item.amount, 0))} dépensés`}
+      title="Où va l’argent ?"
+    >
       <CardContent>
         {values.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune dépense enregistrée ce mois-ci.</p>
@@ -185,7 +241,7 @@ function CategorySpendingChart({
           </>
         )}
       </CardContent>
-    </Card>
+    </AnalyticsChartCard>
   )
 }
 
@@ -193,7 +249,12 @@ function CategoryComparisonChart({
   month,
   categories,
   transactions,
-}: Pick<BudgetAnalyticsViewProps, 'month' | 'categories' | 'transactions'>) {
+  expanded,
+  onToggle,
+}: Pick<BudgetAnalyticsViewProps, 'month' | 'categories' | 'transactions'> & {
+  expanded: boolean
+  onToggle: () => void
+}) {
   const values = calculateCategoryMonthComparison(month, categories, transactions)
   const chartHeight = Math.max(84, values.length * 40 + 24)
   const plotLeft = 120
@@ -209,13 +270,13 @@ function CategoryComparisonChart({
   const zeroX = plotLeft + scalePosition(0, minimum, maximum, plotWidth)
 
   return (
-    <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-      <CardHeader>
-        <CardTitle>Mieux ou pire que le mois dernier ?</CardTitle>
-        <CardDescription>
-          Dépenses nettes par catégorie : {formatMonthLabel(month)} comparé au mois précédent.
-        </CardDescription>
-      </CardHeader>
+    <AnalyticsChartCard
+      chartId="categoryComparison"
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={`${formatMoney(values.reduce((total, item) => total + item.currentAmount, 0))} ce mois`}
+      title="Mieux ou pire que le mois dernier ?"
+    >
       <CardContent>
         {values.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune dépense à comparer.</p>
@@ -299,7 +360,7 @@ function CategoryComparisonChart({
           </>
         )}
       </CardContent>
-    </Card>
+    </AnalyticsChartCard>
   )
 }
 
@@ -307,7 +368,12 @@ function DailyCumulativeChart({
   month,
   monthlyResources,
   transactions,
-}: Pick<BudgetAnalyticsViewProps, 'month' | 'monthlyResources' | 'transactions'>) {
+  expanded,
+  onToggle,
+}: Pick<BudgetAnalyticsViewProps, 'month' | 'monthlyResources' | 'transactions'> & {
+  expanded: boolean
+  onToggle: () => void
+}) {
   const values = calculateDailyExpenseCumulative(month, transactions)
   const plot = { left: 72, top: 14, width: chartWidth - 84, height: 178 }
   const minimum = Math.min(0, monthlyResources ?? 0, ...values.map((item) => item.cumulativeAmount))
@@ -322,16 +388,13 @@ function DailyCumulativeChart({
     .join(' ')
 
   return (
-    <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-      <CardHeader>
-        <CardTitle>Suis-je dans le budget ?</CardTitle>
-        <CardDescription>
-          Dépenses nettes cumulées par jour en {formatMonthLabel(month)}.
-          {monthlyResources === null
-            ? ' Les ressources du mois ne sont pas disponibles.'
-            : ` Les ressources du mois sont de ${formatMoney(monthlyResources)}.`}
-        </CardDescription>
-      </CardHeader>
+    <AnalyticsChartCard
+      chartId="dailyCumulative"
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={`${formatMoney(values.at(-1)?.cumulativeAmount ?? 0)} dépensés`}
+      title="Suis-je dans le budget ?"
+    >
       <CardContent>
         <svg
           aria-hidden="true"
@@ -407,14 +470,19 @@ function DailyCumulativeChart({
           values.map((item) => `Jour ${item.day} : ${formatMoney(item.cumulativeAmount)} cumulés`),
         )}
       </CardContent>
-    </Card>
+    </AnalyticsChartCard>
   )
 }
 
 function SixMonthCashflowChart({
   month,
   transactions,
-}: Pick<BudgetAnalyticsViewProps, 'month' | 'transactions'>) {
+  expanded,
+  onToggle,
+}: Pick<BudgetAnalyticsViewProps, 'month' | 'transactions'> & {
+  expanded: boolean
+  onToggle: () => void
+}) {
   const values = calculateSixMonthCashflow(month, transactions)
   const plot = { left: 72, top: 14, width: chartWidth - 84, height: 178 }
   const minimum = Math.min(0, ...values.flatMap((item) => [item.income, item.netExpenses]))
@@ -426,11 +494,15 @@ function SixMonthCashflowChart({
   const expensePoints = values.map((item, index) => `${x(index)},${y(item.netExpenses)}`).join(' ')
 
   return (
-    <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-      <CardHeader>
-        <CardTitle>Sur la durée</CardTitle>
-        <CardDescription>Revenus et dépenses nettes des six derniers mois.</CardDescription>
-      </CardHeader>
+    <AnalyticsChartCard
+      chartId="sixMonthCashflow"
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={formatMoney(
+        values.reduce((total, item) => total + item.income - item.netExpenses, 0),
+      )}
+      title="Sur la durée"
+    >
       <CardContent>
         <svg
           aria-hidden="true"
@@ -509,7 +581,7 @@ function SixMonthCashflowChart({
           ),
         )}
       </CardContent>
-    </Card>
+    </AnalyticsChartCard>
   )
 }
 
@@ -534,6 +606,17 @@ export function BudgetAnalyticsView({
       ),
     [budgets, categories, isSharedWorkspace, month, profiles, transactions],
   )
+  const [chartVisibility, setChartVisibility] = useState<AnalyticsChartVisibility>(() =>
+    loadAnalyticsChartVisibility(isMobileAnalyticsViewport()),
+  )
+
+  useEffect(() => {
+    saveAnalyticsChartVisibility(chartVisibility)
+  }, [chartVisibility])
+
+  function toggleChart(chartId: AnalyticsChartId) {
+    setChartVisibility((current) => ({ ...current, [chartId]: !current[chartId] }))
+  }
 
   return (
     <section aria-label={`Analyses du budget de ${formatMonthLabel(month)}`} className="space-y-4">
@@ -640,20 +723,31 @@ export function BudgetAnalyticsView({
         <CategorySpendingChart
           budgets={budgets}
           categories={categories}
+          expanded={chartVisibility.categorySpending}
           month={month}
+          onToggle={() => toggleChart('categorySpending')}
           transactions={transactions}
         />
         <CategoryComparisonChart
           categories={categories}
+          expanded={chartVisibility.categoryComparison}
           month={month}
+          onToggle={() => toggleChart('categoryComparison')}
           transactions={transactions}
         />
         <DailyCumulativeChart
+          expanded={chartVisibility.dailyCumulative}
           month={month}
           monthlyResources={monthlyResources}
+          onToggle={() => toggleChart('dailyCumulative')}
           transactions={transactions}
         />
-        <SixMonthCashflowChart month={month} transactions={transactions} />
+        <SixMonthCashflowChart
+          expanded={chartVisibility.sixMonthCashflow}
+          month={month}
+          onToggle={() => toggleChart('sixMonthCashflow')}
+          transactions={transactions}
+        />
       </div>
     </section>
   )
