@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { Archive, CirclePlus, Filter, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -123,8 +124,10 @@ export function LocalDataView({
   const [activeTab, setActiveTab] = useState<DataTab>('transactions')
   const [error, setError] = useState<string | null>(null)
   const [transactionError, setTransactionError] = useState<string | null>(null)
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null)
+  const [categoryArchiveTarget, setCategoryArchiveTarget] = useState<Category | null>(null)
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(() =>
     newTransactionDraft(month, userId),
@@ -135,6 +138,7 @@ export function LocalDataView({
     page: 1,
   }))
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const categoryDialogRef = useRef<HTMLDialogElement>(null)
   const filterDialogRef = useRef<HTMLDialogElement>(null)
   const [draftAdvancedFilters, setDraftAdvancedFilters] = useState({ categoryId: '', memberId: '' })
   const categories = useCategories(workspaceId)
@@ -152,6 +156,23 @@ export function LocalDataView({
       dialog.close()
     }
   }, [canEdit, isQuickEntryOpen, onQuickEntryOpenChange])
+
+  useEffect(() => {
+    const dialog = categoryDialogRef.current
+    if (!dialog) return
+    if (canEdit && (categoryDraft || categoryArchiveTarget) && !dialog.open) dialog.showModal()
+    if ((!canEdit || (!categoryDraft && !categoryArchiveTarget)) && dialog.open) dialog.close()
+  }, [canEdit, categoryArchiveTarget, categoryDraft])
+
+  const allTransactions = useLiveQuery(async () => {
+    if (!workspaceId) return null
+    return await db.transactions.where('workspace_id').equals(workspaceId).toArray()
+  }, [workspaceId])
+  const categoryIdsWithTransactions = new Set(
+    (allTransactions ?? []).flatMap((transaction) =>
+      transaction.category_id ? [transaction.category_id] : [],
+    ),
+  )
 
   const expenseCategories = categories.filter(
     (category) => category.kind === 'expense' && category.archived_at === null,
@@ -298,6 +319,13 @@ export function LocalDataView({
     onQuickEntryOpenChange(true)
   }
 
+  function openCategoryEditor(draft: CategoryDraft) {
+    setCategoryFormError(null)
+    setError(null)
+    setNotice(null)
+    setCategoryDraft(draft)
+  }
+
   function closeTransactionDialog() {
     setTransactionError(null)
     onQuickEntryOpenChange(false)
@@ -306,7 +334,7 @@ export function LocalDataView({
   async function saveCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!canEdit || !workspaceId || !categoryDraft) return
-    setError(null)
+    setCategoryFormError(null)
     setNotice(null)
 
     try {
@@ -318,7 +346,7 @@ export function LocalDataView({
             db.budgets.where('category_id').equals(categoryDraft.id).first(),
           ])
           if (transaction || budget) {
-            setError(
+            setCategoryFormError(
               'Le type ne peut pas être changé car cette catégorie est utilisée. Archive-la et crée une nouvelle catégorie.',
             )
             return
@@ -340,10 +368,10 @@ export function LocalDataView({
           archived_at: null,
         })
       }
-      setCategoryDraft(null)
+      categoryDialogRef.current?.close()
       setNotice('Catégorie enregistrée sur cet appareil.')
     } catch (failure) {
-      setError(`Impossible d’enregistrer cette catégorie. ${errorMessage(failure)}`)
+      setCategoryFormError(`Impossible d’enregistrer cette catégorie. ${errorMessage(failure)}`)
     }
   }
 
@@ -359,6 +387,126 @@ export function LocalDataView({
     } catch (failure) {
       setError(`Impossible de modifier cette catégorie. ${errorMessage(failure)}`)
     }
+  }
+
+  async function confirmCategoryArchive() {
+    if (!canEdit || !workspaceId || !categoryArchiveTarget) return
+    setCategoryFormError(null)
+    try {
+      await categoriesRepository.update(categoryArchiveTarget.id, workspaceId, {
+        archived_at: new Date().toISOString(),
+      })
+      categoryDialogRef.current?.close()
+      setNotice('Catégorie archivée. Son historique est conservé.')
+    } catch (failure) {
+      setCategoryFormError(`Impossible d’archiver cette catégorie. ${errorMessage(failure)}`)
+    }
+  }
+
+  async function deleteUnusedCategory(category: Category) {
+    if (!canEdit || !workspaceId) return
+    if (!window.confirm(`Supprimer définitivement la catégorie « ${category.name} » ?`)) return
+
+    setError(null)
+    setNotice(null)
+    try {
+      await db.transaction('rw', [db.categories, db.transactions, db.outbox], async () => {
+        const transactionCount = await db.transactions
+          .where('category_id')
+          .equals(category.id)
+          .count()
+        if (transactionCount > 0) {
+          throw new Error('Cette catégorie est utilisée par une transaction.')
+        }
+        await categoriesRepository.softDelete(category.id, workspaceId)
+      })
+      setNotice('Catégorie supprimée.')
+    } catch (failure) {
+      setError(`Impossible de supprimer cette catégorie. ${errorMessage(failure)}`)
+    }
+  }
+
+  function renderCategory(category: Category) {
+    return (
+      <article
+        className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
+        key={category.id}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="size-4 shrink-0 rounded-full ring-1 ring-black/10"
+            style={{ backgroundColor: category.color ?? '#d6d3d1' }}
+          />
+          <div className="min-w-0">
+            <p className="truncate font-medium">
+              {category.name}
+              {category.archived_at && (
+                <span className="ml-2 text-xs font-normal text-stone-500">Archivée</span>
+              )}
+            </p>
+            <p className="text-sm text-stone-500">
+              {category.kind === 'expense' ? 'Dépense' : 'Revenu'} · {category.icon ?? '—'}
+            </p>
+          </div>
+        </div>
+        {canEdit && (
+          <div className="flex shrink-0">
+            <Button
+              aria-label={`Modifier ${category.name}`}
+              className="min-h-12 min-w-12"
+              onClick={() =>
+                openCategoryEditor({
+                  id: category.id,
+                  name: category.name,
+                  kind: category.kind,
+                  icon: category.icon ?? '',
+                  color: category.color ?? '#3d8b8b',
+                })
+              }
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <Pencil aria-hidden="true" size={17} />
+            </Button>
+            <Button
+              aria-label={`${category.archived_at ? 'Restaurer' : 'Archiver'} ${category.name}`}
+              className="min-h-12 min-w-12"
+              onClick={() => {
+                if (category.archived_at) {
+                  void toggleCategoryArchive(category.id, category.archived_at)
+                  return
+                }
+                setCategoryFormError(null)
+                setCategoryArchiveTarget(category)
+              }}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              {category.archived_at ? (
+                <RotateCcw aria-hidden="true" size={17} />
+              ) : (
+                <Archive aria-hidden="true" size={17} />
+              )}
+            </Button>
+            {allTransactions && !categoryIdsWithTransactions.has(category.id) && (
+              <Button
+                aria-label={`Supprimer ${category.name}`}
+                className="min-h-12 min-w-12 text-red-700"
+                onClick={() => void deleteUnusedCategory(category)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 aria-hidden="true" size={17} />
+              </Button>
+            )}
+          </div>
+        )}
+      </article>
+    )
   }
 
   function editTransaction(transaction: Transaction) {
@@ -768,7 +916,7 @@ export function LocalDataView({
                 <Button
                   className="min-h-12 shrink-0"
                   onClick={() =>
-                    setCategoryDraft({
+                    openCategoryEditor({
                       id: null,
                       name: '',
                       kind: 'expense',
@@ -784,157 +932,173 @@ export function LocalDataView({
               )}
             </CardHeader>
             <CardContent className="space-y-3">
-              {categories.length === 0 && (
+              {categories.filter((category) => category.archived_at === null).length === 0 && (
                 <p className="py-4 text-center text-sm text-stone-500">
                   Aucune catégorie pour le moment.
                 </p>
               )}
-              {categories.map((category) => (
-                <article
-                  className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
-                  key={category.id}
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="size-4 shrink-0 rounded-full ring-1 ring-black/10"
-                      style={{ backgroundColor: category.color ?? '#d6d3d1' }}
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {category.name}
-                        {category.archived_at && (
-                          <span className="ml-2 text-xs font-normal text-stone-500">Archivée</span>
-                        )}
-                      </p>
-                      <p className="text-sm text-stone-500">
-                        {category.kind === 'expense' ? 'Dépense' : 'Revenu'} ·{' '}
-                        {category.icon ?? '—'}
-                      </p>
-                    </div>
+              {categories.filter((category) => category.archived_at === null).map(renderCategory)}
+              {categories.some((category) => category.archived_at !== null) && (
+                <details className="pt-2">
+                  <summary className="min-h-11 cursor-pointer py-2 font-medium">
+                    Archivées (
+                    {categories.filter((category) => category.archived_at !== null).length})
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {categories
+                      .filter((category) => category.archived_at !== null)
+                      .map(renderCategory)}
                   </div>
-                  {canEdit && (
-                    <div className="flex shrink-0">
-                      <Button
-                        aria-label={`Modifier ${category.name}`}
-                        className="min-h-12 min-w-12"
-                        onClick={() =>
-                          setCategoryDraft({
-                            id: category.id,
-                            name: category.name,
-                            kind: category.kind,
-                            icon: category.icon ?? '',
-                            color: category.color ?? '#3d8b8b',
-                          })
-                        }
-                        size="icon"
-                        variant="ghost"
-                      >
-                        <Pencil aria-hidden="true" size={17} />
-                      </Button>
-                      <Button
-                        aria-label={`${category.archived_at ? 'Restaurer' : 'Archiver'} ${category.name}`}
-                        className="min-h-12 min-w-12"
-                        onClick={() =>
-                          void toggleCategoryArchive(category.id, category.archived_at)
-                        }
-                        size="icon"
-                        variant="ghost"
-                      >
-                        {category.archived_at ? (
-                          <RotateCcw aria-hidden="true" size={17} />
-                        ) : (
-                          <Archive aria-hidden="true" size={17} />
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </article>
-              ))}
+                </details>
+              )}
             </CardContent>
           </Card>
-
-          {canEdit && categoryDraft && (
-            <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-              <CardHeader>
-                <CardTitle>
-                  {categoryDraft.id ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form
-                  className="grid gap-4 sm:grid-cols-2"
-                  onSubmit={(event) => void saveCategory(event)}
-                >
-                  <label className="grid gap-2 text-sm font-medium">
-                    Nom
-                    <input
-                      className="min-h-12 rounded-xl border border-stone-300 px-3"
-                      maxLength={80}
-                      onChange={(event) =>
-                        setCategoryDraft({ ...categoryDraft, name: event.target.value })
-                      }
-                      required
-                      value={categoryDraft.name}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium">
-                    Type
-                    <select
-                      className="min-h-12 rounded-xl border border-stone-300 bg-white px-3"
-                      onChange={(event) => {
-                        const kind = event.target.value
-                        if (kind === 'expense' || kind === 'income') {
-                          setCategoryDraft({ ...categoryDraft, kind })
-                        }
-                      }}
-                      value={categoryDraft.kind}
-                    >
-                      <option value="expense">Dépense</option>
-                      <option value="income">Revenu</option>
-                    </select>
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium">
-                    Icône (nom)
-                    <input
-                      className="min-h-12 rounded-xl border border-stone-300 px-3"
-                      maxLength={40}
-                      onChange={(event) =>
-                        setCategoryDraft({ ...categoryDraft, icon: event.target.value })
-                      }
-                      value={categoryDraft.icon}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium">
-                    Couleur
-                    <input
-                      className="min-h-12 w-full rounded-xl border border-stone-300 bg-white p-2"
-                      onChange={(event) =>
-                        setCategoryDraft({ ...categoryDraft, color: event.target.value })
-                      }
-                      type="color"
-                      value={categoryDraft.color}
-                    />
-                  </label>
-                  <div className="flex gap-3 sm:col-span-2">
-                    <Button className="min-h-12" type="submit">
-                      Enregistrer
-                    </Button>
-                    <Button
-                      className="min-h-12"
-                      onClick={() => setCategoryDraft(null)}
-                      type="button"
-                      variant="outline"
-                    >
-                      Annuler
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
+
+      <dialog
+        aria-labelledby="category-dialog-title"
+        className="fixed inset-x-0 bottom-0 m-0 max-h-[92svh] w-full max-w-none overflow-y-auto rounded-t-3xl border-0 bg-white p-0 shadow-2xl backdrop:bg-stone-950/45 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
+        onClose={() => {
+          setCategoryDraft(null)
+          setCategoryArchiveTarget(null)
+          setCategoryFormError(null)
+        }}
+        ref={categoryDialogRef}
+      >
+        {canEdit && categoryArchiveTarget && (
+          <div className="space-y-5 p-5 sm:p-7">
+            <div>
+              <p className="text-sm font-medium text-emerald-800">Catégories</p>
+              <h2 className="mt-1 text-2xl font-bold" id="category-dialog-title">
+                Archiver la catégorie
+              </h2>
+            </div>
+            {categoryFormError && (
+              <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+                {categoryFormError}
+              </p>
+            )}
+            <p className="text-sm leading-6 text-stone-700">
+              « {categoryArchiveTarget.name} » disparaîtra des nouveaux choix, mais restera
+              disponible dans l’historique. Tu pourras la restaurer plus tard.
+            </p>
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+              <Button
+                className="min-h-12"
+                onClick={() => categoryDialogRef.current?.close()}
+                type="button"
+                variant="outline"
+              >
+                Annuler
+              </Button>
+              <Button
+                className="min-h-12"
+                onClick={() => void confirmCategoryArchive()}
+                type="button"
+              >
+                Archiver
+              </Button>
+            </div>
+          </div>
+        )}
+        {canEdit && categoryDraft && (
+          <form
+            className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7"
+            onSubmit={(event) => void saveCategory(event)}
+          >
+            <div className="flex items-start justify-between gap-4 sm:col-span-2">
+              <div>
+                <p className="text-sm font-medium text-emerald-800">Catégories</p>
+                <h2 className="mt-1 text-2xl font-bold" id="category-dialog-title">
+                  {categoryDraft.id ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
+                </h2>
+              </div>
+              <Button
+                aria-label="Fermer le formulaire de catégorie"
+                className="min-h-12 min-w-12"
+                onClick={() => categoryDialogRef.current?.close()}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                ×
+              </Button>
+            </div>
+            {categoryFormError && (
+              <p
+                className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 sm:col-span-2"
+                role="alert"
+              >
+                {categoryFormError}
+              </p>
+            )}
+            <label className="grid gap-2 text-sm font-medium">
+              Nom
+              <input
+                className="min-h-12 rounded-xl border border-stone-300 px-3"
+                maxLength={80}
+                onChange={(event) =>
+                  setCategoryDraft({ ...categoryDraft, name: event.target.value })
+                }
+                required
+                value={categoryDraft.name}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
+              Type
+              <select
+                className="min-h-12 rounded-xl border border-stone-300 bg-white px-3"
+                onChange={(event) => {
+                  const kind = event.target.value
+                  if (kind === 'expense' || kind === 'income') {
+                    setCategoryDraft({ ...categoryDraft, kind })
+                  }
+                }}
+                value={categoryDraft.kind}
+              >
+                <option value="expense">Dépense</option>
+                <option value="income">Revenu</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm font-medium">
+              Icône (nom)
+              <input
+                className="min-h-12 rounded-xl border border-stone-300 px-3"
+                maxLength={40}
+                onChange={(event) =>
+                  setCategoryDraft({ ...categoryDraft, icon: event.target.value })
+                }
+                value={categoryDraft.icon}
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium sm:col-span-2">
+              Couleur
+              <input
+                className="min-h-12 w-full rounded-xl border border-stone-300 bg-white p-2"
+                onChange={(event) =>
+                  setCategoryDraft({ ...categoryDraft, color: event.target.value })
+                }
+                type="color"
+                value={categoryDraft.color}
+              />
+            </label>
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:col-span-2 sm:flex-row sm:justify-end">
+              <Button
+                className="min-h-12"
+                onClick={() => categoryDialogRef.current?.close()}
+                type="button"
+                variant="outline"
+              >
+                Annuler
+              </Button>
+              <Button className="min-h-12" type="submit">
+                Enregistrer
+              </Button>
+            </div>
+          </form>
+        )}
+      </dialog>
 
       <dialog
         aria-labelledby="transaction-filters-title"

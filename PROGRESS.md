@@ -2,11 +2,11 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 14:33 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 14:40 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R7 — point 1 (filtres de Transactions) implémenté et vérifié ;
-  point 2 (catégories), point 3 (palette), vérifications finales et livraison à faire.
+- Lot/tâche en cours : R7 — points 1 et 2 implémentés ; point 3 (palette), vérifications
+  finales et livraison à faire.
   Un commit indépendant par point. Aucun merge dans `main`; aucune migration distante sans
   accord de Laro.
 - Fait mais pas encore vérifié : inspection initiale. Les filtres sont conservés dans l’état
@@ -26,9 +26,16 @@
   Tout/Dépenses/Revenus restent visibles ; badge de filtres actifs, Réinitialiser/Appliquer,
   pastilles retirables ; champs Du/Au retirés. Les filtres sont conservés au changement de
   mois. Tests dédiés : 8/8 ; typecheck et lint passent.
-- Prochaine action exacte : terminer le formulaire Drawer/Dialog et l’archivage/restauration
-  des catégories, après confirmer que `archived_at` est déjà couvert par le schéma local et
-  les migrations existantes.
+- Point 2 terminé : formulaire d’ajout/modification et confirmation d’archivage dans un
+  `<dialog>` modal (feuille basse sur mobile, Dialog centré sur grand écran) ; ajout en haut,
+  message après sauvegarde ; catégories actives séparées des archivées repliées, restauration ;
+  suppression soft proposée seulement si aucune transaction ne référence la catégorie, avec
+  vérification transactionnelle au moment de supprimer. `archived_at` existe déjà dans le
+  modèle Dexie et la migration `20261023160000_data_and_invitations.sql` : aucune migration
+  supplémentaire n’est nécessaire. Typecheck, lint et Prettier passent.
+- Prochaine action exacte : implémenter la palette de 12 jetons CSS clair/sombre, son
+  attribution automatique, les pastilles et son usage dans les graphiques/seuils ; ajouter
+  des tests pour la sélection de couleur.
 - Vérifications à lancer : `npm test`, `npm run lint`, `npm run typecheck`,
   `npm run format:check`, `npm run build`, `git diff --check`. Ne pas appliquer de SQL.
 - Décisions confirmées pour R7 : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
@@ -233,12 +240,12 @@ le suivant.
 
 ### Tâches R7
 
-| Point                                      | État       | Détail                                                                                                                                                                                                                                                            |
-| ------------------------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Filtres Transactions                    | Terminé    | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK. |
-| 2. Formulaires et archivage des catégories | En attente | Drawer téléphone / Dialog grand écran ; ajout visible en haut ; confirmation après sauvegarde ; « Archivées » replié avec restauration ; suppression seulement sans transactions ; vérifier qu’aucune migration n’est requise.                                    |
-| 3. Palette de catégories                   | En attente | 10–12 jetons de couleur contrastés en clair/sombre ; choix dans palette, attribution automatique ; pastilles transaction et ajout, barres d’analyse et seuils ; « Non classé » neutre ; couleurs personnalisées existantes préservées ; tests d’attribution.      |
-| Vérifications et livraison R7              | En attente | Lint, typecheck, tests, build, format et diff check ; commit par point ; pousser uniquement `reforme-budget`, puis attendre la validation de Laro.                                                                                                                |
+| Point                                      | État       | Détail                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Filtres Transactions                    | Terminé    | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK.                                          |
+| 2. Formulaires et archivage des catégories | Terminé    | `<dialog>` bas sur téléphone/centré sur grand écran ; ajout visible en haut ; confirmation après sauvegarde/archivage ; « Archivées » replié avec restauration ; suppression uniquement sans référence de transaction ; `archived_at` existe déjà, aucune migration requise. Typecheck, lint et format OK. |
+| 3. Palette de catégories                   | En attente | 10–12 jetons de couleur contrastés en clair/sombre ; choix dans palette, attribution automatique ; pastilles transaction et ajout, barres d’analyse et seuils ; « Non classé » neutre ; couleurs personnalisées existantes préservées ; tests d’attribution.                                               |
+| Vérifications et livraison R7              | En attente | Lint, typecheck, tests, build, format et diff check ; commit par point ; pousser uniquement `reforme-budget`, puis attendre la validation de Laro.                                                                                                                                                         |
 
 ## Décisions prises
 
