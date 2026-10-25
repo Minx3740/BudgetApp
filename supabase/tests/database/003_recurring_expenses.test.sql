@@ -379,6 +379,7 @@ select is(
   0,
   'generation after a split does not duplicate the effective month'
 );
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000004', true);
 select throws_ok(
   $$select public.stop_recurring_expense(
       (

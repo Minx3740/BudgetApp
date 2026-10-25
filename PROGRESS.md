@@ -2,10 +2,10 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 10:06 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 10:22 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R5 — appliquer et vérifier le correctif SQL après autorisation. R4 a été
-  vu localement et validé par Laro le 2026-10-25.
+- Lot/tâche en cours : R5 — validation utilisateur après les vérifications finales. R4 a
+  été vu localement et validé par Laro le 2026-10-25.
   R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
 - Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
@@ -85,23 +85,19 @@
   Laro a validé l’écran et le parcours R5 le 2026-10-25.
 - Migration R5 : exécutée par Laro sur le projet Supabase jetable le 2026-10-25 après
   son autorisation explicite ; Supabase a confirmé « Success. No rows returned ».
-- Tests SQL R5 : pgTAP (33 assertions) exécuté dans une transaction annulée. Le premier
-  essai avait 18 échecs, car les appels de test omettaient des casts `smallint`; casts
-  corrigés dans `003_recurring_expenses.test.sql`. Réexécution instrumentée : 25/33
-  réussis ; tests 23–27 et 29–31 échouent en cascade parce que le trigger de modification
-  appelle `private.set_timestamps()`, qui attend `deleted_at`, absent de `recurring_expenses`.
-- Correctif local fait, non appliqué : nouvelle fonction de timestamps spécifique aux
-  forfaits et trigger mis à jour dans la migration R5; migration corrective
-  `20261025095000_r5_recurring_expense_timestamps.sql` créée. La migration distante déjà
-  appliquée reste en place ; le correctif attend l’autorisation d’application.
-- Prochaine action exacte : obtenir l’accord explicite de Laro pour appliquer
-  `supabase/migrations/20261025095000_r5_recurring_expense_timestamps.sql` au même projet
-  Supabase jetable, puis rejouer les 33 assertions pgTAP.
+- Tests SQL R5 : après les casts `smallint`, le premier essai a isolé le défaut du trigger
+  de timestamps ; le correctif dédié a été appliqué au projet Supabase jetable après accord
+  explicite. Le test d’autorisation d’arrêt établit maintenant l’identité viewer. pgTAP
+  final : 33/33 assertions réussies, 0 échec, dans une transaction terminée par `ROLLBACK`.
+  Le transfert du script a été fait en UTF-8 pour préserver le message localisé.
+- Terminé et vérifié : assertion d’arrêt avec identité viewer corrigée dans
+  `supabase/tests/database/003_recurring_expenses.test.sql` ; pgTAP 33/33 vérifié. Le
+  format check et `git diff --check` passent.
+- Prochaine action exacte : demander à Laro de valider R5 avant tout démarrage de R6.
 - Vérifications R5 : `npm test` (72 tests/12 fichiers), `npm run lint`,
   `npm run typecheck`, `npm run format:check`, `npm run build` et `git diff --check`
-  réussis le 2026-10-25 avant le correctif SQL. pgTAP : 33 exécutés, 25 réussis et
-  8 échecs causés par le trigger de timestamps ; le correctif local doit être appliqué
-  au projet jetable et vérifié avant de valider R5.
+  réussis le 2026-10-25 avant les dernières corrections SQL/test ; pgTAP final : 33/33,
+  0 échec, transaction annulée.
 - Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
@@ -117,9 +113,11 @@
 - 2026-10-25 : Laro a validé l’écran R5 et autorisé explicitement l’application de la
   migration R5 sur le projet Supabase jetable pour exécuter les 33 tests pgTAP. La migration
   a été appliquée ; cette autorisation ne vaut pas pour un autre projet.
-- Questions encore ouvertes : autorisation pour appliquer la migration corrective, puis
-  résultat des 33 assertions pgTAP. L’essai manuel mobile/hors ligne est écarté à la demande
-  de Laro.
+- 2026-10-25 : après nouvel accord explicite, la migration corrective des timestamps a été
+  appliquée au même projet Supabase jetable. Ne pas appliquer de migration à un autre projet
+  sans un nouvel accord.
+- Questions encore ouvertes : validation de R5 par Laro avant le démarrage de R6. L’essai
+  manuel mobile/hors ligne est écarté à sa demande.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration R5 est autorisée uniquement sur le projet Supabase jetable confirmé par Laro ;
   vérifier le projet avant exécution ; R1 et R3 ont déjà été appliquées, ne pas les rejouer ;
@@ -230,12 +228,12 @@ le suivant.
 
 ### Tâches R5
 
-| Tâche                                             | État           | Détail                                                                                                                        |
-| ------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Modèle, Dexie, bootstrap et synchronisation       | Terminé        | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
-| Migration Supabase, RLS et génération idempotente | Correctif prêt | Migration appliquée au projet jetable ; helper de timestamps corrigé localement ; correctif distant et pgTAP en attente.      |
-| Écran Forfaits et parcours                        | Terminé        | Lecture hors ligne ; création/édition/arrêt ; génération au changement de mois ; tests automatisés réussis.                   |
-| Validation R5                                     | Bloquée        | Vérifications applicatives réussies ; appliquer le correctif SQL et réussir pgTAP avant validation de Laro/R6.                |
+| Tâche                                             | État               | Détail                                                                                                                        |
+| ------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Modèle, Dexie, bootstrap et synchronisation       | Terminé            | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
+| Migration Supabase, RLS et génération idempotente | Terminée           | Correctif timestamps appliqué au projet jetable après accord explicite ; pgTAP 33/33 réussis, 0 échec, transaction annulée.   |
+| Écran Forfaits et parcours                        | Terminé            | Lecture hors ligne ; création/édition/arrêt ; génération au changement de mois ; tests automatisés réussis.                   |
+| Validation R5                                     | En attente de Laro | Vérifications applicatives et SQL réussies ; attendre son accord avant R6.                                                    |
 
 ## Décisions prises
 
