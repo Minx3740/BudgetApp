@@ -31,8 +31,8 @@ export default defineConfig({
         theme_color: '#004E33',
         background_color: '#F4F5EF',
         display: 'standalone',
-        start_url: '/',
-        scope: '/',
+        start_url: base,
+        scope: base,
         icons: [
           {
             src: 'icons/icon-192.png',
@@ -55,8 +55,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/offline\.html$/],
+        navigateFallback: `${base}index.html`,
+        navigateFallbackDenylist: [new RegExp(`^${base}offline\\.html$`)],
         globPatterns: ['**/*.{html,js,css,svg,png,woff2}'],
         cleanupOutdatedCaches: true,
       },
