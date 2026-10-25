@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { profileAvatarPath, resizeAvatar, validateAvatarFile } from '@/data/avatars'
+import { avatarCropRect, profileAvatarPath, resizeAvatar, validateAvatarFile } from '@/data/avatars'
 import { SignedAvatar } from './signed-avatar'
 
 interface ProfileAvatarProps {
@@ -25,18 +25,82 @@ export function ProfileAvatar({
   onUpdated,
 }: ProfileAvatarProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(
+    null,
+  )
+  const [crop, setCrop] = useState({ centerX: 0.5, centerY: 0.5, zoom: 1 })
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const pointerStart = useRef<{
+    pointerId: number
+    x: number
+    y: number
+    centerX: number
+    centerY: number
+    scale: number
+  } | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
+  const cropRect = useMemo(
+    () =>
+      imageDimensions ? avatarCropRect(imageDimensions.width, imageDimensions.height, crop) : null,
+    [crop, imageDimensions],
+  )
+
+  useEffect(() => {
+    if (!previewUrl) return
+    let cancelled = false
+    const image = new Image()
+    image.onload = () => {
+      if (!cancelled) setImageDimensions({ width: image.naturalWidth, height: image.naturalHeight })
+    }
+    image.onerror = () => {
+      if (!cancelled) setActionError('Impossible de lire cette image.')
+    }
+    image.src = previewUrl
+    return () => {
+      cancelled = true
+    }
+  }, [previewUrl])
+
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    },
+    [],
+  )
+
+  function selectFile(file: File | null) {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    const url = file ? URL.createObjectURL(file) : null
+    previewUrlRef.current = url
+    setPreviewUrl(url)
+    setSelectedFile(file)
+    setImageDimensions(null)
+    setCrop({ centerX: 0.5, centerY: 0.5, zoom: 1 })
+  }
+
+  const scale = imageDimensions && cropRect ? 256 / cropRect.size : 1
+
+  function moveCrop(pointerX: number, pointerY: number) {
+    const start = pointerStart.current
+    if (!start || !imageDimensions) return
+    setCrop((current) => ({
+      ...current,
+      centerX: start.centerX - (pointerX - start.x) / (start.scale * imageDimensions.width),
+      centerY: start.centerY - (pointerY - start.y) / (start.scale * imageDimensions.height),
+    }))
+  }
 
   async function uploadSelectedPhoto() {
-    if (!selectedFile || !isOnline || busy) return
+    if (!selectedFile || !isOnline || busy || !imageDimensions) return
     setActionError(null)
     setNotice(null)
     setBusy(true)
     try {
       validateAvatarFile(selectedFile)
-      const resizedAvatar = await resizeAvatar(selectedFile)
+      const resizedAvatar = await resizeAvatar(selectedFile, crop)
       const path = profileAvatarPath(userId)
       const { error: uploadError } = await client.storage
         .from('avatars')
@@ -66,7 +130,7 @@ export function ProfileAvatar({
         )
       }
 
-      setSelectedFile(null)
+      selectFile(null)
       setNotice('Photo de profil mise à jour.')
       onUpdated()
     } catch (failure) {
@@ -148,8 +212,8 @@ export function ProfileAvatar({
 
         {!isOnline && (
           <p className="text-sm text-amber-800">
-            Connecte-toi à Internet pour modifier la photo. Tes initiales restent visibles hors
-            ligne.
+            Connecte-toi à Internet pour modifier la photo. Tes initiales restent visibles sans
+            connexion.
           </p>
         )}
         {actionError && (
@@ -176,26 +240,110 @@ export function ProfileAvatar({
                 event.currentTarget.value = ''
                 setActionError(null)
                 setNotice(null)
-                setSelectedFile(null)
                 if (file) {
                   try {
                     validateAvatarFile(file)
-                    setSelectedFile(file)
+                    selectFile(file)
                   } catch (failure) {
+                    selectFile(null)
                     const message =
                       failure instanceof Error ? failure.message : 'Fichier image invalide.'
                     setActionError(message)
                   }
+                } else {
+                  selectFile(null)
                 }
               }}
               type="file"
             />
           </label>
-          {selectedFile && <p className="truncate text-sm text-stone-600">{selectedFile.name}</p>}
+          {selectedFile && (
+            <div className="space-y-3">
+              <p className="truncate text-sm text-stone-600">{selectedFile.name}</p>
+              <div
+                aria-label="Recadrage de la photo. Fais glisser l’image pour la déplacer."
+                className="relative mx-auto size-64 touch-none overflow-hidden rounded-full border-2 border-emerald-600 bg-stone-100"
+                onPointerDown={(event) => {
+                  if (!imageDimensions || !cropRect) return
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                  pointerStart.current = {
+                    pointerId: event.pointerId,
+                    x: event.clientX,
+                    y: event.clientY,
+                    centerX: (cropRect.x + cropRect.size / 2) / imageDimensions.width,
+                    centerY: (cropRect.y + cropRect.size / 2) / imageDimensions.height,
+                    scale,
+                  }
+                }}
+                onPointerMove={(event) => {
+                  if (pointerStart.current?.pointerId === event.pointerId) {
+                    moveCrop(event.clientX, event.clientY)
+                  }
+                }}
+                onPointerUp={(event) => {
+                  if (pointerStart.current?.pointerId === event.pointerId) {
+                    pointerStart.current = null
+                    event.currentTarget.releasePointerCapture(event.pointerId)
+                  }
+                }}
+                onKeyDown={(event) => {
+                  const offsets: Record<string, [number, number]> = {
+                    ArrowDown: [0, 0.02],
+                    ArrowLeft: [-0.02, 0],
+                    ArrowRight: [0.02, 0],
+                    ArrowUp: [0, -0.02],
+                  }
+                  const offset = offsets[event.key]
+                  if (!offset) return
+                  event.preventDefault()
+                  setCrop((current) => ({
+                    ...current,
+                    centerX: current.centerX + offset[0],
+                    centerY: current.centerY + offset[1],
+                  }))
+                }}
+                role="group"
+                tabIndex={0}
+              >
+                {previewUrl && imageDimensions && cropRect && (
+                  <img
+                    alt=""
+                    className="pointer-events-none absolute max-w-none select-none"
+                    draggable={false}
+                    src={previewUrl}
+                    style={{
+                      left: 128 - (cropRect.x + cropRect.size / 2) * scale,
+                      top: 128 - (cropRect.y + cropRect.size / 2) * scale,
+                      width: imageDimensions.width * scale,
+                      height: imageDimensions.height * scale,
+                    }}
+                  />
+                )}
+              </div>
+              <p className="text-center text-sm text-stone-600">
+                Fais glisser l’image ou utilise les flèches du clavier, puis règle le zoom.
+              </p>
+              <label className="block space-y-1 text-sm" htmlFor="profile-avatar-zoom">
+                <span className="font-medium">Zoom</span>
+                <input
+                  className="min-h-11 w-full accent-emerald-700"
+                  id="profile-avatar-zoom"
+                  max="3"
+                  min="1"
+                  onChange={(event) => {
+                    setCrop((current) => ({ ...current, zoom: Number(event.target.value) }))
+                  }}
+                  step="0.01"
+                  type="range"
+                  value={crop.zoom}
+                />
+              </label>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               className="min-h-11"
-              disabled={!selectedFile || !isOnline || busy}
+              disabled={!selectedFile || !imageDimensions || !isOnline || busy}
               onClick={() => void uploadSelectedPhoto()}
               type="button"
             >

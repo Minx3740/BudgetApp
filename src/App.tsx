@@ -25,6 +25,7 @@ import {
   WorkspaceManagement,
 } from './components/workspaces/workspace-management'
 import { ProfileAvatar } from './components/workspaces/profile-avatar'
+import { ProfileDisplayName } from './components/workspaces/profile-display-name'
 import { SignedAvatar } from './components/workspaces/signed-avatar'
 import { WorkspaceSettings } from './components/workspaces/workspace-settings'
 import { bootstrapFromSupabase } from './data/bootstrap'
@@ -511,6 +512,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const syncSummary = useSyncSummary()
   const metadataDisplayName = session.user.user_metadata['display_name']
   const displayName =
+    currentProfile?.display_name.trim() ||
     (typeof metadataDisplayName === 'string' && metadataDisplayName.trim()) ||
     session.user.email ||
     'utilisateur'
@@ -1258,6 +1260,14 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   </Button>
                 </CardContent>
               </Card>
+              <ProfileDisplayName
+                client={client}
+                displayName={displayName}
+                isOnline={isOnline}
+                key={`${currentProfile?.id ?? session.user.id}:${currentProfile?.display_name ?? displayName}:${currentProfile?.updated_at ?? ''}`}
+                profile={currentProfile}
+                userId={session.user.id}
+              />
               <ProfileAvatar
                 avatarPath={currentProfile?.avatar_path ?? null}
                 client={client}

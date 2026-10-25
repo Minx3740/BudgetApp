@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { profileAvatarPath, validateAvatarFile } from './avatars'
+import { avatarCropRect, profileAvatarPath, validateAvatarFile } from './avatars'
 
 describe('photos de profil', () => {
   it('construit uniquement un chemin stable sous le dossier du compte', () => {
@@ -24,5 +24,32 @@ describe('photos de profil', () => {
         }),
       ),
     ).toThrow('La photo doit peser entre 1 octet et 10 Mo.')
+  })
+
+  it('calcule un recadrage carré centré, zoomé et borné aux dimensions de la photo', () => {
+    expect(avatarCropRect(800, 400, { centerX: 0.5, centerY: 0.5, zoom: 1 })).toEqual({
+      x: 200,
+      y: 0,
+      size: 400,
+    })
+    expect(avatarCropRect(800, 400, { centerX: 0.75, centerY: 0.5, zoom: 2 })).toEqual({
+      x: 500,
+      y: 100,
+      size: 200,
+    })
+    expect(avatarCropRect(800, 400, { centerX: 1, centerY: 1, zoom: 1 })).toEqual({
+      x: 400,
+      y: 0,
+      size: 400,
+    })
+  })
+
+  it('rejette les dimensions et niveaux de zoom de recadrage invalides', () => {
+    expect(() => avatarCropRect(0, 400, { centerX: 0.5, centerY: 0.5, zoom: 1 })).toThrow(
+      'Le fichier image ne contient pas de dimensions valides.',
+    )
+    expect(() => avatarCropRect(400, 400, { centerX: 0.5, centerY: 0.5, zoom: 4 })).toThrow(
+      'Le zoom de recadrage est invalide.',
+    )
   })
 })

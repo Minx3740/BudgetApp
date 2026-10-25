@@ -3,6 +3,35 @@ const maxAvatarFileSize = 10 * 1024 * 1024
 const maxStoredAvatarSize = 1024 * 1024
 const avatarDimension = 256
 
+export interface AvatarCrop {
+  centerX: number
+  centerY: number
+  zoom: number
+}
+
+export interface AvatarCropRect {
+  x: number
+  y: number
+  size: number
+}
+
+export function avatarCropRect(width: number, height: number, crop: AvatarCrop): AvatarCropRect {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new Error('Le fichier image ne contient pas de dimensions valides.')
+  }
+  if (!Number.isFinite(crop.zoom) || crop.zoom < 1 || crop.zoom > 3) {
+    throw new Error('Le zoom de recadrage est invalide.')
+  }
+  if (!Number.isFinite(crop.centerX) || !Number.isFinite(crop.centerY)) {
+    throw new Error('Le centre du recadrage est invalide.')
+  }
+
+  const size = Math.min(width, height) / crop.zoom
+  const centerX = Math.min(width - size / 2, Math.max(size / 2, crop.centerX * width))
+  const centerY = Math.min(height - size / 2, Math.max(size / 2, crop.centerY * height))
+  return { x: centerX - size / 2, y: centerY - size / 2, size }
+}
+
 export function profileAvatarPath(userId: string): string {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
     throw new Error('Identifiant de compte invalide pour la photo de profil.')
@@ -19,7 +48,14 @@ export function validateAvatarFile(file: File): void {
   }
 }
 
-export async function resizeAvatar(file: File): Promise<Blob> {
+export async function resizeAvatar(
+  file: File,
+  crop: AvatarCrop = {
+    centerX: 0.5,
+    centerY: 0.5,
+    zoom: 1,
+  },
+): Promise<Blob> {
   validateAvatarFile(file)
   if (typeof createImageBitmap !== 'function') {
     throw new Error(
@@ -41,15 +77,13 @@ export async function resizeAvatar(file: File): Promise<Blob> {
       throw new Error('Impossible de préparer la photo dans ce navigateur.')
     }
 
-    const cropSize = Math.min(image.width, image.height)
-    const cropX = (image.width - cropSize) / 2
-    const cropY = (image.height - cropSize) / 2
+    const cropRect = avatarCropRect(image.width, image.height, crop)
     context.drawImage(
       image,
-      cropX,
-      cropY,
-      cropSize,
-      cropSize,
+      cropRect.x,
+      cropRect.y,
+      cropRect.size,
+      cropRect.size,
       0,
       0,
       avatarDimension,
