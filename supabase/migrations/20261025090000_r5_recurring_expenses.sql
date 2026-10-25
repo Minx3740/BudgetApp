@@ -82,7 +82,45 @@ create trigger recurring_expenses_lock_id
   before update on public.recurring_expenses
   for each row execute function private.lock_id();
 
+create or replace function private.validate_recurring_transaction_author()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  schedule_creator uuid;
+begin
+  if new.recurring_id is null then
+    return new;
+  end if;
+
+  select recurring.created_by into schedule_creator
+  from public.recurring_expenses recurring
+  where recurring.id = new.recurring_id
+    and recurring.workspace_id = new.workspace_id;
+
+  if schedule_creator is null then
+    raise exception 'recurring transaction schedule does not exist'
+      using errcode = '23503';
+  end if;
+  if new.created_by is distinct from schedule_creator
+    or new.paid_by is distinct from schedule_creator
+  then
+    raise exception 'recurring transaction authorship must match schedule creator'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger transactions_validate_recurring_author
+  before insert or update of recurring_id, workspace_id, created_by, paid_by
+  on public.transactions
+  for each row execute function private.validate_recurring_transaction_author();
+
 revoke execute on function private.validate_recurring_expense_category()
+  from public, anon, authenticated;
+revoke execute on function private.validate_recurring_transaction_author()
   from public, anon, authenticated;
 revoke all on public.recurring_expenses from public, anon, authenticated;
 grant select on public.recurring_expenses to authenticated;
@@ -248,7 +286,7 @@ begin
           else note
         end
     where recurring_id = current_row.id
-      and recurring_month = p_effective_month;
+      and recurring_month >= p_effective_month;
   end if;
 
   return replacement_row;

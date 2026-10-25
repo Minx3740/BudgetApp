@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(32);
+select plan(33);
 
 select has_table(
   'public',
@@ -44,8 +44,9 @@ select has_function(
 insert into auth.users (id, email)
 values
   ('50000000-0000-0000-0000-000000000001', 'r5-owner@example.test'),
-  ('50000000-0000-0000-0000-000000000002', 'r5-viewer@example.test'),
-  ('50000000-0000-0000-0000-000000000003', 'r5-outsider@example.test');
+  ('50000000-0000-0000-0000-000000000002', 'r5-member@example.test'),
+  ('50000000-0000-0000-0000-000000000003', 'r5-outsider@example.test'),
+  ('50000000-0000-0000-0000-000000000004', 'r5-viewer@example.test');
 
 insert into public.workspaces (id, name, type, owner_id)
 values (
@@ -59,6 +60,10 @@ insert into public.memberships (workspace_id, user_id, role)
 values (
   '51000000-0000-0000-0000-000000000001',
   '50000000-0000-0000-0000-000000000002',
+  'member'
+), (
+  '51000000-0000-0000-0000-000000000001',
+  '50000000-0000-0000-0000-000000000004',
   'viewer'
 );
 
@@ -107,7 +112,7 @@ select throws_ok(
     )$$,
   '42501',
   null,
-  'a viewer cannot create recurring expenses'
+  'a member cannot create recurring expenses'
 );
 select is(
   (
@@ -117,6 +122,30 @@ select is(
   ),
   1,
   'a workspace member can read recurring expenses'
+);
+select throws_ok(
+  $$insert into public.transactions (
+      id, workspace_id, kind, amount, occurred_on, created_by, paid_by,
+      recurring_id, recurring_month
+    ) values (
+      '54000000-0000-0000-0000-000000000001',
+      '51000000-0000-0000-0000-000000000001',
+      'expense',
+      120000,
+      date_trunc('month', current_date)::date + 4,
+      '50000000-0000-0000-0000-000000000002',
+      '50000000-0000-0000-0000-000000000002',
+      (
+        select id
+        from public.recurring_expenses
+        where workspace_id = '51000000-0000-0000-0000-000000000001'
+          and label = 'Loyer'
+      ),
+      date_trunc('month', current_date)::date
+    )$$,
+  '23514',
+  'recurring transaction authorship must match schedule creator',
+  'members cannot forge a recurring occurrence'
 );
 
 select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000003', true);
@@ -130,7 +159,7 @@ select is(
   'a non-member cannot read recurring expenses'
 );
 
-select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000002', true);
+select set_config('request.jwt.claim.sub', '50000000-0000-0000-0000-000000000004', true);
 select is(
   public.generate_recurring_for_month(
     '51000000-0000-0000-0000-000000000001',
@@ -279,7 +308,7 @@ select lives_ok(
           and label = 'Loyer'
       ),
       1,
-      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date)::date - interval '1 month')::date,
       'Loyer révisé',
       130000,
       '52000000-0000-0000-0000-000000000001',
@@ -294,7 +323,7 @@ select is(
     where workspace_id = '51000000-0000-0000-0000-000000000001'
       and label = 'Loyer'
   ),
-  (date_trunc('month', current_date)::date - interval '1 month')::date,
+  (date_trunc('month', current_date)::date - interval '2 months')::date,
   'the previous schedule ends before the effective month'
 );
 select is(
@@ -306,7 +335,9 @@ select is(
     where previous.workspace_id = '51000000-0000-0000-0000-000000000001'
       and previous.label = 'Loyer'
       and replacement.label = 'Loyer révisé'
-      and replacement.start_month = date_trunc('month', current_date)::date
+      and replacement.start_month = (
+        date_trunc('month', current_date)::date - interval '1 month'
+      )::date
       and replacement.amount = 130000
       and replacement.version = 1
   ),
@@ -331,14 +362,14 @@ select is(
     select count(*)::integer
     from public.transactions t
     join public.recurring_expenses r on r.id = t.recurring_id
-    where r.label = 'Loyer'
+    where r.label = 'Loyer révisé'
       and t.recurring_month = (
         date_trunc('month', current_date)::date - interval '1 month'
       )::date
       and t.deleted_at is not null
   ),
   1,
-  'the deleted past occurrence stays attached to its original schedule'
+  'the deleted occurrence stays a tombstone after a historical split'
 );
 select is(
   public.generate_recurring_for_month(

@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 09:14 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 09:28 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
 - Lot/tâche en cours : R5 — écran Forfaits et parcours utilisateur. R4 a été
   vu localement et validé par Laro le 2026-10-25.
@@ -79,8 +79,9 @@
   réussis le 2026-10-25. Le build garde l’avertissement Vite sur le bundle (~794 kB).
 - Fait mais pas encore vérifié en R5 : migration SQL avec politiques RLS, RPC d’écriture
   avec contrôle de version, arrêt/split de série et génération mensuelle idempotente ;
-  test pgTAP de 32 assertions écrit mais non exécuté faute de PostgreSQL local. Rien n’a
-  été appliqué au Supabase distant. L’écran et le parcours utilisateur restent à faire.
+  garde-fou contre la création client d’une occurrence au nom d’un autre créateur. Test
+  pgTAP de 33 assertions écrit mais non exécuté faute de PostgreSQL local. Rien n’a été
+  appliqué au Supabase distant. L’écran et le parcours utilisateur sont en cours.
 - Vérifications prévues R5 : `npm test`, `npm run lint`, `npm run typecheck`,
   `npm run format:check`, `npm run build`, `git diff --check` et tests SQL pgTAP. Pas de
   PostgreSQL local confirmé ; la nouvelle migration distante attendra une autorisation
@@ -93,6 +94,10 @@
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
   prioritaire : adaptation minimale en R1, parcours complet en R4. P7 confirmé le
   2026-10-25 : bucket Storage privé et URLs signées pour les photos de profil.
+- 2026-10-25 : Laro a validé la fiche d’écran R5 : Forfaits via Plus sur mobile et la barre
+  latérale sur ordinateur ; propriétaire seul pour créer/modifier/arrêter, lecture hors
+  ligne ; modification d’une occurrence ou de la série ; confirmation avant génération
+  rétroactive ; génération des mois manqués en ligne à l’ouverture d’un mois.
 - Questions encore ouvertes : validation des tests SQL et autorisation explicite avant
   toute application de la nouvelle migration R5 au projet Supabase. L’essai manuel
   mobile/hors ligne est écarté à la demande de Laro.
@@ -209,7 +214,7 @@ le suivant.
 | Tâche                                             | État       | Détail                                                                                                                        |
 | ------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Modèle, Dexie, bootstrap et synchronisation       | Terminé    | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
-| Migration Supabase, RLS et génération idempotente | À vérifier | Migration et pgTAP (32 assertions) écrits ; exécution manuelle requise, migration distante non appliquée.                     |
+| Migration Supabase, RLS et génération idempotente | À vérifier | Migration et pgTAP (33 assertions) écrits ; exécution manuelle requise, migration distante non appliquée.                     |
 | Écran Forfaits et parcours                        | En cours   | Lecture hors ligne ; création/modification/arrêt en ligne ; occurrence ou série.                                              |
 | Validation R5                                     | À faire    | Tests, lint, typecheck, format, build, SQL ; demander validation avant R6.                                                    |
 
