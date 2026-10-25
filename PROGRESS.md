@@ -2,11 +2,11 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 12:50 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 14:15 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : guide de test Cloudflare ; étapes 1 à 5 terminées ; validations
-  complètes en cours.
+- Lot/tâche en cours : validation manuelle de l’aperçu Cloudflare ; Laro a terminé les
+  essais sur téléphone et rapporte les 12 scénarios OK.
 - Terminé et vérifié : état Git relevé. Changements déjà présents avant cette tâche,
   à préserver et ne pas commiter comme partie de cette tâche : `.env.example`,
   `.github/workflows/ci.yml`, la modification préexistante de `src/components/workspaces/
@@ -29,8 +29,11 @@ workspace-management.tsx`, les modifications préexistantes de `README.md` et
   des noms. Aucune migration Supabase n’a été exécutée durant cette tâche.
 - Terminé : Laro a autorisé la suppression du workflow local obsolète ; le fichier
   `.github/workflows/deploy-pages.yml` a été supprimé. La CI GitHub n’a pas été modifiée.
-- Terminé : `docs/test-telephone.md` contient les onze scénarios a–k, leur règle, le
-  résultat attendu et une colonne Résultat laissée vide.
+- Terminé : `docs/test-telephone.md` contient les scénarios détaillés et les résultats
+  saisis par Laro. Les 12 scénarios sont marqués OK : connexion/déconnexion, sous-route,
+  revenu, dépenses avec/sans seuil, remboursement/ajustement, déficit, date du 31,
+  génération/modification de forfait, affichage mobile, hors ligne/synchronisation et
+  droits d’un membre invité. Résultats rapportés par Laro, non reproduits indépendamment.
 - Vérifications finales : `npm test` réussi (77 tests, 13 fichiers), `npm run lint`,
   `npm run typecheck`, `npm run build` et `git diff --check` réussis. Build PWA réussi ;
   avertissement Vite non bloquant sur le chunk principal de 811,57 kB.
@@ -42,9 +45,9 @@ docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
   migration distante n’a été exécuté pour cette tâche.
 - Commit et push effectués : `f781f3e` (`docs: prepare Cloudflare Pages branch preview`)
   sur `origin/reforme-budget`. La branche suit son upstream et est synchronisée.
-- Prochaine action exacte : dans Cloudflare Pages, ouvrir **Deployments** et vérifier que
-  le build de l’aperçu `reforme-budget` s’est terminé sans erreur ; ensuite jouer les
-  scénarios du guide `docs/test-telephone.md` sur téléphone.
+- Prochaine action exacte : choisir la prochaine priorité de développement (par exemple
+  poursuivre les finitions M9 ou traiter les dettes reportées M10/M6) ; les essais
+  téléphoniques de l’aperçu sont rapportés OK par Laro.
 - Vérifications finales à lancer : `npm test`, `npm run lint`,
   `npm run typecheck`, `npm run format:check`, `npm run build`, `git diff --check` et
   `supabase test db` (tests SQL locaux, si Docker et la CLI Supabase sont disponibles).
@@ -56,8 +59,8 @@ docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
   cette tâche. Les migrations de test déjà appliquées ne doivent pas être rejouées.
 - Décision de Laro : suppression du workflow local obsolète `deploy-pages.yml` autorisée ;
   Cloudflare Pages reste le seul mécanisme de déploiement. La CI GitHub reste en place.
-- Questions encore ouvertes : vérifier dans Cloudflare, onglet Deployments, que le build
-  de l’aperçu s’est terminé sans erreur après le push.
+- Questions encore ouvertes : prochaine priorité après les validations R0–R6 et les essais
+  sur téléphone.
 - Pièges connus : le workflow est non suivi, cible l’ancien projet `cashflow-plus`, et
   offre un déclenchement manuel en plus du push sur `main`. Sa suppression ne doit pas
   toucher la CI ni l’intégration Git Cloudflare. Préserver les changements préexistants

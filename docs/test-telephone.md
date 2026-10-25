@@ -1,18 +1,101 @@
-# Scénarios de test sur téléphone
+# Test sur téléphone de cashFlow+ (aperçu)
 
-À jouer sur l’aperçu Cloudflare depuis un téléphone. Inscrire le résultat observé dans
-la dernière colonne.
+Avant de commencer
 
-| #   | Scénario                                                                                                                                                                 | Règle vérifiée                | Résultat attendu                                                                                                                                                                                                                   | Résultat |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| a   | Dans le budget d’octobre déjà défini, ajouter une dépense dans une catégorie sans seuil.                                                                                 | B4                            | Le reste du budget d’octobre diminue du montant de la dépense, une seule fois.                                                                                                                                                     |          |
-| b   | Ajouter un revenu au mois courant.                                                                                                                                       | B6                            | Le solde augmente du montant du revenu ; le budget et son reste ne changent pas.                                                                                                                                                   |          |
-| c   | Ajouter un remboursement, puis un ajustement négatif.                                                                                                                    | 3.1                           | Le remboursement réduit les dépenses nettes et augmente le solde ainsi que le reste du budget. L’ajustement négatif réduit le solde uniquement ; il ne modifie ni les dépenses, ni les revenus, ni le budget, ni les statistiques. |          |
-| d   | Activer le mode avion, définir le budget de novembre, ajouter une dépense, recharger l’application, puis rétablir le réseau.                                             | H1, H2                        | Le budget et la dépense restent visibles après le rechargement hors ligne. Une fois le réseau rétabli, les changements se synchronisent et l’indicateur de synchronisation disparaît.                                              |          |
-| e   | Créer ou conserver des opérations qui rendent le solde d’un mois négatif.                                                                                                | C5                            | Le solde négatif apparaît en rouge avec le libellé « Déficit » et n’est pas reporté au mois suivant.                                                                                                                               |          |
-| f   | Saisir une dépense datée du 31 à 23 h 30, heure locale d’Antananarivo.                                                                                                   | B2                            | La dépense reste comptabilisée dans le mois du 31, sans basculer dans le mois suivant à cause d’une conversion UTC.                                                                                                                |          |
-| g   | Ouvrir un mois couvert par un forfait, vérifier la transaction générée, puis modifier le forfait avec « Ce mois seulement » et ensuite avec « Ce mois et les suivants ». | F4, F6                        | La transaction du mois n’est générée qu’une fois. « Ce mois seulement » ne change que la transaction du mois. « Ce mois et les suivants » conserve les mois passés et applique les nouvelles valeurs à partir du mois courant.     |          |
-| h   | Avec un compte invité membre d’un espace partagé, tenter de modifier le budget, les seuils, les forfaits et une transaction créée par un autre membre.                   | Section 6                     | Le membre invité ne peut modifier ni le budget, ni les seuils, ni les forfaits, ni les transactions des autres. Les changements refusés restent absents après rechargement/synchronisation.                                        |          |
-| i   | Parcourir l’écran jusqu’en bas et utiliser la navigation et les principales actions.                                                                                     | 10.9                          | La barre du bas ne masque pas le dernier contenu ; les zones tactiles mesurent au moins 44 px et restent confortables à utiliser.                                                                                                  |          |
-| j   | Ouvrir directement `/budgets`, puis recharger la page.                                                                                                                   | Cloudflare Pages / routes SPA | La page est servie sans erreur 404 et l’écran Budgets s’affiche.                                                                                                                                                                   |          |
-| k   | Sur l’adresse d’aperçu, se connecter puis se déconnecter.                                                                                                                | Authentification sur l’aperçu | La connexion aboutit ; après déconnexion, la session est fermée et les écrans protégés ne restent pas accessibles.                                                                                                                 |          |
+- Ouvre l'aperçu dans Chrome sur le téléphone et connecte-toi.
+- Il te faut un budget défini pour le mois en cours, une catégorie sans seuil et une catégorie avec seuil.
+- Après chaque test, écris OK ou PROBLÈME, puis une ligne sur ce que tu as vu. Si c'est un problème, ajoute une capture d'écran.
+- Les montants sont des exemples. Prends ceux que tu veux, mais note-les.
+
+---
+
+## 1. Connexion et déconnexion
+
+Faire : connecte-toi, puis déconnecte-toi, puis essaie de rouvrir une page de l'application.
+Attendu : la connexion marche. Après la déconnexion, tu n'as plus accès aux écrans et tu reviens à la connexion.
+Résultat :OK
+
+## 2. Rechargement sur une sous-page
+
+Faire : ouvre directement l'adresse de l'aperçu suivie de /budgets, puis recharge la page.
+Attendu : l'écran Budgets s'affiche. Pas d'erreur 404.
+Résultat :OK
+
+## 3. Revenu (règle B6)
+
+Faire : ajoute un revenu de 200 000 Ar.
+Attendu : le solde monte de 200 000 Ar. Le budget du mois et son reste ne bougent pas.
+Résultat : OK
+
+## 4. Dépense dans une catégorie sans seuil (règle B4)
+
+Faire : ajoute une dépense de 5 000 Ar dans une catégorie sans seuil.
+Attendu : le reste du budget baisse de 5 000 Ar, une seule fois. Le solde baisse aussi de 5 000 Ar. La dépense apparaît une seule fois dans la liste.
+Résultat : OK
+
+## 5. Dépense dans une catégorie avec seuil (règle B4)
+
+Faire : ajoute une dépense de 3 000 Ar dans une catégorie qui a un seuil.
+Attendu : le reste du budget baisse de 3 000 Ar, une seule fois (pas 6 000). La barre du seuil de cette catégorie avance du même montant.
+Résultat : OK
+
+## 6. Remboursement, puis ajustement négatif (section 3.1)
+
+Faire : ajoute un remboursement de 2 000 Ar dans une catégorie. Note les chiffres. Ajoute ensuite un ajustement de moins 1 000 Ar.
+Attendu : le remboursement fait monter le reste du budget et le solde de 2 000 Ar. L'ajustement fait baisser le solde seulement, de 1 000 Ar. Les dépenses, les revenus, le budget et les statistiques ne changent pas avec l'ajustement.
+Résultat : OK
+
+## 7. Déficit (règle C5)
+
+Faire : ajoute une dépense plus grande que ton solde.
+Attendu : le solde négatif s'affiche en rouge avec le mot « Déficit ». Passe au mois suivant : le déficit n'est pas reporté, le solde de ce mois repart de 0.
+Résultat : OK
+
+## 8. Dépense du 31 (règle B2)
+
+Faire : ajoute une dépense datée du 31 du mois (si l'écran propose une heure, mets 23:30).
+Attendu : elle est comptée dans ce mois, pas dans le suivant.
+Résultat : OK
+
+## 9. Forfait (règles F4 et F6)
+
+Faire :
+
+1. Crée un forfait « Internet » de 10 000 Ar, qui commence ce mois-ci.
+2. Regarde les transactions de ce mois. Quitte l'écran, reviens, recharge.
+3. Ouvre le mois suivant.
+4. Dans le mois suivant, modifie le forfait avec « Ce mois et les suivants » et mets 15 000 Ar.
+5. Reviens au mois précédent.
+6. Modifie ensuite le forfait avec « Ce mois seulement » dans l'un des mois.
+
+Attendu : une seule transaction « Internet » par mois, même après rechargement. Le mois précédent garde 10 000 Ar. Le mois modifié passe à 15 000 Ar et les suivants aussi. « Ce mois seulement » ne change que le mois choisi.
+Résultat : OK
+
+## 10. Mise en page (section 10.9)
+
+Faire : fais défiler plusieurs écrans jusqu'en bas (Accueil, Transactions, Budgets). Touche les boutons et les onglets.
+Attendu : la barre du bas ne cache pas le dernier contenu. Les boutons se touchent facilement, sans viser.
+Résultat : OK
+
+## 11. Hors ligne (règles H1 et H2)
+
+Faire :
+
+1. Ouvre l'application avec du réseau et attends qu'elle soit chargée.
+2. Active le mode avion.
+3. Définis ou change le budget du mois suivant, et ajoute une dépense.
+4. Recharge la page.
+5. Remets le réseau et attends un peu.
+6. Sur le PC, recharge l'application avec le même compte.
+
+Attendu : après le rechargement hors ligne, le budget et la dépense sont toujours là, avec un signe « en attente » ou un indicateur de synchronisation. Quand le réseau revient, l'indicateur disparaît. Sur le PC, les mêmes données apparaissent.
+Résultat : OK
+
+## 12. Membre invité (section 6)
+
+À faire seulement avec un deuxième compte, invité dans un espace partagé.
+
+Faire : avec le compte invité, essaie de modifier le budget, un seuil, un forfait, puis une transaction créée par l'autre personne.
+Attendu : rien de cela n'est possible (bouton absent ou refus). Après rechargement, rien n'a changé.
+Résultat :OK
+---
