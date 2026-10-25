@@ -1,4 +1,4 @@
-import type { Account, Budget, Category, Transaction } from './models'
+import type { Budget, Category, Transaction } from './models'
 
 export interface BudgetCategorySummary {
   categoryId: string
@@ -68,16 +68,17 @@ export function calculateMonthlyBudgetSummary(
   for (const transaction of transactions) {
     if (
       transaction.deleted_at !== null ||
-      transaction.kind !== 'expense' ||
+      (transaction.kind !== 'expense' && transaction.kind !== 'refund') ||
       !transaction.occurred_on.startsWith(`${monthPrefix}-`)
     ) {
       continue
     }
-    totalSpent += transaction.amount
+    const amount = transaction.kind === 'expense' ? transaction.amount : -transaction.amount
+    totalSpent += amount
     if (transaction.category_id !== null) {
       categorySpending.set(
         transaction.category_id,
-        (categorySpending.get(transaction.category_id) ?? 0) + transaction.amount,
+        (categorySpending.get(transaction.category_id) ?? 0) + amount,
       )
     }
   }
@@ -103,7 +104,13 @@ export function calculateMonthlyBudgetSummary(
         spentAmount,
         remainingAmount: budgetAmount === null ? null : budgetAmount - spentAmount,
         progressPercentage:
-          budgetAmount === null ? 0 : Math.min((spentAmount / budgetAmount) * 100, 100),
+          budgetAmount === null
+            ? 0
+            : budgetAmount === 0
+              ? spentAmount > 0
+                ? 100
+                : 0
+              : Math.max(0, Math.min((spentAmount / budgetAmount) * 100, 100)),
         isOverBudget: budgetAmount !== null && spentAmount > budgetAmount,
       }
     })
@@ -127,32 +134,4 @@ export function calculateMonthlyBudgetSummary(
     daysRemaining,
     categories: categorySummaries,
   }
-}
-
-export function calculateAccountBalance(account: Account, transactions: Transaction[]): number {
-  return transactions.reduce((balance, transaction) => {
-    if (transaction.deleted_at !== null) {
-      return balance
-    }
-
-    if (transaction.account_id === account.id) {
-      return balance + (transaction.kind === 'income' ? transaction.amount : -transaction.amount)
-    }
-
-    if (transaction.kind === 'transfer' && transaction.to_account_id === account.id) {
-      return balance + transaction.amount
-    }
-
-    return balance
-  }, account.initial_balance)
-}
-
-export function calculateWorkspaceBalance(
-  accounts: Account[],
-  transactions: Transaction[],
-): number {
-  return accounts.reduce(
-    (balance, account) => balance + calculateAccountBalance(account, transactions),
-    0,
-  )
 }

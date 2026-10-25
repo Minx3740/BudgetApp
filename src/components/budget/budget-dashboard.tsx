@@ -1,28 +1,76 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, Pencil, Plus } from 'lucide-react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useBudgets, useCategories, useTransactions } from '@/data/hooks'
-import { calculateMonthlyBudgetSummary, monthKeyForDate, shiftMonth } from '@/data/calculations'
-import { budgetsRepository } from '@/data/repositories'
-import type { Budget } from '@/data/models'
+import {
+  useBudgets,
+  useCategories,
+  useMonthCarryDecisions,
+  useMonthlyBudgets,
+  useTransactions,
+} from '@/data/hooks'
+import { calculateMonthlyBudgetSummary, shiftMonth } from '@/data/calculations'
+import { calculateMonthLedger, resourceUsagePercentage } from '@/data/reform-calculations'
+import {
+  budgetsRepository,
+  monthCarryDecisionsRepository,
+  monthlyBudgetsRepository,
+} from '@/data/repositories'
+import type { Budget, Profile } from '@/data/models'
+
+const LazyBudgetAnalyticsView = lazy(() =>
+  import('./budget-analytics-view').then((module) => ({ default: module.BudgetAnalyticsView })),
+)
 
 type BudgetDashboardMode = 'home' | 'manage'
+type BudgetTab = 'month' | 'analytics'
 
 interface BudgetDashboardProps {
   workspaceId: string | undefined
-  currency: string
-  canEdit: boolean
+  month: string
+  canManageBudget: boolean
   mode: BudgetDashboardMode
   onOpenBudgets?: () => void
+  onOpenAnalyses?: () => void
+  isSharedWorkspace?: boolean
+  profiles?: Pick<Profile, 'id' | 'display_name'>[]
+  initialTab?: BudgetTab
+  onTabChange?: (tab: BudgetTab) => void
 }
 
-function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency,
+function BudgetViewToggle({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: BudgetTab
+  onTabChange: (tab: BudgetTab) => void
+}) {
+  return (
+    <div aria-label="Volets des budgets" className="mb-5 flex gap-2" role="group">
+      <Button
+        aria-pressed={activeTab === 'month'}
+        className="min-h-11"
+        onClick={() => onTabChange('month')}
+        variant={activeTab === 'month' ? 'default' : 'outline'}
+      >
+        Mois
+      </Button>
+      <Button
+        aria-pressed={activeTab === 'analytics'}
+        className="min-h-11"
+        onClick={() => onTabChange('analytics')}
+        variant={activeTab === 'analytics' ? 'default' : 'outline'}
+      >
+        Analyses
+      </Button>
+    </div>
+  )
+}
+
+function formatMoney(amount: number): string {
+  return `${new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
-  }).format(amount)
+  }).format(amount)} Ar`
 }
 
 function formatMonth(month: string): string {
@@ -34,10 +82,12 @@ function formatMonth(month: string): string {
   return `${label.charAt(0).toLocaleUpperCase('fr-FR')}${label.slice(1)}`
 }
 
-function budgetErrorMessage(failure: unknown): string {
+function budgetErrorMessage(failure: unknown, item = 'seuil'): string {
   if (failure instanceof Error) {
     if (failure.name === 'ConstraintError') {
-      return 'Un plafond existe déjà pour cette catégorie et ce mois. Modifie-le depuis sa carte.'
+      return item === 'enveloppe'
+        ? 'Une enveloppe existe déjà pour ce mois. Recharge les données puis modifie-la.'
+        : 'Un seuil existe déjà pour cette catégorie et ce mois. Modifie-le depuis sa carte.'
     }
     return failure.message
   }
@@ -62,19 +112,30 @@ function defaultCategoryId(categoryIds: string[], budgets: Budget[], month: stri
 
 export function BudgetDashboard({
   workspaceId,
-  currency,
-  canEdit,
+  month,
+  canManageBudget,
   mode,
   onOpenBudgets,
+  onOpenAnalyses,
+  isSharedWorkspace = false,
+  profiles = [],
+  initialTab = 'month',
+  onTabChange,
 }: BudgetDashboardProps) {
-  const [month, setMonth] = useState(() => monthKeyForDate(new Date()))
+  const [activeBudgetTab, setActiveBudgetTab] = useState<BudgetTab>(initialTab)
   const [isEditing, setIsEditing] = useState(false)
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState('')
   const [limitAmount, setLimitAmount] = useState('')
+  const [isEditingMonthlyBudget, setIsEditingMonthlyBudget] = useState(false)
+  const [monthlyBudgetAmount, setMonthlyBudgetAmount] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [isThresholdHelpOpen, setIsThresholdHelpOpen] = useState(false)
+  const thresholdHelpRef = useRef<HTMLDivElement>(null)
   const budgets = useBudgets(workspaceId)
+  const monthlyBudgets = useMonthlyBudgets(workspaceId)
+  const carryDecisions = useMonthCarryDecisions(workspaceId)
   const categories = useCategories(workspaceId)
   const transactions = useTransactions(workspaceId)
   const expenseCategories = categories.filter(
@@ -95,8 +156,51 @@ export function BudgetDashboard({
     () => calculateMonthlyBudgetSummary(month, budgets, categories, transactions),
     [budgets, categories, month, transactions],
   )
-  const monthBudgets = budgets.filter((budget) => budget.month === month)
+  const ledger = useMemo(() => {
+    try {
+      return {
+        current: calculateMonthLedger(month, monthlyBudgets, transactions, carryDecisions),
+        previous: calculateMonthLedger(
+          shiftMonth(month, -1),
+          monthlyBudgets,
+          transactions,
+          carryDecisions,
+        ),
+        error: null,
+      }
+    } catch (failure) {
+      return {
+        current: null,
+        previous: null,
+        error: failure instanceof Error ? failure.message : 'Erreur inconnue de calcul.',
+      }
+    }
+  }, [carryDecisions, month, monthlyBudgets, transactions])
+  const currentLedger = ledger.current
+  const previousLedger = ledger.previous
+  const monthBudgets = budgets.filter(
+    (budget) => budget.month === month && budget.deleted_at === null,
+  )
   const activeBudgetCategories = summary.categories.filter((item) => item.budgetAmount !== null)
+  const monthlyBudget = monthlyBudgets.find(
+    (budget) => budget.month === month && budget.deleted_at === null,
+  )
+  const previousMonth = shiftMonth(month, -1)
+  const previousMonthlyBudget = monthlyBudgets.find(
+    (budget) => budget.month === previousMonth && budget.deleted_at === null,
+  )
+  const currentCarryDecision = carryDecisions.find(
+    (decision) => decision.month === month && decision.deleted_at === null,
+  )
+  const previousMonthHasTransactions = transactions.some(
+    (transaction) =>
+      transaction.deleted_at === null &&
+      transaction.occurred_on.startsWith(`${previousMonth.slice(0, 7)}-`),
+  )
+  const shouldOfferCarry =
+    currentCarryDecision === undefined &&
+    previousMonthHasTransactions &&
+    (previousLedger?.available ?? 0) > 0
   const editingCategory = categories.find(
     (category) => category.id === categoryId && category.kind === 'expense',
   )
@@ -107,10 +211,48 @@ export function BudgetDashboard({
   const consumedCategories = summary.categories
     .filter((item) => item.spentAmount > 0)
     .slice(0, mode === 'home' ? 3 : 10)
-  const currentDate = new Date()
-  const currentMonth = monthKeyForDate(currentDate)
-  const isCurrentMonth = month === currentMonth
+  const recentTransactions = transactions
+    .filter(
+      (transaction) =>
+        transaction.deleted_at === null &&
+        transaction.occurred_on.startsWith(`${month.slice(0, 7)}-`),
+    )
+    .sort(
+      (left, right) =>
+        right.occurred_on.localeCompare(left.occurred_on) ||
+        right.created_at.localeCompare(left.created_at),
+    )
+    .slice(0, 3)
+  const categoriesById = new Map(categories.map((category) => [category.id, category]))
+  const resourceUsage = currentLedger
+    ? resourceUsagePercentage(currentLedger.netExpenses, currentLedger.resources)
+    : null
 
+  useEffect(() => {
+    if (!isThresholdHelpOpen) return
+    function closeHelp(event: PointerEvent | KeyboardEvent) {
+      if (event instanceof KeyboardEvent && event.key === 'Escape') {
+        setIsThresholdHelpOpen(false)
+      } else if (
+        event instanceof PointerEvent &&
+        event.target instanceof Node &&
+        !thresholdHelpRef.current?.contains(event.target)
+      ) {
+        setIsThresholdHelpOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', closeHelp)
+    document.addEventListener('keydown', closeHelp)
+    return () => {
+      document.removeEventListener('pointerdown', closeHelp)
+      document.removeEventListener('keydown', closeHelp)
+    }
+  }, [isThresholdHelpOpen])
+
+  function changeBudgetTab(tab: BudgetTab) {
+    setActiveBudgetTab(tab)
+    onTabChange?.(tab)
+  }
   function startNewBudget() {
     setEditingBudgetId(null)
     setCategoryId(defaultCategoryId(availableCategoryIds, budgets, month))
@@ -134,7 +276,7 @@ export function BudgetDashboard({
     setFormError(null)
     setNotice(null)
 
-    if (!canEdit) {
+    if (!canManageBudget) {
       setFormError('Tu as un accès en lecture seule à cet espace.')
       return
     }
@@ -143,8 +285,8 @@ export function BudgetDashboard({
       return
     }
     const amount = Number(limitAmount)
-    if (!Number.isSafeInteger(amount) || amount <= 0) {
-      setFormError('Le plafond doit être un montant entier supérieur à zéro.')
+    if (!Number.isSafeInteger(amount) || amount < 0) {
+      setFormError('Le seuil doit être un montant entier positif ou égal à zéro.')
       return
     }
     const selectedCategory = formCategories.find((category) => category.id === categoryId)
@@ -175,57 +317,109 @@ export function BudgetDashboard({
       }
       setIsEditing(false)
       setEditingBudgetId(null)
-      setNotice('Plafond enregistré sur cet appareil.')
+      setNotice('Seuil enregistré.')
     } catch (failure) {
-      setFormError(`Impossible d’enregistrer ce plafond. ${budgetErrorMessage(failure)}`)
+      setFormError(`Impossible d’enregistrer ce seuil. ${budgetErrorMessage(failure)}`)
     }
   }
 
-  function renderMonthControls() {
-    return (
-      <div className="flex items-center justify-between gap-3">
-        <Button
-          aria-label="Mois précédent"
-          className="min-h-12 min-w-12"
-          disabled={isEditing}
-          onClick={() => setMonth((value) => shiftMonth(value, -1))}
-          size="icon"
-          variant="outline"
-        >
-          <ArrowLeft aria-hidden="true" size={18} />
-        </Button>
-        <p aria-live="polite" className="text-center font-semibold">
-          {formatMonth(month)}
-        </p>
-        <Button
-          aria-label="Mois suivant"
-          className="min-h-12 min-w-12"
-          disabled={isEditing || month >= currentMonth}
-          onClick={() => setMonth((value) => shiftMonth(value, 1))}
-          size="icon"
-          variant="outline"
-        >
-          <ArrowRight aria-hidden="true" size={18} />
-        </Button>
-      </div>
-    )
+  function startEditingMonthlyBudget(amount = monthlyBudget?.budget_amount) {
+    setMonthlyBudgetAmount(amount === undefined ? '' : String(amount))
+    setFormError(null)
+    setNotice(null)
+    setIsEditingMonthlyBudget(true)
+  }
+
+  async function saveMonthlyBudget(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFormError(null)
+    setNotice(null)
+    if (!canManageBudget) {
+      setFormError('Seul le propriétaire peut modifier l’enveloppe de cet espace.')
+      return
+    }
+    if (!workspaceId) {
+      setFormError('Aucun espace local n’est disponible.')
+      return
+    }
+    const amount = Number(monthlyBudgetAmount)
+    if (monthlyBudgetAmount.trim() === '' || !Number.isSafeInteger(amount) || amount < 0) {
+      setFormError('L’enveloppe doit être un montant entier positif ou égal à zéro.')
+      return
+    }
+    try {
+      if (monthlyBudget) {
+        await monthlyBudgetsRepository.update(monthlyBudget.id, workspaceId, {
+          month,
+          budget_amount: amount,
+        })
+      } else {
+        await monthlyBudgetsRepository.create({
+          workspace_id: workspaceId,
+          month,
+          budget_amount: amount,
+        })
+      }
+      setIsEditingMonthlyBudget(false)
+      setNotice('Budget mensuel enregistré.')
+    } catch (failure) {
+      setFormError(
+        `Impossible d’enregistrer l’enveloppe. ${budgetErrorMessage(failure, 'enveloppe')}`,
+      )
+    }
+  }
+
+  async function saveCarryDecision(accepted: boolean) {
+    setFormError(null)
+    setNotice(null)
+    if (!canManageBudget) {
+      setFormError('Seul le propriétaire peut décider du report.')
+      return
+    }
+    if (!workspaceId) {
+      setFormError('Aucun espace local n’est disponible.')
+      return
+    }
+    try {
+      await monthCarryDecisionsRepository.create({
+        workspace_id: workspaceId,
+        month,
+        accepted,
+      })
+      setNotice(
+        accepted
+          ? 'Le disponible précédent sera reporté.'
+          : 'Le disponible précédent ne sera pas reporté.',
+      )
+    } catch (failure) {
+      setFormError(`Impossible d’enregistrer la décision de report. ${budgetErrorMessage(failure)}`)
+    }
   }
 
   function renderBudgetCard(item: (typeof summary.categories)[number]) {
     const isOverBudget = item.isOverBudget
+    const isNearThreshold = !isOverBudget && item.progressPercentage >= 80
+    const categoryColor =
+      categories.find((category) => category.id === item.categoryId)?.color ??
+      'var(--category-uncategorized)'
+    const statusColor = isOverBudget
+      ? 'text-red-700'
+      : isNearThreshold
+        ? 'text-amber-800'
+        : 'text-stone-600'
     return (
       <article className="rounded-2xl border border-stone-200 bg-white p-4" key={item.categoryId}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold">{item.categoryName}</h3>
             <p className="mt-1 text-sm text-stone-600">
-              Dépensé : {formatMoney(item.spentAmount, currency)}
-              {item.budgetAmount !== null && ` sur ${formatMoney(item.budgetAmount, currency)}`}
+              Dépensé : {formatMoney(item.spentAmount)}
+              {item.budgetAmount !== null && ` sur ${formatMoney(item.budgetAmount)}`}
             </p>
           </div>
-          {canEdit && item.budgetAmount !== null && (
+          {canManageBudget && item.budgetAmount !== null && (
             <Button
-              aria-label={`Modifier le plafond ${item.categoryName}`}
+              aria-label={`Modifier le seuil ${item.categoryName}`}
               className="min-h-11"
               onClick={() => {
                 const budget = monthBudgets.find(
@@ -242,11 +436,11 @@ export function BudgetDashboard({
           )}
         </div>
         {item.budgetAmount === null ? (
-          <p className="mt-3 text-sm text-stone-500">Aucun plafond défini</p>
+          <p className="mt-3 text-sm text-stone-500">Aucun seuil défini</p>
         ) : (
           <>
             <div
-              aria-label={`Progression du budget ${item.categoryName}`}
+              aria-label={`Progression du seuil ${item.categoryName}`}
               aria-valuemax={100}
               aria-valuemin={0}
               aria-valuenow={Math.round(item.progressPercentage)}
@@ -254,19 +448,24 @@ export function BudgetDashboard({
               role="progressbar"
             >
               <div
-                className={`h-full rounded-full ${isOverBudget ? 'bg-red-600' : 'bg-emerald-700'}`}
-                style={{ width: `${item.progressPercentage}%` }}
+                className="h-full rounded-full"
+                style={{
+                  backgroundColor: categoryColor,
+                  width: `${item.progressPercentage}%`,
+                }}
               />
             </div>
             <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm">
-              <span className={isOverBudget ? 'font-semibold text-red-700' : 'text-stone-600'}>
-                {isOverBudget ? 'Plafond dépassé' : 'Reste'}
+              <span className={statusColor}>
+                {isOverBudget
+                  ? 'Seuil dépassé'
+                  : isNearThreshold
+                    ? 'Seuil presque atteint'
+                    : 'Reste'}
                 {': '}
-                {formatMoney(Math.abs(item.remainingAmount ?? 0), currency)}
+                {formatMoney(Math.abs(item.remainingAmount ?? 0))}
               </span>
-              <span className={isOverBudget ? 'font-semibold text-red-700' : 'text-stone-600'}>
-                {Math.round((item.spentAmount / item.budgetAmount) * 100)} %
-              </span>
+              <span className={statusColor}>{Math.round(item.progressPercentage)} %</span>
             </div>
           </>
         )}
@@ -276,58 +475,247 @@ export function BudgetDashboard({
 
   if (mode === 'home') {
     return (
-      <section aria-label="Budget du mois" className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-          <CardHeader>
-            <CardTitle>Reste à dépenser · {formatMonth(month)}</CardTitle>
-            <CardDescription>
-              {summary.totalBudgeted === 0
-                ? 'Définis des plafonds mensuels pour suivre ton budget.'
-                : `Dépensé ${formatMoney(summary.totalSpent, currency)} sur ${formatMoney(summary.totalBudgeted, currency)}.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p
-              className={`text-3xl font-bold tracking-tight ${
-                summary.remaining < 0 ? 'text-red-700' : 'text-emerald-900'
-              }`}
-            >
-              {formatMoney(summary.remaining, currency)}
-            </p>
-            {isCurrentMonth && summary.totalBudgeted > 0 && (
-              <p className="mt-2 text-sm text-stone-600">
-                Environ {formatMoney(Math.round(summary.remainingPerDay), currency)} par jour ·{' '}
-                {summary.daysRemaining} jours restants
-              </p>
-            )}
-            <Button className="mt-4 min-h-11" onClick={onOpenBudgets} variant="outline">
-              Gérer les budgets
-            </Button>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-          <CardHeader>
-            <CardTitle>Catégories les plus consommées</CardTitle>
-            <CardDescription>Les dépenses du mois, calculées sur cet appareil.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {consumedCategories.length === 0 ? (
-              <p className="text-sm text-stone-500">Aucune dépense enregistrée ce mois-ci.</p>
-            ) : (
-              consumedCategories.map((item) => (
-                <div
-                  className="flex items-center justify-between gap-3 text-sm"
-                  key={item.categoryId}
+      <section aria-label={`Budget de ${formatMonth(month)}`} className="space-y-4">
+        {ledger.error && (
+          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+            Impossible de calculer le disponible du mois. {ledger.error}
+          </p>
+        )}
+        {currentLedger && (
+          <div className="space-y-4">
+            <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+              <CardHeader>
+                <CardTitle>Disponible · {formatMonth(month)}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p
+                  className={`text-3xl font-bold tracking-tight ${
+                    currentLedger.available < 0 ? 'text-red-700' : 'text-emerald-950'
+                  }`}
                 >
-                  <span className="truncate text-stone-600">{item.categoryName}</span>
-                  <span className="shrink-0 font-semibold">
-                    {formatMoney(item.spentAmount, currency)}
-                  </span>
-                </div>
-              ))
+                  {formatMoney(currentLedger.available)}
+                </p>
+                {currentLedger.available < 0 && (
+                  <p className="mt-1 text-sm font-semibold text-red-700">Déficit</p>
+                )}
+                {currentCarryDecision?.accepted && (
+                  <p className="mt-2 text-sm text-stone-600">
+                    Report compris : {formatMoney(currentLedger.carryIn)}
+                  </p>
+                )}
+                {currentCarryDecision && !currentCarryDecision.accepted && (
+                  <p className="mt-2 text-sm text-stone-600">Aucun montant reporté ce mois.</p>
+                )}
+
+                <p className="mt-4 text-sm text-stone-600">
+                  Budget {formatMoney(currentLedger.budgetAmount ?? 0)} · dépensé{' '}
+                  {formatMoney(currentLedger.netExpenses)}
+                </p>
+                {resourceUsage !== null && (
+                  <div
+                    aria-label={`Dépenses nettes sur ressources : ${Math.round(resourceUsage)} %`}
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={Math.round(resourceUsage)}
+                    className="mt-3 h-3 overflow-hidden rounded-full bg-stone-100"
+                    role="progressbar"
+                  >
+                    <div
+                      className={`h-full ${
+                        currentLedger.available < 0
+                          ? 'bg-red-600'
+                          : resourceUsage >= 80
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-700'
+                      }`}
+                      style={{ width: `${resourceUsage}%` }}
+                    />
+                  </div>
+                )}
+                {currentLedger.budgetAmount === null && (
+                  <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-950">
+                    Aucun budget n’est défini pour ce mois.
+                  </p>
+                )}
+                <Button className="mt-4 min-h-11" onClick={onOpenBudgets} variant="outline">
+                  {currentLedger.budgetAmount === null
+                    ? 'Définir mon budget'
+                    : 'Gérer le budget et les seuils'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                <CardContent className="p-4">
+                  <p className="text-sm text-stone-600">Revenus</p>
+                  <p className="mt-1 text-lg font-semibold">{formatMoney(currentLedger.income)}</p>
+                </CardContent>
+              </Card>
+              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                <CardContent className="p-4">
+                  <p className="text-sm text-stone-600">Dépenses</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatMoney(currentLedger.netExpenses)}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {shouldOfferCarry && previousLedger && (
+              <Card className="rounded-2xl border-0 bg-amber-50 shadow-sm ring-amber-200">
+                <CardHeader>
+                  <CardTitle>Reporter le disponible précédent ?</CardTitle>
+                  <CardDescription className="text-stone-700">
+                    Le mois précédent se termine avec un disponible positif de{' '}
+                    {formatMoney(previousLedger.available)}. Ce choix ne change pas le budget du
+                    mois.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {canManageBudget ? (
+                    <>
+                      <Button className="min-h-11" onClick={() => void saveCarryDecision(true)}>
+                        Reporter ce montant
+                      </Button>
+                      <Button
+                        className="min-h-11"
+                        onClick={() => void saveCarryDecision(false)}
+                        variant="outline"
+                      >
+                        Ne pas reporter
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-stone-700">
+                      Seul le propriétaire peut décider du report.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+
+            <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+              <CardHeader>
+                <CardTitle>Dernières transactions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentTransactions.length === 0 ? (
+                  <p className="text-sm text-stone-500">Aucune transaction ce mois-ci.</p>
+                ) : (
+                  recentTransactions.map((transaction) => {
+                    const category = transaction.category_id
+                      ? categoriesById.get(transaction.category_id)
+                      : undefined
+                    const typeLabel =
+                      transaction.kind === 'expense'
+                        ? 'Dépense'
+                        : transaction.kind === 'refund'
+                          ? 'Remboursement'
+                          : transaction.kind === 'income'
+                            ? 'Revenu'
+                            : 'Ajustement'
+                    const signedAmount =
+                      transaction.kind === 'expense'
+                        ? -transaction.amount
+                        : transaction.kind === 'adjustment'
+                          ? transaction.amount
+                          : transaction.amount
+                    return (
+                      <div
+                        className="flex min-w-0 items-center justify-between gap-3 text-sm"
+                        key={transaction.id}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor: category?.color ?? 'var(--category-uncategorized)',
+                            }}
+                          />
+                          <span className="truncate">
+                            {category?.name ?? (transaction.note?.trim() || typeLabel)}
+                          </span>
+                        </div>
+                        <span className="shrink-0 font-semibold">{formatMoney(signedAmount)}</span>
+                      </div>
+                    )
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                <CardHeader>
+                  <CardTitle>Catégories les plus consommées</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {consumedCategories.length === 0 ? (
+                    <p className="text-sm text-stone-500">
+                      Aucune dépense par catégorie enregistrée ce mois-ci.
+                    </p>
+                  ) : (
+                    consumedCategories.map((item) => (
+                      <div
+                        className="flex items-center justify-between gap-3 text-sm"
+                        key={item.categoryId}
+                      >
+                        <span className="truncate text-stone-600">{item.categoryName}</span>
+                        <span className="shrink-0 font-semibold">
+                          {formatMoney(item.spentAmount)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                  <Button className="min-h-11 w-full" onClick={onOpenAnalyses} variant="outline">
+                    Voir les analyses
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+        {formError && (
+          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+            {formError}
+          </p>
+        )}
+        {notice && (
+          <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">
+            {notice}
+          </p>
+        )}
+      </section>
+    )
+  }
+
+  if (activeBudgetTab === 'analytics') {
+    return (
+      <section aria-label="Budgets mensuels" className="max-w-4xl">
+        <div className="mb-6">
+          <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
+        </div>
+        <BudgetViewToggle activeTab={activeBudgetTab} onTabChange={changeBudgetTab} />
+        <Suspense
+          fallback={
+            <p aria-live="polite" className="py-6 text-sm text-muted-foreground">
+              Chargement des analyses…
+            </p>
+          }
+        >
+          <LazyBudgetAnalyticsView
+            budgets={budgets}
+            categories={categories}
+            isSharedWorkspace={isSharedWorkspace}
+            month={month}
+            monthlyResources={currentLedger?.resources ?? null}
+            profiles={profiles}
+            transactions={transactions}
+          />
+        </Suspense>
       </section>
     )
   }
@@ -335,56 +723,165 @@ export function BudgetDashboard({
   return (
     <section aria-label="Budgets mensuels" className="max-w-4xl">
       <div className="mb-6">
-        <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
+        <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
-        <p className="mt-3 max-w-2xl leading-7 text-stone-600">
-          Les plafonds et les dépenses sont enregistrés localement et restent disponibles
-          hors-ligne.
-        </p>
       </div>
 
+      <BudgetViewToggle activeTab={activeBudgetTab} onTabChange={changeBudgetTab} />
+
+      {ledger.error && (
+        <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+          Impossible de calculer le solde du mois. {ledger.error}
+        </p>
+      )}
       <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-        <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>{formatMonth(month)}</CardTitle>
-            <CardDescription>Vue d’ensemble des plafonds et dépenses.</CardDescription>
-          </div>
-          {renderMonthControls()}
+        <CardHeader>
+          <CardTitle>Budget global · {formatMonth(month)}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-stone-50 p-4">
-            <p className="text-sm text-stone-600">Budget total</p>
-            <p className="mt-1 text-xl font-bold">{formatMoney(summary.totalBudgeted, currency)}</p>
+            <p className="text-sm text-stone-600">Budget défini</p>
+            <p className="mt-1 text-xl font-bold">
+              {!currentLedger
+                ? 'Indisponible'
+                : currentLedger.budgetAmount === null
+                  ? 'À définir'
+                  : formatMoney(currentLedger.budgetAmount)}
+            </p>
           </div>
           <div className="rounded-xl bg-stone-50 p-4">
-            <p className="text-sm text-stone-600">Dépensé</p>
-            <p className="mt-1 text-xl font-bold">{formatMoney(summary.totalSpent, currency)}</p>
+            <p className="text-sm text-stone-600">Dépenses nettes</p>
+            <p className="mt-1 text-xl font-bold">
+              {currentLedger ? formatMoney(currentLedger.netExpenses) : 'Indisponible'}
+            </p>
           </div>
           <div
             className={`rounded-xl p-4 ${
-              summary.remaining < 0 ? 'bg-red-50 text-red-900' : 'bg-emerald-50 text-emerald-950'
+              currentLedger?.available !== undefined && currentLedger.available < 0
+                ? 'bg-red-50 text-red-900'
+                : currentLedger
+                  ? 'bg-emerald-50 text-emerald-950'
+                  : 'bg-stone-50 text-stone-700'
             }`}
           >
-            <p className="text-sm">Reste à dépenser</p>
-            <p className="mt-1 text-xl font-bold">{formatMoney(summary.remaining, currency)}</p>
+            <p className="text-sm">Disponible</p>
+            <p className="mt-1 text-xl font-bold">
+              {!currentLedger ? 'Indisponible' : formatMoney(currentLedger.available)}
+            </p>
           </div>
         </CardContent>
+        {canManageBudget && (
+          <CardContent className="flex flex-wrap gap-2 pt-0">
+            <Button
+              className="min-h-11"
+              onClick={() => startEditingMonthlyBudget()}
+              variant="outline"
+            >
+              {monthlyBudget ? 'Modifier le budget' : 'Définir le budget'}
+            </Button>
+            {previousMonthlyBudget && (
+              <Button
+                className="min-h-11"
+                onClick={() => startEditingMonthlyBudget(previousMonthlyBudget.budget_amount)}
+                variant="outline"
+              >
+                Reprendre le budget du mois précédent
+              </Button>
+            )}
+          </CardContent>
+        )}
+        {isEditingMonthlyBudget && canManageBudget && (
+          <CardContent className="border-t border-stone-200 pt-5">
+            <form
+              className="grid gap-4 sm:grid-cols-[1fr_auto_auto]"
+              onSubmit={(event) => void saveMonthlyBudget(event)}
+            >
+              <div>
+                <label className="mb-1.5 block text-sm font-medium" htmlFor="monthly-budget-amount">
+                  Budget de {formatMonth(month)} (Ar)
+                </label>
+                <input
+                  className="min-h-12 w-full rounded-xl border border-stone-300 px-3"
+                  id="monthly-budget-amount"
+                  inputMode="numeric"
+                  min="0"
+                  onChange={(event) => setMonthlyBudgetAmount(event.target.value)}
+                  required
+                  step="1"
+                  type="number"
+                  value={monthlyBudgetAmount}
+                />
+                <p className="mt-1 text-xs leading-5 text-stone-500">
+                  Montant dont tu disposes ce mois, en plus du report.
+                </p>
+              </div>
+              <Button className="min-h-12 self-end" type="submit">
+                Enregistrer
+              </Button>
+              <Button
+                className="min-h-12 self-end"
+                onClick={() => setIsEditingMonthlyBudget(false)}
+                type="button"
+                variant="outline"
+              >
+                Annuler
+              </Button>
+            </form>
+          </CardContent>
+        )}
       </Card>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Plafonds par catégorie</h2>
-        {canEdit && (
+        <div className="flex items-center gap-2" ref={thresholdHelpRef}>
+          <h2 className="text-xl font-semibold">Seuils par catégorie</h2>
+          <div className="relative">
+            <Button
+              aria-controls="threshold-help"
+              aria-expanded={isThresholdHelpOpen}
+              aria-label="À propos des seuils"
+              className="size-11 min-h-11 rounded-full p-0"
+              onClick={() => setIsThresholdHelpOpen((open) => !open)}
+              type="button"
+              variant="outline"
+            >
+              ?
+            </Button>
+            {isThresholdHelpOpen && (
+              <div
+                className="absolute left-0 top-10 z-20 w-64 rounded-xl border bg-popover p-3 text-sm text-popover-foreground shadow-lg"
+                id="threshold-help"
+                role="status"
+              >
+                Un seuil suit les dépenses d’une catégorie. Il ne change pas le disponible du mois.
+              </div>
+            )}
+          </div>
+        </div>
+        {canManageBudget && (
           <Button
             className="min-h-12"
             disabled={availableCategoryIds.length === 0}
             onClick={startNewBudget}
           >
             <Plus aria-hidden="true" size={18} />
-            Ajouter un plafond
+            Ajouter un seuil
           </Button>
         )}
       </div>
 
+      {activeBudgetCategories.length === 0 && !isEditing && (
+        <Card className="mt-4 rounded-2xl border-0 bg-muted shadow-sm">
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            Aucun seuil défini pour ce mois. Les seuils sont facultatifs.
+          </CardContent>
+        </Card>
+      )}
+
+      {formError && (
+        <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+          {formError}
+        </p>
+      )}
       {notice && (
         <p
           className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
@@ -394,11 +891,16 @@ export function BudgetDashboard({
         </p>
       )}
 
-      {isEditing && canEdit && (
+      {isEditing && canManageBudget && (
         <Card className="mt-4 rounded-2xl border-0 shadow-sm ring-stone-200">
           <CardHeader>
-            <CardTitle>{editingBudgetId ? 'Modifier un plafond' : 'Nouveau plafond'}</CardTitle>
-            <CardDescription>{formatMonth(month)} · sauvegarde hors-ligne</CardDescription>
+            <CardTitle>
+              {editingBudgetId ? 'Modifier un seuil' : 'Définir un seuil mensuel'}
+            </CardTitle>
+            <CardDescription>
+              {formatMonth(month)} · ce montant sert de repère pour la catégorie et ne modifie pas
+              l’enveloppe globale.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form
@@ -407,7 +909,7 @@ export function BudgetDashboard({
             >
               <div>
                 <label className="mb-1.5 block text-sm font-medium" htmlFor="budget-category">
-                  Catégorie de dépense
+                  1. Catégorie de dépense
                 </label>
                 <select
                   className="min-h-12 w-full rounded-xl border border-stone-300 bg-white px-3"
@@ -423,22 +925,28 @@ export function BudgetDashboard({
                     </option>
                   ))}
                 </select>
+                <p className="mt-1.5 text-xs leading-5 text-stone-500">
+                  Choisis ce que tu veux suivre séparément, par exemple alimentation ou transport.
+                </p>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium" htmlFor="budget-amount">
-                  Plafond mensuel ({currency})
+                  2. Seuil pour le mois (Ar)
                 </label>
                 <input
                   className="min-h-12 w-full rounded-xl border border-stone-300 px-3"
                   id="budget-amount"
                   inputMode="numeric"
-                  min="1"
+                  min="0"
                   onChange={(event) => setLimitAmount(event.target.value)}
                   required
                   step="1"
                   type="number"
                   value={limitAmount}
                 />
+                <p className="mt-1.5 text-xs leading-5 text-stone-500">
+                  Le seuil peut être égal à zéro. Il n’est jamais ajouté à l’enveloppe globale.
+                </p>
               </div>
               {formError && (
                 <p className="text-sm text-red-700 sm:col-span-2" role="alert">
@@ -447,7 +955,7 @@ export function BudgetDashboard({
               )}
               <div className="flex flex-wrap gap-2 sm:col-span-2">
                 <Button className="min-h-12" type="submit">
-                  Enregistrer le plafond
+                  Enregistrer ce seuil
                 </Button>
                 <Button
                   className="min-h-12"
@@ -465,25 +973,19 @@ export function BudgetDashboard({
 
       {expenseCategories.length === 0 ? (
         <p className="mt-4 rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">
-          Ajoute d’abord une catégorie de dépense pour définir un plafond.
+          Ajoute d’abord une catégorie de dépense pour définir un seuil.
         </p>
       ) : null}
 
-      <div className="mt-4 grid gap-3">
-        {activeBudgetCategories.map(renderBudgetCard)}
-        {activeBudgetCategories.length === 0 && !isEditing && (
-          <p className="rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">
-            Aucun plafond pour ce mois. Ajoute un plafond par catégorie pour commencer.
-          </p>
-        )}
-      </div>
+      <div className="mt-4 grid gap-3">{activeBudgetCategories.map(renderBudgetCard)}</div>
 
       {consumedCategories.some((item) => item.budgetAmount === null) && (
         <Card className="mt-6 rounded-2xl border-0 shadow-sm ring-stone-200">
           <CardHeader>
-            <CardTitle>Dépenses sans plafond</CardTitle>
+            <CardTitle>Dépenses sans seuil</CardTitle>
             <CardDescription>
-              Elles sont incluses dans le reste global, mais ne disposent pas encore d’une limite.
+              Elles sont incluses dans le calcul de l’enveloppe globale, mais n’ont pas de seuil
+              individuel.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">

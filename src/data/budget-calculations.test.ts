@@ -6,8 +6,7 @@ const workspaceId = '00000000-0000-4000-8000-000000000001'
 const expenseCategoryId = '00000000-0000-4000-8000-000000000002'
 const foodCategoryId = '00000000-0000-4000-8000-000000000003'
 const incomeCategoryId = '00000000-0000-4000-8000-000000000004'
-const accountId = '00000000-0000-4000-8000-000000000005'
-const userId = '00000000-0000-4000-8000-000000000006'
+const userId = '00000000-0000-4000-8000-000000000005'
 const timestamp = '2026-10-15T12:00:00.000Z'
 
 function category(id: string, name: string, kind: Category['kind'] = 'expense'): Category {
@@ -54,14 +53,15 @@ function transaction(
   return {
     id,
     workspace_id: workspaceId,
-    account_id: accountId,
-    to_account_id: kind === 'transfer' ? '00000000-0000-4000-8000-000000000007' : null,
     category_id: categoryId,
     kind,
     amount,
     occurred_on: occurredOn,
     note: null,
     created_by: userId,
+    paid_by: userId,
+    recurring_id: null,
+    recurring_month: null,
     created_at: timestamp,
     updated_at: timestamp,
     deleted_at: deletedAt,
@@ -103,7 +103,13 @@ describe('calcul du budget mensuel local', () => {
           '2026-10-10',
           incomeCategoryId,
         ),
-        transaction('20000000-0000-4000-8000-000000000004', 'transfer', 4_000, '2026-10-12', null),
+        transaction(
+          '20000000-0000-4000-8000-000000000004',
+          'adjustment',
+          -4_000,
+          '2026-10-12',
+          null,
+        ),
         transaction(
           '20000000-0000-4000-8000-000000000005',
           'expense',
@@ -181,6 +187,43 @@ describe('calcul du budget mensuel local', () => {
     })
   })
 
+  it('compte les dépenses et remboursements sans catégorie une fois dans le budget global', () => {
+    const summary = calculateMonthlyBudgetSummary(
+      month,
+      [budget(foodCategoryId, month, 10_000)],
+      categories,
+      [
+        transaction('20000000-0000-4000-8000-000000000031', 'expense', 2_000, '2026-10-02', null),
+        transaction('20000000-0000-4000-8000-000000000032', 'refund', 500, '2026-10-03', null),
+        transaction(
+          '20000000-0000-4000-8000-000000000033',
+          'income',
+          10_000,
+          '2026-10-04',
+          incomeCategoryId,
+        ),
+        transaction(
+          '20000000-0000-4000-8000-000000000034',
+          'adjustment',
+          3_000,
+          '2026-10-05',
+          null,
+        ),
+      ],
+      new Date(2026, 9, 15),
+    )
+
+    expect(summary).toMatchObject({
+      totalBudgeted: 10_000,
+      totalSpent: 1_500,
+      remaining: 8_500,
+    })
+    expect(summary.categories.find((item) => item.categoryId === foodCategoryId)).toMatchObject({
+      spentAmount: 0,
+      remainingAmount: 10_000,
+    })
+  })
+
   it('ignore les budgets supprimés et ne divise pas par zéro pour un mois terminé', () => {
     const summary = calculateMonthlyBudgetSummary(
       '2026-09-01',
@@ -204,6 +247,54 @@ describe('calcul du budget mensuel local', () => {
       remaining: -3_000,
       remainingPerDay: 0,
       daysRemaining: 0,
+    })
+  })
+
+  it('déduit les remboursements des dépenses nettes et traite un seuil nul', () => {
+    const summary = calculateMonthlyBudgetSummary(
+      month,
+      [budget(foodCategoryId, month, 0)],
+      categories,
+      [
+        transaction(
+          '20000000-0000-4000-8000-000000000021',
+          'expense',
+          2_000,
+          '2026-10-02',
+          foodCategoryId,
+        ),
+        transaction(
+          '20000000-0000-4000-8000-000000000022',
+          'refund',
+          500,
+          '2026-10-03',
+          foodCategoryId,
+        ),
+      ],
+      new Date(2026, 9, 15),
+    )
+
+    expect(summary.totalSpent).toBe(1_500)
+    expect(summary.categories.find((item) => item.categoryId === foodCategoryId)).toMatchObject({
+      spentAmount: 1_500,
+      remainingAmount: -1_500,
+      progressPercentage: 100,
+      isOverBudget: true,
+    })
+
+    const unusedZeroThreshold = calculateMonthlyBudgetSummary(
+      month,
+      [budget(foodCategoryId, month, 0)],
+      categories,
+      [],
+      new Date(2026, 9, 15),
+    )
+    expect(
+      unusedZeroThreshold.categories.find((item) => item.categoryId === foodCategoryId),
+    ).toMatchObject({
+      spentAmount: 0,
+      progressPercentage: 0,
+      isOverBudget: false,
     })
   })
 

@@ -3,22 +3,26 @@ import type { Table } from 'dexie'
 import { z } from 'zod'
 import { db, type BudgetDatabase, type OutboxOperation } from './database'
 import {
-  accountSchema,
   budgetSchema,
   categorySchema,
   invitationSchema,
   membershipSchema,
+  monthCarryDecisionSchema,
+  monthlyBudgetSchema,
   profileSchema,
+  recurringExpenseSchema,
   transactionSchema,
   workspaceSchema,
-  type Account,
   type Budget,
   type Category,
   type EditableRows,
   type EditableTable,
   type Invitation,
   type Membership,
+  type MonthCarryDecision,
+  type MonthlyBudget,
   type Profile,
+  type RecurringExpense,
   type Transaction,
   type Workspace,
 } from './models'
@@ -28,10 +32,12 @@ export interface RawSnapshot {
   workspaces: unknown[]
   memberships: unknown[]
   invitations: unknown[]
-  accounts: unknown[]
   categories: unknown[]
   transactions: unknown[]
   budgets: unknown[]
+  monthlyBudgets: unknown[]
+  monthCarryDecisions: unknown[]
+  recurringExpenses: unknown[]
 }
 
 export interface WorkspaceSnapshot {
@@ -39,10 +45,12 @@ export interface WorkspaceSnapshot {
   workspaces: Workspace[]
   memberships: Membership[]
   invitations: Invitation[]
-  accounts: Account[]
   categories: Category[]
   transactions: Transaction[]
   budgets: Budget[]
+  monthlyBudgets: MonthlyBudget[]
+  monthCarryDecisions: MonthCarryDecision[]
+  recurringExpenses: RecurringExpense[]
 }
 
 export interface SnapshotSource {
@@ -143,79 +151,109 @@ export function createSupabaseSnapshotSource(
           workspaces: [],
           memberships: parsedMemberships,
           invitations: [],
-          accounts: [],
           categories: [],
           transactions: [],
           budgets: [],
+          monthlyBudgets: [],
+          monthCarryDecisions: [],
+          recurringExpenses: [],
         }
       }
 
-      const [workspaces, invitations, accounts, categories, transactions, budgets] =
-        await Promise.all([
-          fetchAllPages((from, to) =>
-            client
-              .from('workspaces')
-              .select('*')
-              .in('id', workspaceIds)
-              .order('id')
-              .abortSignal(signal)
-              .range(from, to),
-          ),
-          fetchAllPages((from, to) =>
-            client
-              .from('invitations')
-              .select('*')
-              .in('workspace_id', workspaceIds)
-              .order('id')
-              .abortSignal(signal)
-              .range(from, to),
-          ),
-          fetchAllPages((from, to) =>
-            client
-              .from('accounts')
-              .select('*')
-              .in('workspace_id', workspaceIds)
-              .order('id')
-              .abortSignal(signal)
-              .range(from, to),
-          ),
-          fetchAllPages((from, to) =>
-            client
-              .from('categories')
-              .select('*')
-              .in('workspace_id', workspaceIds)
-              .order('id')
-              .abortSignal(signal)
-              .range(from, to),
-          ),
-          fetchAllPages((from, to) =>
-            client
-              .from('transactions')
-              .select('*')
-              .in('workspace_id', workspaceIds)
-              .order('id')
-              .abortSignal(signal)
-              .range(from, to),
-          ),
-          fetchAllPages((from, to) =>
-            client
-              .from('budgets')
-              .select('*')
-              .in('workspace_id', workspaceIds)
-              .order('id')
-              .range(from, to),
-          ),
-        ])
+      const [
+        workspaces,
+        invitations,
+        categories,
+        transactions,
+        budgets,
+        monthlyBudgets,
+        monthCarryDecisions,
+        recurringExpenses,
+      ] = await Promise.all([
+        fetchAllPages((from, to) =>
+          client
+            .from('workspaces')
+            .select('*')
+            .in('id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
+        fetchAllPages((from, to) =>
+          client
+            .from('invitations')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
+        fetchAllPages((from, to) =>
+          client
+            .from('categories')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
+        fetchAllPages((from, to) =>
+          client
+            .from('transactions')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
+        fetchAllPages((from, to) =>
+          client
+            .from('budgets')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
+        fetchAllPages((from, to) =>
+          client
+            .from('monthly_budgets')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
+        fetchAllPages((from, to) =>
+          client
+            .from('month_carry_decisions')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .range(from, to),
+        ),
+        fetchAllPages((from, to) =>
+          client
+            .from('recurring_expenses')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
+      ])
 
       return {
         profiles: profileRows,
         workspaces,
         memberships: membershipRows,
         invitations,
-        accounts,
         categories,
         transactions,
         budgets,
+        monthlyBudgets,
+        monthCarryDecisions,
+        recurringExpenses,
       }
     },
   }
@@ -237,10 +275,12 @@ export async function purgeLocalWorkspace(
     database.workspaces.delete(workspaceId),
     database.memberships.where('workspace_id').equals(workspaceId).delete(),
     database.invitations.where('workspace_id').equals(workspaceId).delete(),
-    database.accounts.where('workspace_id').equals(workspaceId).delete(),
     database.categories.where('workspace_id').equals(workspaceId).delete(),
     database.transactions.where('workspace_id').equals(workspaceId).delete(),
     database.budgets.where('workspace_id').equals(workspaceId).delete(),
+    database.monthlyBudgets.where('workspace_id').equals(workspaceId).delete(),
+    database.monthCarryDecisions.where('workspace_id').equals(workspaceId).delete(),
+    database.recurringExpenses.where('workspace_id').equals(workspaceId).delete(),
   ])
 
   const operations = await database.outbox.toArray()
@@ -265,10 +305,20 @@ export async function bootstrapLocalData(
     workspaces: parseRows('workspaces', workspaceSchema, raw.workspaces),
     memberships: parseRows('memberships', membershipSchema, raw.memberships),
     invitations: parseRows('invitations', invitationSchema, raw.invitations),
-    accounts: parseRows('accounts', accountSchema, raw.accounts),
     categories: parseRows('categories', categorySchema, raw.categories),
     transactions: parseRows('transactions', transactionSchema, raw.transactions),
     budgets: parseRows('budgets', budgetSchema, raw.budgets),
+    monthlyBudgets: parseRows('monthly_budgets', monthlyBudgetSchema, raw.monthlyBudgets),
+    monthCarryDecisions: parseRows(
+      'month_carry_decisions',
+      monthCarryDecisionSchema,
+      raw.monthCarryDecisions,
+    ),
+    recurringExpenses: parseRows(
+      'recurring_expenses',
+      recurringExpenseSchema,
+      raw.recurringExpenses,
+    ),
   }
 
   const accessibleWorkspaceIds = new Set(
@@ -286,10 +336,12 @@ export async function bootstrapLocalData(
   }
   const scopedWorkspaceIds = [
     ...snapshot.invitations.map((row) => row.workspace_id),
-    ...snapshot.accounts.map((row) => row.workspace_id),
     ...snapshot.categories.map((row) => row.workspace_id),
     ...snapshot.transactions.map((row) => row.workspace_id),
     ...snapshot.budgets.map((row) => row.workspace_id),
+    ...snapshot.monthlyBudgets.map((row) => row.workspace_id),
+    ...snapshot.monthCarryDecisions.map((row) => row.workspace_id),
+    ...snapshot.recurringExpenses.map((row) => row.workspace_id),
   ]
   if (scopedWorkspaceIds.some((workspaceId) => !workspaceIds.has(workspaceId))) {
     throw new Error('Le serveur a renvoyé des données appartenant à un espace inaccessible.')
@@ -347,7 +399,6 @@ export async function bootstrapLocalData(
       snapshot.memberships.length +
       snapshot.invitations.length
 
-    importedRowCount += await replaceUnchanged(database.accounts, 'accounts', snapshot.accounts)
     importedRowCount += await replaceUnchanged(
       database.categories,
       'categories',
@@ -359,6 +410,18 @@ export async function bootstrapLocalData(
       snapshot.transactions,
     )
     importedRowCount += await replaceUnchanged(database.budgets, 'budgets', snapshot.budgets)
+    importedRowCount += await replaceUnchanged(
+      database.monthlyBudgets,
+      'monthlyBudgets',
+      snapshot.monthlyBudgets,
+    )
+    importedRowCount += await replaceUnchanged(
+      database.monthCarryDecisions,
+      'monthCarryDecisions',
+      snapshot.monthCarryDecisions,
+    )
+    await database.recurringExpenses.bulkPut(snapshot.recurringExpenses)
+    importedRowCount += snapshot.recurringExpenses.length
   })
 
   return { workspaceCount: workspaceIds.size, importedRowCount }

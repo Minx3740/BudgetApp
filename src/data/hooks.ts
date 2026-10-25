@@ -1,21 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './database'
-import type { Invitation, Membership, Profile } from './models'
+import type { Invitation, Membership, Profile, RecurringExpense } from './models'
 import {
-  accountsRepository,
   budgetsRepository,
   categoriesRepository,
   countPendingOperations,
+  monthCarryDecisionsRepository,
+  monthlyBudgetsRepository,
   transactionsRepository,
 } from './repositories'
-
-export function useAccounts(workspaceId: string | undefined) {
-  return useLiveQuery(
-    () => (workspaceId ? accountsRepository.list(workspaceId) : Promise.resolve([])),
-    [workspaceId],
-    [],
-  )
-}
 
 export function useCategories(workspaceId: string | undefined) {
   return useLiveQuery(
@@ -38,6 +31,33 @@ export function useBudgets(workspaceId: string | undefined) {
     () => (workspaceId ? budgetsRepository.list(workspaceId) : Promise.resolve([])),
     [workspaceId],
     [],
+  )
+}
+
+export function useMonthlyBudgets(workspaceId: string | undefined) {
+  return useLiveQuery(
+    () => (workspaceId ? monthlyBudgetsRepository.list(workspaceId) : Promise.resolve([])),
+    [workspaceId],
+    [],
+  )
+}
+
+export function useMonthCarryDecisions(workspaceId: string | undefined) {
+  return useLiveQuery(
+    () => (workspaceId ? monthCarryDecisionsRepository.list(workspaceId) : Promise.resolve([])),
+    [workspaceId],
+    [],
+  )
+}
+
+export function useRecurringExpenses(workspaceId: string | undefined) {
+  return useLiveQuery(
+    () =>
+      workspaceId
+        ? db.recurringExpenses.where('workspace_id').equals(workspaceId).toArray()
+        : Promise.resolve([] as RecurringExpense[]),
+    [workspaceId],
+    [] as RecurringExpense[],
   )
 }
 

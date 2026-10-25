@@ -1,49 +1,73 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
+  ArrowLeft,
+  ArrowRight,
   ChartNoAxesColumn,
   CirclePlus,
   Home,
   LogOut,
   ReceiptText,
   RefreshCw,
+  Settings2,
   UsersRound,
   Wifi,
   WifiOff,
   type LucideIcon,
 } from 'lucide-react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
+import iconLogoUrl from '../design/icone.svg?no-inline'
+import completeLogoUrl from '../design/logo-complet.svg?no-inline'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BudgetDashboard } from './components/budget/budget-dashboard'
 import { LocalDataView } from './components/budget/local-data-view'
+import { RecurringExpensesView } from './components/budget/recurring-expenses-view'
 import {
   InvitationAcceptance,
   WorkspaceManagement,
 } from './components/workspaces/workspace-management'
+import { ProfileAvatar } from './components/workspaces/profile-avatar'
+import { ProfileDisplayName } from './components/workspaces/profile-display-name'
+import { SignedAvatar } from './components/workspaces/signed-avatar'
+import { WorkspaceSettings } from './components/workspaces/workspace-settings'
 import { bootstrapFromSupabase } from './data/bootstrap'
-import { calculateWorkspaceBalance } from './data/calculations'
 import { clearLocalData, db } from './data/database'
 import {
-  useAccounts,
   useInvitations,
   useMemberships,
   useProfiles,
   useSyncSummary,
-  useTransactions,
   useWorkspaces,
 } from './data/hooks'
+import { monthKeyForDate, shiftMonth } from './data/calculations'
+import { generateRecurringForMonth } from './data/recurring-expenses'
 import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync'
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
-type AppSection = 'home' | 'transactions' | 'budgets' | 'spaces'
+type AppSection =
+  | 'home'
+  | 'transactions'
+  | 'budgets'
+  | 'recurring-expenses'
+  | 'spaces'
+  | 'workspace-settings'
+  | 'profile'
+  | 'settings'
+  | 'plus'
+type ThemePreference = 'system' | 'light' | 'dark'
+
+function savedThemePreference(): ThemePreference {
+  const preference = window.localStorage.getItem('cashFlow.theme')
+  return preference === 'light' || preference === 'dark' ? preference : 'system'
+}
 
 const navigation: { id: AppSection; label: string; icon: LucideIcon }[] = [
   { id: 'home', label: 'Accueil', icon: Home },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
   { id: 'budgets', label: 'Budgets', icon: ChartNoAxesColumn },
-  { id: 'spaces', label: 'Espaces', icon: UsersRound },
 ]
+const mobileNavigation = [...navigation, { id: 'plus' as const, label: 'Plus', icon: Settings2 }]
 
 const sectionDetails: Record<
   Exclude<AppSection, 'home'>,
@@ -51,18 +75,43 @@ const sectionDetails: Record<
 > = {
   transactions: {
     title: 'Transactions',
-    description: 'Tes dépenses, revenus et transferts apparaîtront ici.',
+    description: 'Tes dépenses, remboursements, revenus et ajustements apparaîtront ici.',
     milestone: 'La saisie locale arrive au jalon M5.',
   },
   budgets: {
     title: 'Budgets',
-    description: 'Retrouve ici tes plafonds mensuels et le reste à dépenser.',
-    milestone: 'Tes plafonds et dépenses sont calculés sur cet appareil.',
+    description: 'Retrouve ici l’enveloppe du mois et les seuils par catégorie.',
+    milestone: 'Suis ton budget et les repères de chaque catégorie.',
+  },
+  'recurring-expenses': {
+    title: 'Forfaits',
+    description: 'Les dépenses qui reviennent chaque mois.',
+    milestone: 'Crée, modifie ou arrête les forfaits de cet espace.',
   },
   spaces: {
     title: 'Espaces',
     description: 'Ton espace personnel est prêt pour la suite.',
     milestone: 'Les espaces partagés et invitations arrivent au jalon M8.',
+  },
+  'workspace-settings': {
+    title: 'Réglages de l’espace',
+    description: 'Le nom et les options de l’espace actif.',
+    milestone: 'Les changements de propriétaire sont contrôlés par les permissions Supabase.',
+  },
+  profile: {
+    title: 'Mon profil',
+    description: 'Les informations de ton compte personnel.',
+    milestone: 'Tu peux consulter ici ton identité et ton rôle dans l’espace actif.',
+  },
+  settings: {
+    title: 'Réglages de l’application',
+    description: 'Ton profil, tes préférences et les informations de connexion.',
+    milestone: 'Les réglages de l’espace se trouvent dans Plus.',
+  },
+  plus: {
+    title: 'Plus',
+    description: 'Les outils moins fréquents et les réglages de l’espace.',
+    milestone: 'Retrouve les forfaits et les réglages moins fréquents.',
   },
 }
 
@@ -101,12 +150,29 @@ function getAuthLinkError(): string | null {
   return null
 }
 
-function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount)
+function getApplicationUrl(): string {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString()
+}
+
+function selectedMonthFromLocation(): string {
+  const month = new URLSearchParams(window.location.search).get('mois')
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    try {
+      return shiftMonth(`${month}-01`, 0)
+    } catch {
+      // An invalid URL month falls back to the current local month.
+    }
+  }
+  return monthKeyForDate(new Date())
+}
+
+function formatMonth(month: string): string {
+  const label = new Intl.DateTimeFormat('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${month}T00:00:00.000Z`))
+  return `${label.charAt(0).toLocaleUpperCase('fr-FR')}${label.slice(1)}`
 }
 
 function AuthForm({
@@ -138,7 +204,7 @@ function AuthForm({
     try {
       if (mode === 'forgot-password') {
         const { error: recoveryError } = await client.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: window.location.origin,
+          redirectTo: getApplicationUrl(),
         })
 
         if (recoveryError) {
@@ -163,7 +229,7 @@ function AuthForm({
           password,
           options: {
             data: { display_name: displayName.trim() },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: getApplicationUrl(),
           },
         })
 
@@ -207,7 +273,7 @@ function AuthForm({
       const { error: resendError } = await client.auth.resend({
         type: 'signup',
         email: email.trim(),
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: getApplicationUrl() },
       })
 
       if (resendError) {
@@ -231,12 +297,12 @@ function AuthForm({
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-stone-50 px-5 py-10 text-stone-900">
+    <main className="flex min-h-svh items-center justify-center bg-[#F4F5EF] px-5 py-10 text-stone-900">
       <section className="w-full max-w-md rounded-3xl border border-stone-200 bg-white p-7 shadow-sm sm:p-9">
         <div className="mb-8">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-emerald-800">
-            cashFlow+
-          </p>
+          <div className="mb-5 inline-flex rounded-2xl bg-[#F4F5EF] p-3">
+            <img alt="cashFlow+" className="w-40 max-w-full" src={completeLogoUrl} />
+          </div>
           <h1 className="text-3xl font-bold tracking-tight">
             {mode === 'sign-in' && 'Content de te revoir'}
             {mode === 'sign-up' && 'Créer ton compte'}
@@ -399,6 +465,8 @@ function AuthForm({
 
 function SignedInView({ client, session }: { client: SupabaseClient; session: Session }) {
   const [activeSection, setActiveSection] = useState<AppSection>('home')
+  const [selectedBudgetTab, setSelectedBudgetTab] = useState<'month' | 'analytics'>('month')
+  const [selectedMonth, setSelectedMonth] = useState(selectedMonthFromLocation)
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
     () => window.localStorage.getItem(`cashFlow.activeWorkspace.${session.user.id}`) ?? '',
   )
@@ -414,6 +482,12 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const [syncAttempt, setSyncAttempt] = useState(0)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false)
+  const [themePreference, setThemePreference] = useState<ThemePreference>(savedThemePreference)
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false)
+  const [settingsMessage, setSettingsMessage] = useState<{
+    type: 'error' | 'notice'
+    text: string
+  } | null>(null)
   const bootstrapAbortController = useRef<AbortController | null>(null)
   const syncAbortController = useRef<AbortController | null>(null)
   const workspaces = useWorkspaces()
@@ -422,29 +496,25 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     availableWorkspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
     availableWorkspaces.find((workspace) => workspace.type === 'personal') ??
     availableWorkspaces[0]
+  const fallbackWorkspaceId =
+    availableWorkspaces.find(
+      (workspace) => workspace.id !== activeWorkspace?.id && workspace.type === 'personal',
+    )?.id ?? availableWorkspaces.find((workspace) => workspace.id !== activeWorkspace?.id)?.id
   const memberships = useMemberships(activeWorkspace?.id)
   const profiles = useProfiles()
+  const currentProfile = profiles.find((profile) => profile.id === session.user.id)
   const invitations = useInvitations(activeWorkspace?.id)
   const activeMembership = memberships.find((membership) => membership.user_id === session.user.id)
   const canEditWorkspace =
     activeWorkspace?.type === 'personal' ||
     activeMembership?.role === 'owner' ||
     activeMembership?.role === 'member'
-  const accounts = useAccounts(activeWorkspace?.id)
-  const transactions = useTransactions(activeWorkspace?.id)
+  const canManageWorkspace =
+    activeWorkspace?.type === 'personal' || activeMembership?.role === 'owner'
   const syncSummary = useSyncSummary()
-  const activeTransactions = transactions.filter((transaction) => transaction.deleted_at === null)
-  const recentTransactions = [...activeTransactions]
-    .sort(
-      (left, right) =>
-        right.occurred_on.localeCompare(left.occurred_on) ||
-        right.created_at.localeCompare(left.created_at),
-    )
-    .slice(0, 5)
-  const currency = activeWorkspace?.currency ?? 'MGA'
-  const totalBalance = calculateWorkspaceBalance(accounts, activeTransactions)
   const metadataDisplayName = session.user.user_metadata['display_name']
   const displayName =
+    currentProfile?.display_name.trim() ||
     (typeof metadataDisplayName === 'string' && metadataDisplayName.trim()) ||
     session.user.email ||
     'utilisateur'
@@ -452,7 +522,46 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const isBootstrapping = bootstrapResult?.key !== bootstrapKey
   const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
   const visibleSyncError = syncError ?? syncSummary.lastError
+  const initials = displayName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toLocaleUpperCase('fr-FR'))
+    .join('')
   const invitationToken = new URLSearchParams(window.location.hash.slice(1)).get('invite')
+  const currentMonth = monthKeyForDate(new Date())
+
+  useEffect(() => {
+    function restoreSelectedMonthFromHistory() {
+      setSelectedMonth(selectedMonthFromLocation())
+    }
+    window.addEventListener('popstate', restoreSelectedMonthFromHistory)
+    return () => window.removeEventListener('popstate', restoreSelectedMonthFromHistory)
+  }, [])
+
+  useEffect(() => {
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+    const applyTheme = () => {
+      const useDarkTheme =
+        themePreference === 'dark' || (themePreference === 'system' && systemTheme.matches)
+      document.documentElement.classList.toggle('dark', useDarkTheme)
+    }
+
+    applyTheme()
+    window.localStorage.setItem('cashFlow.theme', themePreference)
+    if (themePreference === 'system') {
+      systemTheme.addEventListener('change', applyTheme)
+    }
+
+    return () => systemTheme.removeEventListener('change', applyTheme)
+  }, [themePreference])
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('mois') === selectedMonth.slice(0, 7)) return
+    url.searchParams.set('mois', selectedMonth.slice(0, 7))
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [selectedMonth])
 
   useEffect(() => {
     function updateNetworkStatus() {
@@ -551,6 +660,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     const abortController = new AbortController()
     syncAbortController.current = abortController
     const syncEngine = createSupabaseSyncEngine(client, session.user.id)
+    let generatedMonthKey: string | null = null
 
     function synchronize() {
       if (
@@ -565,14 +675,29 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
       isRunning = true
       setIsSyncing(true)
       setSyncError(null)
-      void syncEngine
-        .synchronize(abortController.signal)
+      void (async () => {
+        await syncEngine.synchronize(abortController.signal)
+        if (abortController.signal.aborted || !activeWorkspace?.id) return
+
+        const monthKey = `${activeWorkspace.id}:${selectedMonth}`
+        if (generatedMonthKey !== monthKey) {
+          const generatedCount = await generateRecurringForMonth(
+            client,
+            activeWorkspace.id,
+            selectedMonth,
+          )
+          generatedMonthKey = monthKey
+          if (generatedCount > 0) {
+            await syncEngine.synchronize(abortController.signal)
+          }
+        }
+      })()
         .catch((failure: unknown) => {
           if (!isMounted || abortController.signal.aborted) {
             return
           }
           const message =
-            failure instanceof Error ? failure.message : 'Erreur inconnue de synchronisation.'
+            failure instanceof Error ? failure.message : 'Erreur inconnue lors de l’envoi.'
           setSyncError(message)
         })
         .finally(() => {
@@ -604,7 +729,16 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
       window.removeEventListener('online', synchronize)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [bootstrapError, client, isBootstrapping, isOnline, session.user.id, syncAttempt])
+  }, [
+    activeWorkspace?.id,
+    bootstrapError,
+    client,
+    isBootstrapping,
+    isOnline,
+    selectedMonth,
+    session.user.id,
+    syncAttempt,
+  ])
 
   async function retrySynchronization() {
     setSyncError(null)
@@ -613,8 +747,51 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
       setSyncAttempt((attempt) => attempt + 1)
     } catch (failure) {
       const message =
-        failure instanceof Error ? failure.message : 'Erreur inconnue de synchronisation.'
+        failure instanceof Error ? failure.message : 'Erreur inconnue lors de l’envoi.'
       setSyncError(`Impossible de relancer la file locale. ${message}`)
+    }
+  }
+
+  async function requestPasswordReset() {
+    const email = session.user.email
+    setSettingsMessage(null)
+    if (!isOnline) {
+      setSettingsMessage({
+        type: 'error',
+        text: 'Une connexion Internet est nécessaire pour demander le lien de modification.',
+      })
+      return
+    }
+    if (!email) {
+      setSettingsMessage({
+        type: 'error',
+        text: 'Aucune adresse e-mail n’est associée à ce compte.',
+      })
+      return
+    }
+
+    setIsSendingPasswordReset(true)
+    try {
+      const { error: resetError } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: getApplicationUrl(),
+      })
+      if (resetError) {
+        setSettingsMessage({ type: 'error', text: authErrorMessage(resetError.message) })
+      } else {
+        setSettingsMessage({
+          type: 'notice',
+          text: 'Un lien pour modifier ton mot de passe a été envoyé à ton adresse e-mail.',
+        })
+      }
+    } catch (failure) {
+      const message =
+        failure instanceof Error ? failure.message : 'Erreur inconnue de réinitialisation.'
+      setSettingsMessage({
+        type: 'error',
+        text: `Impossible de demander le lien de modification. ${message}`,
+      })
+    } finally {
+      setIsSendingPasswordReset(false)
     }
   }
 
@@ -649,6 +826,13 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     window.localStorage.setItem(`cashFlow.activeWorkspace.${session.user.id}`, workspaceId)
   }
 
+  function changeMonth(month: string) {
+    setSelectedMonth(month)
+    const url = new URL(window.location.href)
+    url.searchParams.set('mois', month.slice(0, 7))
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
   function clearInvitationToken() {
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
   }
@@ -677,7 +861,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     )
   }
 
-  function renderNavigationItem(item: (typeof navigation)[number]) {
+  function renderNavigationItem(item: { id: AppSection; label: string; icon: LucideIcon }) {
     const Icon = item.icon
     const isActive = activeSection === item.id
 
@@ -702,8 +886,12 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   return (
     <div className="min-h-svh bg-stone-50 text-stone-950 md:flex">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-stone-200 bg-white px-4 py-6 md:flex">
-        <a className="mb-9 flex items-center gap-3 px-3" href="/" aria-label="cashFlow+, accueil">
-          <img alt="" className="size-10 rounded-xl" src="/budget-app-icon.svg" />
+        <a
+          className="mb-9 flex items-center gap-3 px-3"
+          href={import.meta.env.BASE_URL}
+          aria-label="cashFlow+, accueil"
+        >
+          <img alt="cashFlow+" className="size-10" src={iconLogoUrl} />
           <span className="text-lg font-bold tracking-tight">cashFlow+</span>
         </a>
 
@@ -725,103 +913,127 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
         <nav aria-label="Navigation principale" className="grid gap-1">
           {navigation.map(renderNavigationItem)}
+          {renderNavigationItem({
+            id: 'recurring-expenses',
+            label: 'Forfaits',
+            icon: RefreshCw,
+          })}
         </nav>
 
+        <div className="mt-6">
+          <p className="mb-2 px-4 text-xs font-medium uppercase tracking-wide text-stone-500">
+            Espace
+          </p>
+          <nav aria-label="Navigation de l’espace" className="grid gap-1">
+            {renderNavigationItem({
+              id: 'spaces',
+              label: 'Membres et invitations',
+              icon: UsersRound,
+            })}
+            {renderNavigationItem({
+              id: 'workspace-settings',
+              label: 'Réglages de l’espace',
+              icon: Settings2,
+            })}
+          </nav>
+        </div>
+
         <div className="mt-auto border-t border-stone-200 pt-5">
-          <p className="truncate px-3 text-sm font-medium">{displayName}</p>
-          <Button
-            className="mt-2 min-h-12 w-full justify-start px-3"
-            disabled={isSigningOut}
-            onClick={() => void signOut()}
-            variant="ghost"
-          >
-            <LogOut aria-hidden="true" size={18} />
-            {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
-          </Button>
+          <p className="truncate px-3 text-xs text-stone-500">
+            {activeWorkspace?.name ?? 'Aucun espace sélectionné'}
+          </p>
         </div>
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between border-b border-stone-200 bg-white/95 px-4 backdrop-blur sm:px-8 md:px-10">
-          <div className="flex items-center gap-3 md:hidden">
-            <img alt="" className="size-9 rounded-xl" src="/budget-app-icon.svg" />
-            <span className="font-bold">cashFlow+</span>
+        <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-3 border-b border-stone-200 bg-white/95 px-4 backdrop-blur sm:px-8 md:px-10">
+          <div className="flex min-w-0 items-center gap-2 md:hidden">
+            <a
+              aria-label="cashFlow+, accueil"
+              className="flex size-10 shrink-0 items-center justify-center"
+              href={import.meta.env.BASE_URL}
+            >
+              <img alt="cashFlow+" className="size-9" src={iconLogoUrl} />
+            </a>
+            <div className="min-w-0">
+              <label className="sr-only" htmlFor="active-workspace-mobile">
+                Choisir l’espace actif
+              </label>
+              <select
+                className="min-h-11 max-w-[45vw] truncate rounded-xl border border-stone-300 bg-white px-3 text-sm font-semibold"
+                id="active-workspace-mobile"
+                onChange={(event) => selectWorkspace(event.target.value)}
+                value={activeWorkspace?.id ?? ''}
+              >
+                {availableWorkspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="hidden md:block">
-            <p className="text-sm text-stone-500">Espace actif</p>
-            <p className="font-semibold">{activeWorkspace?.name ?? 'Perso'}</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2 sm:gap-4">
-            <label className="sr-only" htmlFor="active-workspace">
-              Espace actif
-            </label>
-            <select
-              className="min-h-10 max-w-32 rounded-lg border border-stone-300 bg-white px-2 text-xs font-medium sm:max-w-48 sm:text-sm"
-              id="active-workspace"
-              onChange={(event) => selectWorkspace(event.target.value)}
-              value={activeWorkspace?.id ?? ''}
-            >
-              {availableWorkspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>
-                  {workspace.name}
-                </option>
-              ))}
-            </select>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${
-                isOnline ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
-              }`}
-              role="status"
-            >
-              {isOnline ? (
-                <Wifi aria-hidden="true" size={15} />
-              ) : (
-                <WifiOff aria-hidden="true" size={15} />
-              )}
-              <span>{isOnline ? 'En ligne' : 'Hors-ligne'}</span>
-            </span>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3 py-2 text-xs font-medium text-stone-700"
-              role="status"
-              title={
-                syncSummary.lastSuccessfulSync
-                  ? `Dernière synchronisation : ${new Date(syncSummary.lastSuccessfulSync).toLocaleString('fr-FR')}`
-                  : 'Aucune synchronisation terminée'
-              }
-            >
-              <RefreshCw
-                aria-hidden="true"
-                className={isSyncing ? 'animate-spin' : undefined}
-                size={14}
-              />
-              <span>
-                {isSyncing
-                  ? 'Sync…'
-                  : syncSummary.failedCount > 0
-                    ? 'Échec'
-                    : syncSummary.pendingCount > 0
-                      ? `${syncSummary.pendingCount} en attente`
-                      : syncSummary.lastSuccessfulSync
-                        ? 'Synchronisé'
-                        : 'À synchroniser'}
-              </span>
-            </span>
+
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <details className="relative">
+              <summary
+                aria-label={`Profil de ${displayName}`}
+                className="flex size-11 cursor-pointer list-none items-center justify-center rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-emerald-800"
+              >
+                <SignedAvatar
+                  avatarPath={currentProfile?.avatar_path ?? null}
+                  className="size-11 rounded-full text-sm"
+                  client={client}
+                  displayName={displayName}
+                  initials={initials}
+                />
+              </summary>
+              <div className="absolute right-0 top-14 z-40 w-64 rounded-2xl border border-stone-200 bg-white p-2 shadow-lg">
+                <div className="border-b border-stone-100 px-3 py-2">
+                  <p className="truncate text-sm font-semibold">{displayName}</p>
+                  <p className="truncate text-xs text-stone-500">{session.user.email}</p>
+                </div>
+                <button
+                  className="mt-1 min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    setActiveSection('profile')
+                  }}
+                  type="button"
+                >
+                  Mon profil
+                </button>
+                <button
+                  className="min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    setActiveSection('settings')
+                  }}
+                  type="button"
+                >
+                  Réglages de l’application
+                </button>
+                <button
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-800 disabled:opacity-50"
+                  disabled={isSigningOut}
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    void signOut()
+                  }}
+                  type="button"
+                >
+                  <LogOut aria-hidden="true" size={17} />
+                  {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
+                </button>
+              </div>
+            </details>
             <Button
-              className="hidden min-h-12 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900 sm:inline-flex"
+              aria-label="Ajouter une transaction"
+              className="hidden min-h-11 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900 md:inline-flex"
               onClick={addTransaction}
             >
               <CirclePlus aria-hidden="true" size={18} />
               Ajouter
-            </Button>
-            <Button
-              aria-label="Se déconnecter"
-              className="min-h-12 min-w-12 md:hidden"
-              disabled={isSigningOut}
-              onClick={() => void signOut()}
-              size="icon"
-              variant="ghost"
-            >
-              <LogOut aria-hidden="true" size={19} />
             </Button>
           </div>
         </header>
@@ -860,11 +1072,17 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               className="mb-6 flex flex-col gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
               role="alert"
             >
-              <p>
-                Synchronisation interrompue : {visibleSyncError}
+              <div>
+                Certaines modifications n’ont pas encore été enregistrées en ligne.
                 {syncSummary.pendingCount + syncSummary.failedCount > 0 &&
-                  ` ${syncSummary.pendingCount + syncSummary.failedCount} opération(s) locale(s) restent dans la file.`}
-              </p>
+                  ` ${syncSummary.pendingCount + syncSummary.failedCount} modification(s) restent à envoyer.`}
+                <details className="mt-2">
+                  <summary className="min-h-11 cursor-pointer py-2 font-medium">
+                    Voir les détails
+                  </summary>
+                  <span>{visibleSyncError}</span>
+                </details>
+              </div>
               <Button
                 className="min-h-12 shrink-0"
                 onClick={() => void retrySynchronization()}
@@ -874,118 +1092,65 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               </Button>
             </div>
           )}
+          <nav
+            aria-label="Sélection du mois"
+            className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white px-3 py-2"
+          >
+            <Button
+              aria-label="Mois précédent"
+              className="min-h-11 min-w-11"
+              onClick={() => changeMonth(shiftMonth(selectedMonth, -1))}
+              size="icon"
+              variant="outline"
+            >
+              <ArrowLeft aria-hidden="true" size={18} />
+            </Button>
+            <p aria-live="polite" className="text-center font-semibold">
+              {formatMonth(selectedMonth)}
+            </p>
+            <Button
+              aria-label="Mois suivant"
+              className="min-h-11 min-w-11"
+              disabled={selectedMonth >= currentMonth}
+              onClick={() => changeMonth(shiftMonth(selectedMonth, 1))}
+              size="icon"
+              variant="outline"
+            >
+              <ArrowRight aria-hidden="true" size={18} />
+            </Button>
+          </nav>
           {activeSection === 'home' ? (
             <>
               <div className="mb-8">
-                <p className="mb-2 text-sm font-medium text-emerald-800">
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Vue du mois</h1>
+                <p className="mt-1 text-sm text-stone-600">
                   {activeWorkspace?.type === 'shared' ? 'Espace partagé' : 'Espace personnel'}
-                </p>
-                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Bonjour, {displayName}
-                </h1>
-                <p className="mt-3 max-w-2xl leading-7 text-stone-600">
-                  Ton espace « {activeWorkspace?.name ?? 'Perso'} » est prêt. Tes comptes et
-                  transactions sont enregistrés sur cet appareil.
                 </p>
               </div>
 
-              <section aria-label="Aperçu du budget" className="grid gap-4 sm:grid-cols-2">
-                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                  <CardHeader>
-                    <CardTitle>Solde total des comptes</CardTitle>
-                    <CardDescription>
-                      Calculé localement à partir de tes transactions.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold tracking-tight">
-                      {formatMoney(totalBalance, currency)}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                  <CardHeader>
-                    <CardTitle>Dernières transactions</CardTitle>
-                    <CardDescription>Les mouvements récents de ton espace.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {recentTransactions.length === 0 ? (
-                      <p className="text-sm text-stone-500">Aucune transaction pour le moment.</p>
-                    ) : (
-                      recentTransactions.map((transaction) => (
-                        <div
-                          className="flex items-center justify-between gap-3 text-sm"
-                          key={transaction.id}
-                        >
-                          <span className="truncate text-stone-600">
-                            {transaction.kind === 'expense'
-                              ? 'Dépense'
-                              : transaction.kind === 'income'
-                                ? 'Revenu'
-                                : 'Transfert'}
-                            {' · '}
-                            {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
-                              'fr-FR',
-                            )}
-                          </span>
-                          <span className="shrink-0 font-semibold">
-                            {transaction.kind === 'expense'
-                              ? '−'
-                              : transaction.kind === 'income'
-                                ? '+'
-                                : ''}
-                            {formatMoney(transaction.amount, currency)}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </section>
-
               <BudgetDashboard
-                canEdit={canEditWorkspace}
-                currency={currency}
-                key={activeWorkspace?.id}
+                canManageBudget={canManageWorkspace}
+                isSharedWorkspace={activeWorkspace?.type === 'shared'}
+                key={`${activeWorkspace?.id}:${selectedMonth}`}
+                month={selectedMonth}
                 mode="home"
                 onOpenBudgets={() => setActiveSection('budgets')}
+                onOpenAnalyses={() => {
+                  setSelectedBudgetTab('analytics')
+                  setActiveSection('budgets')
+                }}
+                profiles={profiles}
                 workspaceId={activeWorkspace?.id}
               />
-
-              <Card className="mt-4 rounded-2xl border-0 bg-emerald-900 text-white shadow-sm">
-                <CardContent className="flex flex-col gap-5 py-6 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      {canEditWorkspace
-                        ? 'Prêt à suivre tes dépenses ?'
-                        : 'Espace consultable en lecture seule'}
-                    </h2>
-                    <p className="mt-1 text-sm text-emerald-100">
-                      {canEditWorkspace
-                        ? 'Ajoute une dépense ou un revenu en quelques secondes, même hors-ligne.'
-                        : 'Tu peux consulter les comptes et transactions de cet espace.'}
-                    </p>
-                  </div>
-                  <Button
-                    className="min-h-12 shrink-0 rounded-xl bg-white px-5 text-emerald-950 hover:bg-emerald-50"
-                    disabled={!canEditWorkspace}
-                    onClick={addTransaction}
-                    title={!canEditWorkspace ? 'Accès en lecture seule' : undefined}
-                    variant="secondary"
-                  >
-                    <CirclePlus aria-hidden="true" size={18} />
-                    Ajouter une transaction
-                  </Button>
-                </CardContent>
-              </Card>
             </>
           ) : activeSection === 'transactions' ? (
             <LocalDataView
               canEdit={canEditWorkspace}
-              currency={currency}
               isSharedWorkspace={activeWorkspace?.type === 'shared'}
               isQuickEntryOpen={isQuickEntryOpen}
               key={activeWorkspace?.id}
+              month={selectedMonth}
+              memberships={memberships}
               onQuickEntryOpenChange={setIsQuickEntryOpen}
               profiles={profiles}
               userId={session.user.id}
@@ -993,10 +1158,24 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
             />
           ) : activeSection === 'budgets' ? (
             <BudgetDashboard
-              canEdit={canEditWorkspace}
-              currency={currency}
-              key={activeWorkspace?.id}
+              canManageBudget={canManageWorkspace}
+              isSharedWorkspace={activeWorkspace?.type === 'shared'}
+              key={`${activeWorkspace?.id}:${selectedMonth}`}
+              month={selectedMonth}
               mode="manage"
+              initialTab={selectedBudgetTab}
+              onTabChange={setSelectedBudgetTab}
+              profiles={profiles}
+              workspaceId={activeWorkspace?.id}
+            />
+          ) : activeSection === 'recurring-expenses' ? (
+            <RecurringExpensesView
+              canManage={canManageWorkspace}
+              client={client}
+              isOnline={isOnline}
+              key={`${activeWorkspace?.id}:${selectedMonth}`}
+              month={selectedMonth}
+              onRefresh={() => setBootstrapAttempt((attempt) => attempt + 1)}
               workspaceId={activeWorkspace?.id}
             />
           ) : activeSection === 'spaces' ? (
@@ -1014,18 +1193,283 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               userId={session.user.id}
               workspace={activeWorkspace}
             />
-          ) : (
-            <section aria-labelledby="section-title" className="max-w-3xl">
-              <p className="mb-2 text-sm font-medium text-emerald-800">Espace personnel</p>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
-                {activeDetails.title}
-              </h1>
-              <Card className="mt-6 rounded-2xl border-0 shadow-sm ring-stone-200">
+          ) : activeSection === 'workspace-settings' ? (
+            <WorkspaceSettings
+              client={client}
+              fallbackWorkspaceId={fallbackWorkspaceId}
+              isOnline={isOnline}
+              key={`${activeWorkspace?.id}:${activeWorkspace?.name}`}
+              memberships={memberships}
+              onRefresh={(workspaceId) => {
+                if (workspaceId) selectWorkspace(workspaceId)
+                setBootstrapAttempt((attempt) => attempt + 1)
+              }}
+              userId={session.user.id}
+              workspace={activeWorkspace}
+            />
+          ) : activeSection === 'profile' ? (
+            <section aria-labelledby="section-title" className="max-w-3xl space-y-5">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
+                  Mon profil
+                </h1>
+                <p className="mt-2 leading-7 text-stone-600">
+                  Ton identité de compte, distincte des réglages de cet espace.
+                </p>
+              </div>
+              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                 <CardHeader>
-                  <CardTitle>{activeDetails.description}</CardTitle>
-                  <CardDescription>{activeDetails.milestone}</CardDescription>
+                  <CardTitle>Informations du compte</CardTitle>
+                  <CardDescription>Ces informations sont associées à ta connexion.</CardDescription>
                 </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <SignedAvatar
+                      avatarPath={currentProfile?.avatar_path ?? null}
+                      className="size-14 shrink-0 rounded-full text-lg"
+                      client={client}
+                      displayName={displayName}
+                      initials={initials}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{displayName}</p>
+                      <p className="truncate text-sm text-stone-600">{session.user.email}</p>
+                    </div>
+                  </div>
+                  <dl className="grid gap-3 border-t border-stone-100 pt-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-stone-500">Espace actif</dt>
+                      <dd className="mt-1 font-medium">
+                        {activeWorkspace?.name ?? 'Aucun espace'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-stone-500">Rôle dans cet espace</dt>
+                      <dd className="mt-1 font-medium">
+                        {activeWorkspace?.type === 'personal'
+                          ? 'Propriétaire'
+                          : activeMembership?.role === 'owner'
+                            ? 'Propriétaire'
+                            : activeMembership?.role === 'member'
+                              ? 'Membre'
+                              : activeMembership?.role === 'viewer'
+                                ? 'Lecture seule'
+                                : 'Non membre'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <Button
+                    className="min-h-11"
+                    onClick={() => setActiveSection('settings')}
+                    variant="outline"
+                  >
+                    Réglages de l’application
+                  </Button>
+                </CardContent>
               </Card>
+              <ProfileDisplayName
+                client={client}
+                displayName={displayName}
+                isOnline={isOnline}
+                key={`${currentProfile?.id ?? session.user.id}:${currentProfile?.display_name ?? displayName}:${currentProfile?.updated_at ?? ''}`}
+                profile={currentProfile}
+                userId={session.user.id}
+              />
+              <ProfileAvatar
+                avatarPath={currentProfile?.avatar_path ?? null}
+                client={client}
+                displayName={displayName}
+                initials={initials}
+                isOnline={isOnline}
+                onUpdated={() => setBootstrapAttempt((attempt) => attempt + 1)}
+                userId={session.user.id}
+              />
+            </section>
+          ) : activeSection === 'plus' ? (
+            <section aria-labelledby="section-title" className="max-w-4xl space-y-5">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
+                  Plus
+                </h1>
+                <p className="mt-2 leading-7 text-stone-600">{sectionDetails.plus.description}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  onClick={() => setActiveSection('budgets')}
+                  variant="outline"
+                >
+                  Budgets et seuils par catégorie
+                  <ChartNoAxesColumn aria-hidden="true" size={18} />
+                </Button>
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  onClick={() => setActiveSection('spaces')}
+                  variant="outline"
+                >
+                  Membres et invitations
+                  <UsersRound aria-hidden="true" size={18} />
+                </Button>
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  onClick={() => setActiveSection('workspace-settings')}
+                  variant="outline"
+                >
+                  Réglages de l’espace
+                  <UsersRound aria-hidden="true" size={18} />
+                </Button>
+                <Button
+                  className="min-h-16 justify-between text-left"
+                  onClick={() => setActiveSection('recurring-expenses')}
+                  variant="outline"
+                >
+                  Forfaits
+                  <RefreshCw aria-hidden="true" size={18} />
+                </Button>
+              </div>
+            </section>
+          ) : (
+            <section aria-labelledby="section-title" className="space-y-6">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
+                  {activeDetails.title}
+                </h1>
+                <p className="mt-2 leading-7 text-stone-600">{activeDetails.description}</p>
+              </div>
+
+              {settingsMessage && (
+                <p
+                  className={`rounded-xl px-4 py-3 text-sm ${
+                    settingsMessage.type === 'error'
+                      ? 'bg-red-50 text-red-800'
+                      : 'bg-emerald-50 text-emerald-900'
+                  }`}
+                  role={settingsMessage.type === 'error' ? 'alert' : 'status'}
+                >
+                  {settingsMessage.text}
+                </p>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>Préférences d’affichage</CardTitle>
+                    <CardDescription>Personnalise l’apparence de l’application.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="theme-preference">
+                        Thème
+                      </label>
+                      <select
+                        className="min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3"
+                        id="theme-preference"
+                        onChange={(event) => {
+                          const preference = event.target.value
+                          if (
+                            preference === 'system' ||
+                            preference === 'light' ||
+                            preference === 'dark'
+                          ) {
+                            setThemePreference(preference)
+                          }
+                        }}
+                        value={themePreference}
+                      >
+                        <option value="system">Selon l’appareil</option>
+                        <option value="light">Clair</option>
+                        <option value="dark">Sombre</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">Langue</p>
+                      <p className="text-stone-600">Français (seule langue disponible)</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>Mot de passe</CardTitle>
+                    <CardDescription>
+                      Reçois un lien sécurisé pour définir un nouveau mot de passe.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="min-h-11"
+                      disabled={!isOnline || !session.user.email || isSendingPasswordReset}
+                      onClick={() => void requestPasswordReset()}
+                    >
+                      {isSendingPasswordReset ? 'Envoi…' : 'Envoyer le lien de modification'}
+                    </Button>
+                    {!isOnline && (
+                      <p className="mt-2 text-sm text-amber-800">
+                        Connecte-toi à Internet pour demander ce lien.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>À propos</CardTitle>
+                    <CardDescription>
+                      cashFlow+ · gestion du budget mensuel par espace.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-stone-600">
+                    <div className="inline-flex rounded-2xl bg-[#F4F5EF] p-2">
+                      <img alt="cashFlow+" className="w-28 max-w-full" src={completeLogoUrl} />
+                    </div>
+                    <p>Les montants sont affichés en ariary (Ar).</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                  <CardHeader>
+                    <CardTitle>Données et connexion</CardTitle>
+                    <CardDescription>
+                      Connexion et état des dernières modifications.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-stone-600">
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2">
+                      <span className="font-medium text-stone-800">Connexion</span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                          isOnline ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
+                        }`}
+                      >
+                        {isOnline ? (
+                          <Wifi aria-hidden="true" size={12} />
+                        ) : (
+                          <WifiOff aria-hidden="true" size={12} />
+                        )}
+                        {isOnline ? 'Connecté' : 'Sans connexion'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2">
+                      <span className="font-medium text-stone-800">Modifications</span>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700">
+                        <RefreshCw
+                          aria-hidden="true"
+                          className={isSyncing ? 'animate-spin' : undefined}
+                          size={12}
+                        />
+                        {isSyncing
+                          ? 'Envoi en cours'
+                          : syncSummary.failedCount > 0
+                            ? 'À réessayer'
+                            : syncSummary.pendingCount > 0
+                              ? `${syncSummary.pendingCount} à envoyer`
+                              : syncSummary.lastSuccessfulSync
+                                ? 'À jour'
+                                : 'Prêtes à envoyer'}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </section>
           )}
         </main>
@@ -1033,51 +1477,54 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
       <nav
         aria-label="Navigation principale"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-stone-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-stretch border-t border-stone-200 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 backdrop-blur md:hidden"
       >
-        {navigation.slice(0, 2).map((item) => {
+        {mobileNavigation.slice(0, 2).map((item) => {
           const Icon = item.icon
           const isActive = activeSection === item.id
           return (
             <button
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
-                isActive ? 'text-emerald-900' : 'text-stone-500'
+              className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
+                isActive ? 'bg-emerald-50 text-emerald-900' : 'text-stone-500'
               }`}
               key={item.id}
               onClick={() => setActiveSection(item.id)}
               type="button"
             >
               <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
-              {item.label}
+              <span className="max-w-full truncate px-0.5">{item.label}</span>
             </button>
           )
         })}
         <button
           aria-label="Ajouter une transaction"
-          className="mx-auto my-1 flex size-12 items-center justify-center self-center rounded-2xl bg-emerald-800 text-white shadow-md transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
+          className="flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold text-emerald-900 focus-visible:outline-2 focus-visible:outline-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!canEditWorkspace}
           onClick={addTransaction}
           title={!canEditWorkspace ? 'Accès en lecture seule' : undefined}
           type="button"
         >
-          <CirclePlus aria-hidden="true" size={23} />
+          <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-800 text-white">
+            <CirclePlus aria-hidden="true" size={20} />
+          </span>
+          <span>Ajouter</span>
         </button>
-        {navigation.slice(2).map((item) => {
+        {mobileNavigation.slice(2).map((item) => {
           const Icon = item.icon
           const isActive = activeSection === item.id
           return (
             <button
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
-                isActive ? 'text-emerald-900' : 'text-stone-500'
+              className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
+                isActive ? 'bg-emerald-50 text-emerald-900' : 'text-stone-500'
               }`}
               key={item.id}
               onClick={() => setActiveSection(item.id)}
               type="button"
             >
               <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
-              {item.label}
+              <span className="max-w-full truncate px-0.5">{item.label}</span>
             </button>
           )
         })}

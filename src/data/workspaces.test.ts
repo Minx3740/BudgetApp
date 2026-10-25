@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { createInvitationToken, hashInvitationToken } from './workspaces'
+import { createInvitationToken, hashInvitationToken, normalizeWorkspaceName } from './workspaces'
+
+describe('nom d’espace', () => {
+  it('supprime les espaces superflus et accepte une longueur valide', () => {
+    expect(normalizeWorkspaceName('  Colocation  ')).toBe('Colocation')
+    expect(normalizeWorkspaceName('a'.repeat(80))).toBe('a'.repeat(80))
+  })
+
+  it('rejette les noms vides ou trop longs', () => {
+    expect(() => normalizeWorkspaceName('   ')).toThrow(
+      'Le nom de l’espace doit contenir entre 1 et 80 caractères.',
+    )
+    expect(() => normalizeWorkspaceName('a'.repeat(81))).toThrow(
+      'Le nom de l’espace doit contenir entre 1 et 80 caractères.',
+    )
+  })
+})
 
 describe('jetons d’invitation', () => {
   it('génère des jetons aléatoires de 32 octets encodés en hexadécimal', () => {

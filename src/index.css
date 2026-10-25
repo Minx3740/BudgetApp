@@ -72,6 +72,19 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --category-1: #b91c1c;
+  --category-2: #c2410c;
+  --category-3: #a16207;
+  --category-4: #4d7c0f;
+  --category-5: #15803d;
+  --category-6: #0f766e;
+  --category-7: #0e7490;
+  --category-8: #1d4ed8;
+  --category-9: #4338ca;
+  --category-10: #6d28d9;
+  --category-11: #a21caf;
+  --category-12: #be185d;
+  --category-uncategorized: #57534e;
   --radius: 0.625rem;
   --sidebar: oklch(0.97 0.01 105);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -107,6 +120,19 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --category-1: #f87171;
+  --category-2: #fb923c;
+  --category-3: #fbbf24;
+  --category-4: #a3e635;
+  --category-5: #4ade80;
+  --category-6: #2dd4bf;
+  --category-7: #22d3ee;
+  --category-8: #60a5fa;
+  --category-9: #818cf8;
+  --category-10: #a78bfa;
+  --category-11: #e879f9;
+  --category-12: #fb7185;
+  --category-uncategorized: #a8a29e;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -115,6 +141,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
 }
 
 @layer base {
@@ -129,6 +156,84 @@
   html {
     @apply font-sans;
   }
+}
+
+.dark body {
+  background-color: #111a17;
+  color: #f1f5f3;
+}
+
+.dark .bg-white,
+.dark .bg-stone-50 {
+  background-color: #18221e;
+}
+
+.dark .bg-stone-100 {
+  background-color: #26312c;
+}
+
+.dark .bg-stone-200 {
+  background-color: #36413c;
+}
+
+.dark [class~='bg-white/95'] {
+  background-color: rgb(24 34 30 / 95%);
+}
+
+.dark .text-stone-950,
+.dark .text-stone-900,
+.dark .text-stone-800 {
+  color: #f1f5f3;
+}
+
+.dark .text-stone-700,
+.dark .text-stone-600 {
+  color: #cbd5d1;
+}
+
+.dark .text-stone-500 {
+  color: #9da9a4;
+}
+
+.dark .border-stone-100,
+.dark .border-stone-200,
+.dark .border-stone-300 {
+  border-color: #38443e;
+}
+
+.dark .ring-stone-200 {
+  --tw-ring-color: #38443e;
+}
+
+.dark .bg-emerald-50 {
+  background-color: #103b2f;
+}
+
+.dark .bg-emerald-100 {
+  background-color: #17503e;
+}
+
+.dark .text-emerald-950,
+.dark .text-emerald-900,
+.dark .text-emerald-800 {
+  color: #c6f1dd;
+}
+
+.dark .bg-amber-50 {
+  background-color: #45300a;
+}
+
+.dark .text-amber-900,
+.dark .text-amber-800 {
+  color: #fde68a;
+}
+
+.dark .bg-red-50 {
+  background-color: #4a1d1f;
+}
+
+.dark .text-red-800 {
+  color: #fecaca;
 }
 
 @media (prefers-reduced-motion: reduce) {

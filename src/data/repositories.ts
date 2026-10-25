@@ -1,10 +1,15 @@
 import type { Table } from 'dexie'
 import { db, type BudgetDatabase, type OutboxOperation } from './database'
-import { editableRowSchemas, type EditableRows, type EditableTable } from './models'
+import {
+  editableRowSchemas,
+  type EditableInputs,
+  type EditableRows,
+  type EditableTable,
+} from './models'
 
 type RepositoryRow<K extends EditableTable> = EditableRows[K]
 type CreateInput<K extends EditableTable> = Omit<
-  RepositoryRow<K>,
+  EditableInputs[K],
   'id' | 'created_at' | 'updated_at' | 'deleted_at'
 > & { id?: string }
 type UpdateInput<K extends EditableTable> = Partial<
@@ -120,10 +125,14 @@ export function createRepository<K extends EditableTable>(
   }
 }
 
-export const accountsRepository = createRepository('accounts', db.accounts)
 export const categoriesRepository = createRepository('categories', db.categories)
 export const transactionsRepository = createRepository('transactions', db.transactions)
 export const budgetsRepository = createRepository('budgets', db.budgets)
+export const monthlyBudgetsRepository = createRepository('monthlyBudgets', db.monthlyBudgets)
+export const monthCarryDecisionsRepository = createRepository(
+  'monthCarryDecisions',
+  db.monthCarryDecisions,
+)
 
 export async function listOutbox(): Promise<OutboxOperation[]> {
   return db.outbox.orderBy('created_at').toArray()

@@ -3,6 +3,20 @@ import { z } from 'zod'
 const uuidSchema = z.string().uuid()
 const timestampSchema = z.string().datetime({ offset: true })
 const moneySchema = z.number().int().safe()
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  })
+const monthSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-01$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  })
 
 const syncFields = {
   id: uuidSchema,
@@ -14,6 +28,7 @@ const syncFields = {
 export const profileSchema = z.object({
   id: uuidSchema,
   display_name: z.string().max(80),
+  avatar_path: z.string().max(64).nullable().default(null),
   created_at: timestampSchema,
   updated_at: timestampSchema,
   deleted_at: timestampSchema.nullable(),
@@ -47,15 +62,6 @@ export const invitationSchema = z.object({
   created_by: uuidSchema,
 })
 
-export const accountSchema = z.object({
-  ...syncFields,
-  workspace_id: uuidSchema,
-  name: z.string().trim().min(1).max(80),
-  type: z.string().trim().min(1).max(40),
-  initial_balance: moneySchema,
-  archived_at: timestampSchema.nullable(),
-})
-
 export const categorySchema = z.object({
   ...syncFields,
   workspace_id: uuidSchema,
@@ -65,35 +71,6 @@ export const categorySchema = z.object({
   color: z.string().nullable(),
   archived_at: timestampSchema.nullable(),
 })
-
-export const transactionSchema = z
-  .object({
-    ...syncFields,
-    workspace_id: uuidSchema,
-    account_id: uuidSchema,
-    to_account_id: uuidSchema.nullable(),
-    category_id: uuidSchema.nullable(),
-    kind: z.enum(['expense', 'income', 'transfer']),
-    amount: moneySchema.positive(),
-    occurred_on: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .refine((value) => {
-        const date = new Date(`${value}T00:00:00.000Z`)
-        return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-      }),
-    note: z.string().nullable(),
-    created_by: uuidSchema,
-  })
-  .refine(
-    (transaction) =>
-      transaction.kind === 'transfer'
-        ? transaction.to_account_id !== null &&
-          transaction.to_account_id !== transaction.account_id &&
-          transaction.category_id === null
-        : transaction.to_account_id === null && transaction.category_id !== null,
-    { message: 'Transaction fields do not match its kind.' },
-  )
 
 export const budgetSchema = z.object({
   ...syncFields,
@@ -106,32 +83,128 @@ export const budgetSchema = z.object({
       const date = new Date(`${value}T00:00:00.000Z`)
       return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
     }),
-  limit_amount: moneySchema.positive(),
+  limit_amount: moneySchema.nonnegative(),
 })
+
+export const monthlyBudgetSchema = z.object({
+  ...syncFields,
+  workspace_id: uuidSchema,
+  month: monthSchema,
+  budget_amount: moneySchema.nonnegative(),
+})
+
+export const monthCarryDecisionSchema = z.object({
+  ...syncFields,
+  workspace_id: uuidSchema,
+  month: monthSchema,
+  accepted: z.boolean(),
+})
+
+export const recurringExpenseSchema = z.object({
+  id: uuidSchema,
+  series_id: uuidSchema,
+  workspace_id: uuidSchema,
+  label: z.string().trim().min(1).max(120),
+  amount: moneySchema.positive(),
+  category_id: uuidSchema.nullable(),
+  day_of_month: z.number().int().min(1).max(28),
+  start_month: monthSchema,
+  end_month: monthSchema.nullable(),
+  created_by: uuidSchema,
+  version: z.number().int().positive(),
+  created_at: timestampSchema,
+  updated_at: timestampSchema,
+})
+
+export const cashflowTransactionSchema = z
+  .object({
+    ...syncFields,
+    workspace_id: uuidSchema,
+    category_id: uuidSchema.nullable(),
+    kind: z.enum(['expense', 'refund', 'income', 'adjustment']),
+    amount: moneySchema,
+    occurred_on: dateSchema,
+    note: z.string().nullable(),
+    created_by: uuidSchema,
+    paid_by: uuidSchema,
+    recurring_id: uuidSchema.nullable().default(null),
+    recurring_month: monthSchema.nullable().default(null),
+  })
+  .superRefine((transaction, context) => {
+    if (transaction.kind === 'adjustment') {
+      if (transaction.amount === 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['amount'],
+          message: 'An adjustment amount must not be zero.',
+        })
+      }
+      if (transaction.category_id !== null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['category_id'],
+          message: 'An adjustment cannot have a category.',
+        })
+      }
+      return
+    }
+
+    if (transaction.amount <= 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['amount'],
+        message: 'A transaction amount must be positive.',
+      })
+    }
+    if (transaction.kind === 'income' && transaction.category_id === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['category_id'],
+        message: 'An income must have a category.',
+      })
+    }
+  })
+
+export const transactionSchema = cashflowTransactionSchema
 
 export type Profile = z.infer<typeof profileSchema>
 export type Workspace = z.infer<typeof workspaceSchema>
 export type Membership = z.infer<typeof membershipSchema>
 export type Invitation = z.infer<typeof invitationSchema>
-export type Account = z.infer<typeof accountSchema>
 export type Category = z.infer<typeof categorySchema>
-export type Transaction = z.infer<typeof transactionSchema>
+export type Transaction = z.infer<typeof cashflowTransactionSchema>
 export type Budget = z.infer<typeof budgetSchema>
+export type MonthlyBudget = z.infer<typeof monthlyBudgetSchema>
+export type MonthCarryDecision = z.infer<typeof monthCarryDecisionSchema>
+export type RecurringExpense = z.infer<typeof recurringExpenseSchema>
+export type CashflowTransaction = z.infer<typeof cashflowTransactionSchema>
 
-export type EditableTable = 'accounts' | 'categories' | 'transactions' | 'budgets'
+export type EditableTable =
+  'categories' | 'transactions' | 'budgets' | 'monthlyBudgets' | 'monthCarryDecisions'
+export type SyncTable = EditableTable | 'recurringExpenses'
 
 export interface EditableRows {
-  accounts: Account
   categories: Category
-  transactions: Transaction
+  transactions: CashflowTransaction
   budgets: Budget
+  monthlyBudgets: MonthlyBudget
+  monthCarryDecisions: MonthCarryDecision
+}
+
+export interface EditableInputs {
+  categories: z.input<typeof categorySchema>
+  transactions: z.input<typeof cashflowTransactionSchema>
+  budgets: z.input<typeof budgetSchema>
+  monthlyBudgets: z.input<typeof monthlyBudgetSchema>
+  monthCarryDecisions: z.input<typeof monthCarryDecisionSchema>
 }
 
 export const editableRowSchemas: {
   [K in EditableTable]: z.ZodType<EditableRows[K]>
 } = {
-  accounts: accountSchema,
   categories: categorySchema,
-  transactions: transactionSchema,
+  transactions: cashflowTransactionSchema,
   budgets: budgetSchema,
+  monthlyBudgets: monthlyBudgetSchema,
+  monthCarryDecisions: monthCarryDecisionSchema,
 }

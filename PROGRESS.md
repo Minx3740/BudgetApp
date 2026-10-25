@@ -1,29 +1,334 @@
 # PROGRESS
 
+## Reprise
+
+- Dernière mise à jour : 2026-10-25 19:20 (UTC+03:00).
+- Branche courante : `reforme-budget`. Objectif de la tâche : préparer et demander sa
+  fusion dans `main`; aucune fusion n'a encore été faite.
+- Tâche en cours : promotion en production après l'implémentation des lots R0–R9 et du
+  logo cashFlow+. Les cinq changements locaux préexistants ont été examinés et committés
+  séparément par sujet ; `.env.example` ne contient que des valeurs vides. Commits :
+  `8b2a5b1`, `9b31946`, `d5d0a76`, `38648fa`, `fa309cb`, puis `282fde7` pour le formatage
+  du workflow CI.
+- Vérifications locales du 2026-10-25 : `npm run lint`, `npm run typecheck`,
+  `npm run format:check` (après correction Prettier de `.github/workflows/ci.yml`),
+  `npm test` (94 tests/15 fichiers) et `npm run build` réussis. Avertissement non bloquant
+  du build : bundle JavaScript principal de 819,68 kB.
+- Contrôle de promotion : le manifeste et les favicons sont intégrés ; les trois icônes
+  PWA sont déclarées et aucun « CF+ » n'est présent dans `src`. Le diff de branche ne
+  contient pas de fichier `.env` réel ; `.env.example` est un modèle sans valeurs.
+  Recherche de formats de secrets : aucun `sb_secret_` ni JWT détecté ; le build ne
+  contient qu'une clé `sb_publishable_`, prévue pour le navigateur.
+- Supabase : aucune action effectuée. Les huit migrations listées dans README sont déjà
+  appliquées au projet distant ; ne pas les rejouer ni en appliquer de nouvelle.
+- Déploiement : Cloudflare Pages déploie `main` en production et les autres branches en
+  aperçu. La PR, ses contrôles CI et le déploiement de production restent à faire.
+- Points restant hors de cette promotion : test de conflit M6 entre appareils et jalon
+  M10 ; deux observations d'interface non modifiées sans accord (deux boutons « Ajouter »
+  visibles sur grand écran, et l'onglet Catégories dans Transactions). Les essais du guide
+  téléphone sont rapportés par Laro, sans répétition indépendante dans cette tâche.
+- Prochaine action : pousser `reforme-budget`, ouvrir une PR vers `main`, attendre une CI
+  verte, fusionner par commit de merge sans supprimer la branche, puis vérifier Cloudflare
+  et les URLs de production.
+
+- Notes ci-dessous : historique de reprise antérieur à la promotion en cours ; en cas de
+  contradiction, les lignes datées ci-dessus décrivent l'état actuel.
+- Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
+  `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
+  références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
+- R9 vérifié : les filtres Catégorie/Saisi par survivent au changement de mois ; les tests
+  ciblés passent. `archived_at` existe dans le modèle Dexie et la migration SQL
+  `20261023160000_data_and_invitations.sql` ; aucun schéma ni migration supplémentaire
+  n’est requis.
+- À signaler sans corriger sans accord : sur grand écran, « Ajouter » du bandeau global et
+  celui de la carte Historique sont visibles en même temps. La fonction locale du montant
+  utilise `Intl.NumberFormat('fr-FR')` et produit un espace fine insécable entre milliers ;
+  aucun défaut reproduit dans ce formateur. L’onglet Catégories reste dans Transactions ;
+  je ne l’ai pas déplacé sans décision distincte, comme le précise la section 13.4.
+- R9 vérifié : recherche et sélecteur Tout/Dépenses/Revenus restent visibles ; bouton Filtres
+  avec badge, panneau Réinitialiser/Appliquer et pastilles retirables ; « Du/Au » supprimé.
+  Les filtres Catégorie/Saisi par survivent au changement de mois.
+- R9 vérifié : formulaire d’ajout/modification et confirmation d’archivage dans un
+  `<dialog>` modal (feuille basse sur mobile, Dialog centré sur grand écran) ; ajout en haut,
+  message après sauvegarde ; catégories actives séparées des archivées repliées, restauration ;
+  suppression soft proposée seulement si aucune transaction ne référence la catégorie, avec
+  vérification transactionnelle au moment de supprimer. `archived_at` existe déjà dans le
+  modèle Dexie et la migration `20261023160000_data_and_invitations.sql` : aucune migration
+  supplémentaire n’est nécessaire ; un test confirme la conservation et la restauration de
+  l’historique. Typecheck, lint et Prettier passent.
+- R9 vérifié : palette de 12 jetons CSS, valeurs de thème clair/sombre documentées
+  avec rapports de contraste calculés au-dessus de 3:1 sur les surfaces carte ; première
+  couleur inutilisée affectée automatiquement, première réutilisée après épuisement ;
+  couleurs historiques hors palette préservées. Pastille par ligne, choix par puces dans
+  le panneau d’ajout, barres du graphique « Où va l’argent ? » et de seuil colorées ;
+  « Non classé » gris neutre. Tests d’attribution dédiés : 3/3 ; tests filtrage/archivage/
+  couleurs ciblés : 20/20 ; typecheck et lint passent.
+- R7 modèle A terminé et poussé : fonctions pures calculent ressources, disponible et report
+  positif en chaîne ; la carte d'accueil, la barre d'usage, le graphique journalier et les
+  textes des champs Budget/Revenu reflètent la règle. Tests ciblés : 12/12.
+- R8 implémenté : accueil réorganisé et textes techniques retirés ; nom affiché modifiable
+  en ligne ; recadrage photo interactif au canevas (déplacement, zoom, 256 × 256 WebP) ;
+  aide des seuils en popover ; graphiques repliables et état mémorisé avec repli tolérant.
+- Contrôles après déplacement : 94 tests/15 fichiers, lint, typecheck et build passent ;
+  tests R9 ciblés : 20/20. Prettier ciblé passe. L’avertissement Vite sur le chunk principal
+  de 819,17 kB reste non bloquant.
+- R8 committé en quatre commits poussés : `d0ab404` (accueil), `1a4df25` (profil),
+  `65abf39` (aide du budget et état vide) et `56506c4` (graphiques repliables). Le
+  déplacement approuvé est committé en `96b30b0` et poussé.
+- Aucun nouveau paquet, aucune migration créée ou appliquée. Laro a autorisé le déplacement
+  de « Répartition des dépenses » vers Analyses après validation de R8/R9 ; elle figure
+  maintenant comme carte repliable avec préférence sauvegardée.
+- SQL/migrations : aucune migration requise, créée ou appliquée ; aucune commande SQL.
+- Le bouton « Ajouter » du bandeau global et celui de la carte Historique restent tous deux
+  visibles sur grand écran ; aucun n’a été retiré sans accord. Catégories reste un onglet de
+  Transactions ; aucun déplacement vers Espace n’a été fait sans décision distincte.
+- Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
+  défaut commun reproductible n'a été corrigé.
+- Intégration du logo : index.html référence favicon.svg, favicon.ico 48 × 48, favicon-32.png
+  et apple-touch-icon.png. Le manifeste PWA référence les trois nouvelles icônes ; includeAssets
+  les place dans le précache. theme_color = #004E33 (accent OKLCH converti) et
+  background_color = #F4F5EF. Tous les fichiers cités ont été vérifiés dans dist/ et le SW.
+- Logo source : icone.svg dans l’en-tête mobile et la barre latérale ; texte cashFlow+ réservé
+  à la barre latérale grand écran. logo-complet.svg sur la connexion et dans À propos ; images
+  importées sans inline et avec alt « cashFlow+ ». Aucune source dans design/ n’a été modifiée.
+- Aucun identifiant interne (Dexie, stockage ou caches) n’a été changé. Assets fournis en
+  place ; ne pas régénérer les icônes.
+- Contrôles logo : lint, typecheck, 94 tests/15 fichiers et build OK. Les sept fichiers
+  favicon/icônes sont présents dans dist et dans le précache SW ; le manifeste final contient
+  exactement les trois icônes attendues et les bonnes couleurs. Les deux SVG de marque sont
+  émis dans dist/assets.
+- Commits logo : `4518319` (favicon/index), `3d7bcfc` (manifest PWA), `692c9aa` (interface,
+  sources de marque et guide UI).
+- Prochaine action exacte : pousser uniquement `reforme-budget`, puis vérifier son suivi
+  distant. Ne pas fusionner dans `main`.
+- Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
+  (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
+  seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
+  contrôle de contraste clair/sombre ; première couleur non utilisée attribuée à la création ;
+  couleur historique hors palette préservée ; noms toujours visibles et « Non classé » neutre.
+- Questions ouvertes : signaler à Laro les deux boutons « Ajouter » visibles ensemble sur
+  grand écran et le placement de l’onglet Catégories ; ne pas modifier sans accord.
+- Pièges connus : préserver les modifications préexistantes non committées de
+  `.env.example`, `.github/workflows/ci.yml`, `README.md`,
+  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts`; dans
+  `workspace-management.tsx`, ne pas inclure le changement préexistant du lien d’invitation
+  dans les commits R8. Ne pas fusionner dans `main`.
+  La spécification de réforme a été déplacée dans `docs/reforme-budget-global.md`.
+  La fonction `Intl.NumberFormat('fr-FR')` produit le séparateur U+202F
+  (espace fine insécable) entre milliers ; ne pas remplacer avant de confirmer un défaut
+  visible dans l’application.
+- Terminé et vérifié : état Git relevé. Les changements préexistants non committés de
+  `.env.example`, `.github/workflows/ci.yml`, `README.md`,
+  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts` sont préservés.
+  Ils ne doivent pas être inclus dans les commits de cette séquence, à
+  l'exception de la ligne modifiée dans README pour le vocabulaire du disponible.
+- Terminé et vérifié : aucun `_redirects` ni `404.html` dans `public` ou `dist`.
+  Après `npm run build`, le manifeste généré indique `start_url: "/"` et `scope: "/"`;
+  l’enregistrement du service worker utilise `registerSW({ immediate: true })`, sans
+  domaine fixe. `vite.config.ts` utilise `base = '/'`, et le manifeste/service worker
+  générés ne contiennent ni domaine Cloudflare codé en dur, ni ancien chemin `/BudgetApp/`.
+- Terminé et vérifié : le build de production passe (2026-10-25), avec l’avertissement
+  Vite non bloquant sur le chunk principal de 811,57 kB. Le workflow local non suivi
+  `.github/workflows/deploy-pages.yml` a `push` limité à `main`, mais conserve aussi
+  `workflow_dispatch` : un lancement manuel peut sélectionner une autre branche.
+- Terminé : README décrit l’intégration Git Cloudflare, le projet `budgetapp`, les
+  variables Production/Preview, la production sur `main`, l’aperçu de branche, et les huit
+  migrations déclarées déjà appliquées au projet Supabase distant de test, dans l’ordre
+  des noms. Aucune migration Supabase n’a été exécutée durant cette tâche.
+- Terminé : Laro a autorisé la suppression du workflow local obsolète ; le fichier
+  `.github/workflows/deploy-pages.yml` a été supprimé. La CI GitHub n’a pas été modifiée.
+- Terminé : `docs/test-telephone.md` contient les scénarios détaillés et les résultats
+  saisis par Laro. Les 12 scénarios sont marqués OK : connexion/déconnexion, sous-route,
+  revenu, dépenses avec/sans seuil, remboursement/ajustement, déficit, date du 31,
+  génération/modification de forfait, affichage mobile, hors ligne/synchronisation et
+  droits d’un membre invité. Résultats rapportés par Laro, non reproduits indépendamment.
+- Vérifications antérieures à R7 modèle A : `npm test` réussi (77 tests, 13 fichiers), `npm run lint`,
+  `npm run typecheck`, `npm run build` et `git diff --check` réussis. Build PWA réussi ;
+  avertissement Vite non bloquant sur le chunk principal de 811,57 kB.
+- Formatage : `npx prettier --check PROGRESS.md README.md vite.config.ts
+docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
+  `.github/workflows/ci.yml`, modification préexistante volontairement préservée.
+- Tests SQL : `supabase test db` non exécuté ; CLI Supabase et Docker ne sont pas installés.
+  Les tests SQL R1/R3/R5 précédemment validés restent documentés ci-dessous. Aucun SQL ni
+  migration distante n’a été exécuté pour cette tâche.
+- Commit et push effectués : `f781f3e` (`docs: prepare Cloudflare Pages branch preview`)
+  sur `origin/reforme-budget`. La branche suit son upstream et est synchronisée.
+- Prochaine action historique avant la demande actuelle : choisir la prochaine priorité de développement (par exemple
+  poursuivre les finitions M9 ou traiter les dettes reportées M10/M6) ; les essais
+  téléphoniques de l’aperçu sont rapportés OK par Laro.
+- Vérifications finales à lancer : `npm test`, `npm run lint`,
+  `npm run typecheck`, `npm run format:check`, `npm run build`, `git diff --check` et
+  `supabase test db` (tests SQL locaux, si Docker et la CLI Supabase sont disponibles).
+- Décisions confirmées : intégration Git Cloudflare Pages (projet `budgetapp`, dépôt
+  `Minx3740/BudgetApp`), production depuis `main`, build `npm run build`, sortie `dist`,
+  aperçus de branches ; `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` définies
+  dans les environnements Production et Preview. Push autorisé uniquement de
+  `reforme-budget`, après les vérifications finales. Aucune migration distante durant
+  cette tâche. Les migrations de test déjà appliquées ne doivent pas être rejouées.
+- Décision de Laro : suppression du workflow local obsolète `deploy-pages.yml` autorisée ;
+  Cloudflare Pages reste le seul mécanisme de déploiement. La CI GitHub reste en place.
+- Questions encore ouvertes : prochaine priorité après les validations R0–R6 et les essais
+  sur téléphone.
+- Pièges connus : le workflow est non suivi, cible l’ancien projet `cashflow-plus`, et
+  offre un déclenchement manuel en plus du push sur `main`. Sa suppression ne doit pas
+  toucher la CI ni l’intégration Git Cloudflare. Préserver les changements préexistants
+  listés ci-dessus. Le fichier `deploy-pages.yml` était non suivi avant sa suppression :
+  sa suppression locale ne constitue donc pas un changement de fichier suivi dans le
+  commit. Les changements préexistants toujours non committés sont `.env.example`,
+  `.github/workflows/ci.yml`, la partie antérieure de `README.md`, les modifications
+  antérieures de `src/components/workspaces/workspace-management.tsx` et de
+  `vite.config.ts`. L’aperçu attendu est
+  `reforme-budget.budgetapp-epz.pages.dev`, sans modifier la production.
+
 ## État actuel
 
-- Jalon en cours : M8 (espaces partagés et invitations)
-- Dernier jalon validé : M7 (2026-10-24)
-- Prochaine action : démarrer M9 (historique, finitions et robustesse) ; le test de conflit réel M6 entre appareils reste à faire.
+- Jalon historique en cours : M9 (historique, finitions et robustesse).
+- Dernier jalon historique validé : M8 (2026-10-24).
+- Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
+  appareils reste également à faire.
+- Réforme budget : R0–R7 terminés et poussés ; R8 implémenté et validé automatiquement,
+  livraison en cours ; R9 à revalider ensuite.
 
 ## Jalons
 
-| Jalon    | Statut                                                                                      | Date       |
-| -------- | ------------------------------------------------------------------------------------------- | ---------- |
-| M0       | validé (CI verte)                                                                           | 2026-10-19 |
-| M1       | validé                                                                                      | 2026-10-23 |
-| M2       | validé                                                                                      | 2026-10-24 |
-| M3       | validé*                                                                                     | 2026-10-24 |
-| M4       | validé                                                                                      | 2026-10-24 |
-| M5       | validé                                                                                      | 2026-10-24 |
-| M6       | implémenté, migration appliquée, push/suppression validés ; test entre appareils en attente | 2026-10-24 |
-| M7       | validé : calculs et parcours UI vérifiés                                                    | 2026-10-24 |
-| M8       | validé : invitation, saisie en ligne et saisie hors-ligne synchronisée entre deux comptes   | 2026-10-24 |
-| M9 à M10 | à faire                                                                                     |            |
+| Jalon | Statut                                                                                      | Date       |
+| ----- | ------------------------------------------------------------------------------------------- | ---------- |
+| M0    | validé (CI verte)                                                                           | 2026-10-19 |
+| M1    | validé                                                                                      | 2026-10-23 |
+| M2    | validé                                                                                      | 2026-10-24 |
+| M3    | validé*                                                                                     | 2026-10-24 |
+| M4    | validé                                                                                      | 2026-10-24 |
+| M5    | validé                                                                                      | 2026-10-24 |
+| M6    | implémenté, migration appliquée, push/suppression validés ; test entre appareils en attente | 2026-10-24 |
+| M7    | validé : calculs et parcours UI vérifiés                                                    | 2026-10-24 |
+| M8    | validé : invitation, saisie en ligne et saisie hors-ligne synchronisée entre deux comptes   | 2026-10-24 |
+| M9    | en cours : recherche, filtres et pagination de l'historique implémentés                     | 2026-10-24 |
+| M10   | à faire                                                                                     |            |
+
+## Réforme du budget (R0–R6)
+
+Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils sont
+distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
+le suivant.
+
+| Lot | Statut                                                                                                 | Date       |
+| --- | ------------------------------------------------------------------------------------------------------ | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                      | 2026-10-24 |
+| R1  | Implémentation terminée ; validations automatisées et pgTAP distant réussis (29/29) ; Laro a validé R2 | 2026-10-25 |
+| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande            | 2026-10-25 |
+| R3  | Validé par Laro ; implémentation terminée ; pgTAP distant réussi (4/4)                                 | 2026-10-25 |
+| R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
+| R5  | Validé par Laro ; migration, interface et tests SQL terminés (33/33)                                   | 2026-10-25 |
+| R6  | Validé par Laro ; implémentation et contrôles terminés                                                 | 2026-10-25 |
+| R7  | Modèle A du disponible implémenté, validé automatiquement et poussé                                    | 2026-10-25 |
+| R8  | Implémenté et vérifié (92 tests, lint, typecheck, build) ; commits et push en cours                    | 2026-10-25 |
+| R9  | À revalider après livraison R8 ; code Transactions existant à contrôler selon les décisions            |            |
+
+### État des lieux vérifié pour R0
+
+- La réforme complète est dans `docs/reforme-budget-global.md`.
+- Le cahier des charges v1.2 est validé et enregistré dans `docs/cahier-des-charges.md`.
+- Le guide UI est créé dans `docs/guide-ui.md`, à partir des variables et composants
+  visuels existants.
+- Les migrations sont présentes dans `supabase/migrations/`.
+- Le test RLS présent est `supabase/tests/database/001_rls_and_invitations.test.sql`.
+  Aucun autre fichier de test SQL n’a été trouvé dans `supabase/tests/`.
+- Playwright n’est pas déclaré dans le `package.json` inspecté.
+- Le déploiement Cloudflare est décrit dans `.github/workflows/deploy-pages.yml`.
+- Décisions P8 et P9 confirmées. P11 est retirée et remplacée : Supabase et Dexie
+  contiennent seulement des données de test et peuvent être vidés ; ne pas convertir
+  les soldes, archiver les transferts, créer des reports historiques ni migrer l’ancienne
+  outbox. Après la première utilisation réelle avec données à garder, toute migration
+  devra être conservatrice.
+- Décision confirmée par Laro : budget global mensuel manuel et unique par espace/mois,
+  sans catégorie ; les seuils par catégorie sont indépendants.
+
+### Tâches R1
+
+| Tâche                               | État                                                   | Détail                                                                                                            |
+| ----------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Contrats TypeScript/Zod             | Terminée, commitée et vérifiée                         | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                                |
+| Calculs purs et tests unitaires     | Terminée, commitée et vérifiée                         | Dépenses nettes, budget, reports et limites ; anciens calculs par comptes retirés                                 |
+| Migration Supabase et tests RLS     | Corrigés ; migration distante appliquée ; pgTAP réussi | `de32a7c`; 29/29 assertions, zéro échec ; politique propriétaire appliquée et intégrée à la migration locale      |
+| Schéma local Dexie et remise à zéro | Terminée, commitée                                     | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis         |
+| Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis              | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                           |
+| Synchronisation                     | Terminée, commitée ; 14 tests ciblés réussis           | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report                 |
+| Écran transactions minimum          | Terminée, commitée (`823b636`)                         | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
+| Validation R1                       | Réussie                                                | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP distant : 29/29, zéro échec                   |
+
+### Tâches R2
+
+| Tâche                                  | État                    | Détail                                                                                                                         |
+| -------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Aligner la réforme et partager le mois | Terminée                | Contradiction corrigée ; état partagé, URL `?mois=YYYY-MM`, filtrage de l’historique et date d’ajout liés au mois sélectionné. |
+| Enveloppe globale et seuils            | Terminée                | Enveloppe manuelle distincte, reprise explicite du montant précédent, seuils indépendants et états à 80/100 %.                 |
+| Solde et décisions de report           | Terminée                | Solde et résumé mensuel affichés ; report proposé selon les règles et décisions réservées au propriétaire.                     |
+| États et validations R2                | Terminé ; automatisé OK | 58 tests, lint, typecheck, build et format check OK ; essai téléphone/hors ligne explicitement écarté par Laro.                |
+
+### Tâches R3
+
+| Tâche                                      | État                    | Détail                                                                                                                                                                                                                   |
+| ------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| En-tête compact et état de synchronisation | Terminée et vérifiée    | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée. Commit `b039624`.                                                                                     |
+| Navigation mobile et grand écran           | Terminée                | Barre mobile 5 places ; barre latérale groupée avec Forfaits désactivé jusqu’à R5, membres et réglages sous Espace ; Plus regroupe les outils. Commit `b039624`.                                                         |
+| Menu avatar et page Mon profil             | Terminée                | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif. Commit `da2e431`.                                                                                        |
+| Réglages de l’application                  | Terminée                | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé. Commit `5108755`.                                                                            |
+| Réglages de l’espace                       | Terminée                | Renommage pour le propriétaire ; archivage soft des espaces partagés, uniquement si un autre espace actif existe ; RLS existante demeure la protection serveur. Commit `0e56945`.                                        |
+| Photo de profil                            | Implémentée et vérifiée | P7 confirmé : bucket privé, téléversement WebP, suppression, URLs signées et avatars de membres ; `npm test` (63), lint, typecheck, format check et build OK. Commit `918982b` ; migration distante appliquée et testée. |
+| Validation R3                              | Terminée                | Vérifications applicatives automatisées OK ; pgTAP distant : 4/4 assertions, zéro échec ; essai téléphone écarté par Laro.                                                                                               |
+
+### Tâches R4
+
+| Tâche                                            | État                 | Détail                                                                                                                            |
+| ------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Formulaire complet et attribution du responsable | Terminée et vérifiée | Responsable distinct de l’auteur en espace partagé ; catégories facultatives pour dépenses/remboursements, requises pour revenus. |
+| Filtres de l’historique et attribution visible   | Terminée et vérifiée | Filtres Dépenses/Revenus/Tout ; remboursement avec dépenses ; ajustement seulement dans Tout ; responsable séparé de l’auteur.    |
+| Vérification des agrégats R4                     | Terminée et vérifiée | 13 tests de calcul passent ; dépenses/remboursements sans catégorie comptés une fois ; revenus et ajustements exclus du budget.   |
+| Validation R4                                    | Terminée             | 66 tests, lint, typecheck, format check, diff check et build OK ; avertissement bundle 791 kB ; essai mobile écarté.              |
+
+### Tâches R5
+
+| Tâche                                             | État     | Détail                                                                                                                        |
+| ------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Modèle, Dexie, bootstrap et synchronisation       | Terminé  | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
+| Migration Supabase, RLS et génération idempotente | Terminée | Correctif timestamps appliqué au projet jetable après accord explicite ; pgTAP 33/33 réussis, 0 échec, transaction annulée.   |
+| Écran Forfaits et parcours                        | Terminé  | Lecture hors ligne ; création/édition/arrêt ; génération au changement de mois ; tests automatisés réussis.                   |
+| Validation R5                                     | Terminée | R5 validé implicitement par « ok, reprends alors » ; pgTAP 33/33 et vérifications applicatives réussis.                       |
+
+### Tâches R6
+
+| Tâche                                  | État     | Détail                                                                                                |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| Agrégations et tests unitaires         | Terminé  | Quatre séries et indicateurs purs ; 5 tests ciblés, typecheck et format vérifiés.                     |
+| Volet Analyses accessible et paresseux | Terminé  | Quatre graphiques SVG, valeurs consultables en texte ; code séparé dans un chunk chargé à la demande. |
+| Validation R6                          | Terminée | Validée par Laro le 2026-10-25 ; 77 tests, lint, typecheck, format, build et diff check OK.           |
+
+### Tâches R8
+
+| Point                        | État    | Détail                                                                                                       |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.                 |
+| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256².               |
+| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                              |
+| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant.               |
+| Répartition → Analyses       | Terminé | Accord de Laro ; carte repliable, sans doublons et avec préférence mémorisée ; poussée sur `reforme-budget`. |
+| Vérification et livraison R8 | Terminé | 94 tests/15 fichiers, lint, typecheck et build OK ; commits R8 et déplacement approuvé poussés.              |
+
+### Tâches R9
+
+| Point                                      | État    | Détail                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Filtres Transactions                    | Terminé | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK.                                          |
+| 2. Formulaires et archivage des catégories | Terminé | `<dialog>` bas sur téléphone/centré sur grand écran ; ajout visible en haut ; confirmation après sauvegarde/archivage ; « Archivées » replié avec restauration ; suppression uniquement sans référence de transaction ; `archived_at` existe déjà, aucune migration requise. Typecheck, lint et format OK. |
+| 3. Palette de catégories                   | Terminé | 12 jetons CSS ; ratios clair/sombre vérifiés ; attribution automatique et fallback après épuisement ; legacy préservée ; pastilles, puces d’ajout, analyse et seuils ; `Non classé` neutre ; tests ciblés 3/3.                                                                                             |
+| Vérifications et livraison R9              | Terminé | Filtres/mois, archivage/restauration et couleurs validés ; tests ciblés 20/20, contrôles complets au vert ; poussé sur `reforme-budget`.                                                                                                                                                                   |
 
 ## Décisions prises
 
 - 2026-10-24 : nom officiel de l'application : cashFlow+.
+- 2026-10-25 : Laro a confirmé que le projet Supabase affiché « Production » est jetable
+  et a autorisé la suppression de ses données ainsi que l’application des migrations R1
+  et R3 ; ces migrations ont été appliquées, ne pas les rejouer.
 - 2026-10-24 : l'import initial des données Supabase dans Dexie précède les écrans M5 afin de conserver les identifiants des espaces et des données déjà créés côté serveur.
 - 2026-10-19 : Vite + React + TypeScript (SPA) à la place de Next.js, car l'app est pilotée par la base locale et n'a pas besoin de rendu serveur.
 - 2026-10-19 : vite-plugin-pwa à la place de Serwist (conséquence du choix de Vite).
@@ -50,6 +355,7 @@
 - M6 : moteur client implémenté : push séquentiel/idempotent avec reprise, pull paginé par curseur (chevauchement 60 s), horloge serveur, tombstones prioritaires, purge après retrait d'accès, indicateur UI et relance manuelle. Tests automatisés couvrent l'interruption au milieu du push, l'accusé perdu, les conflits, les suppressions et l'accès retiré. La migration `supabase/migrations/20261024180000_sync_invariants.sql` a été exécutée avec succès dans Supabase le 2026-10-24. Une dépense de test a été créée, synchronisée puis supprimée logiquement dans l'application ; le test réel de conflit entre deux appareils reste à faire.
 - M7 : calcul local du budget mensuel, accueil et gestion des plafonds implémentés. Couverture : dépenses par catégorie, reste global et quotidien, catégorie sans plafond, dépassement, suppression logique et changement de mois. Lint, TypeScript, formatage, 32 tests et build de production passent. Dans l'application, l'accueil, la vue Budgets, le formulaire sans enregistrement et la navigation entre mois ont été vérifiés ; aucune donnée personnelle n'a été modifiée.
 - M8 : validé le 2026-10-24. Fonctionnalités livrées : création d'espaces partagés avec comptes/catégories par défaut, sélecteur persistant, invitation à usage unique valable 7 jours (jeton aléatoire 256 bits stocké haché), acceptation par RPC, révocation et gestion des rôles/membres. Les accès viewer sont en lecture seule dans l'UI ; RLS reste l'autorité serveur. La synchronisation actualise aussi le rôle depuis le serveur. Validation réelle à deux comptes : le propriétaire a invité le deuxième compte, qui a accepté l'invitation comme membre ; une dépense saisie en ligne a été vue par le propriétaire ; une seconde dépense de 3 MGA saisie hors-ligne a été enregistrée localement, mise en attente, puis synchronisée et visible côté propriétaire après le retour en ligne. Les tests automatisés (35), le lint, TypeScript, le formatage et le build passent. Trois dépenses de test (1, 2 et 3 MGA) restent dans l'espace `TEST M8 - cashFlow+`.
+- M9 : recherche texte sans distinction d'accents et filtres par dates, catégorie, compte et membre ajoutés à l'historique. Pagination de 50 lignes pour borner le rendu, état vide distinct quand les filtres ne trouvent rien, et commandes avec libellés accessibles. Tests automatisés couvrent les filtres combinés, les transferts filtrés par compte et un jeu de 5 000 transactions (100 pages, 50 éléments maximum par page). Vérification navigateur sur l'espace M8 : recherche correspondante et aucun résultat affichés correctement. Un workflow Cloudflare Pages est présent ; déploiement réel et essai smartphone restent à valider avec les variables Actions et l'URL de redirection Supabase. Le polissage complet, les autres états de robustesse/accessibilité et la validation du jalon restent à faire.
 
 ## Ce qui n'est PAS encore fait
 
