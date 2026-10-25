@@ -2,9 +2,10 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 08:08 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 08:11 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R4 — transactions. R3 a été validé par Laro le 2026-10-25 ;
+- Lot/tâche en cours : R4 terminé ; attendre la validation de Laro avant de commencer R5.
+  R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
 - Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
   et Budgets affichent budget, dépenses nettes et solde ; les décisions de report sont
@@ -53,17 +54,17 @@
 - Terminé et vérifié : règles d’agrégat R4 couvertes, y compris dépenses/remboursements
   sans catégorie, revenus exclus du budget et ajustements limités au solde. Tests ciblés
   des calculs : 13/13. Suite complète : 66 tests ; lint, typecheck, format check et
-  `git diff --check` passent.
-- Tâche R4 en cours : validation finale complète.
-- Prochaine action exacte : exécuter `npm run build`, consigner son résultat, puis vérifier
-  le statut Git sans inclure les modifications préexistantes non liées.
+  `git diff --check` passent. `npm run build` réussit ; avertissement Vite existant :
+  bundle JavaScript principal de 791 kB.
+- Prochaine action exacte : demander à Laro sa validation de R4 ; ne pas démarrer R5 avant
+  son accord.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` avaient réussi avant ces corrections SQL ;
   `git diff --check` passe. Les tests pgTAP distants R1/R3 passent avec 29/29 et 4/4.
   Aucun test applicatif n’a été relancé pour ces seuls changements SQL.
-- Vérifications prévues pour R4 : `npm test`, `npm run lint`, `npm run typecheck`,
-  `npm run format:check`, `npm run build` et `git diff --check`. Aucune migration SQL
-  n’est prévue en R4 ; ne pas rejouer les migrations distantes.
+- Vérifications R4 : `npm test` (66), `npm run lint`, `npm run typecheck`,
+  `npm run format:check`, `npm run build` et `git diff --check` réussis. Aucun changement
+  SQL ni migration en R4 ; les migrations distantes R1/R3 ne doivent pas être rejouées.
 - Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
@@ -110,15 +111,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                 | Date       |
-| --- | ------------------------------------------------------------------------------------------------------ | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                      | 2026-10-24 |
-| R1  | Implémentation terminée ; validations automatisées et pgTAP distant réussis (29/29) ; Laro a validé R2 | 2026-10-25 |
-| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande            | 2026-10-25 |
-| R3  | Implémentation et validations terminées ; pgTAP distant réussi (4/4) ; validation de Laro attendue     | 2026-10-25 |
-| R4  | À faire — transactions, remboursements, ajustements et responsable                                     |            |
-| R5  | À faire — forfaits                                                                                     |            |
-| R6  | À faire — analyses                                                                                     |            |
+| Lot | Statut                                                                                                                   | Date       |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                        | 2026-10-24 |
+| R1  | Implémentation terminée ; validations automatisées et pgTAP distant réussis (29/29) ; Laro a validé R2                   | 2026-10-25 |
+| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande                              | 2026-10-25 |
+| R3  | Validé par Laro ; implémentation terminée ; pgTAP distant réussi (4/4)                                                   | 2026-10-25 |
+| R4  | Implémentation et validations terminées ; 66 tests, lint, typecheck, build et format check OK ; validation Laro attendue | 2026-10-25 |
+| R5  | À faire — forfaits                                                                                                       |            |
+| R6  | À faire — analyses                                                                                                       |            |
 
 ### État des lieux vérifié pour R0
 
@@ -180,7 +181,7 @@ le suivant.
 | Formulaire complet et attribution du responsable | Terminée et vérifiée | Responsable distinct de l’auteur en espace partagé ; catégories facultatives pour dépenses/remboursements, requises pour revenus. |
 | Filtres de l’historique et attribution visible   | Terminée et vérifiée | Filtres Dépenses/Revenus/Tout ; remboursement avec dépenses ; ajustement seulement dans Tout ; responsable séparé de l’auteur.    |
 | Vérification des agrégats R4                     | Terminée et vérifiée | 13 tests de calcul passent ; dépenses/remboursements sans catégorie comptés une fois ; revenus et ajustements exclus du budget.   |
-| Validation R4                                    | En cours             | 66 tests, lint, typecheck, format check et diff check OK ; build restant ; essai mobile écarté à la demande de Laro.              |
+| Validation R4                                    | Terminée             | 66 tests, lint, typecheck, format check, diff check et build OK ; avertissement bundle 791 kB ; essai mobile écarté.              |
 
 ## Décisions prises
 
