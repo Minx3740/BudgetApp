@@ -3,7 +3,7 @@ import { Archive, CirclePlus, Pencil, RotateCcw, Search, Trash2 } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { categoriesRepository, transactionsRepository } from '@/data/repositories'
-import type { Category, Transaction } from '@/data/models'
+import type { Category, Membership, Transaction } from '@/data/models'
 import type { Profile } from '@/data/models'
 import { db } from '@/data/database'
 import { useCategories, useTransactions } from '@/data/hooks'
@@ -25,6 +25,7 @@ interface LocalDataViewProps {
   userId: string
   canEdit: boolean
   isSharedWorkspace: boolean
+  memberships: Membership[]
   profiles: Profile[]
   isQuickEntryOpen: boolean
   onQuickEntryOpenChange: (isOpen: boolean) => void
@@ -44,6 +45,7 @@ interface TransactionDraft {
   categoryId: string
   occurredOn: string
   note: string
+  responsibleId: string
 }
 
 const dataTabs: { id: DataTab; label: string }[] = [
@@ -68,7 +70,7 @@ function errorMessage(failure: unknown): string {
   return failure instanceof Error ? failure.message : 'Erreur inconnue.'
 }
 
-function newTransactionDraft(month: string): TransactionDraft {
+function newTransactionDraft(month: string, userId: string): TransactionDraft {
   const today = localDate()
   const selectedMonth = month.slice(0, 7)
   return {
@@ -77,6 +79,7 @@ function newTransactionDraft(month: string): TransactionDraft {
     categoryId: '',
     occurredOn: today.startsWith(`${selectedMonth}-`) ? today : `${selectedMonth}-01`,
     note: '',
+    responsibleId: userId,
   }
 }
 
@@ -99,6 +102,7 @@ export function LocalDataView({
   userId,
   canEdit,
   isSharedWorkspace,
+  memberships,
   profiles,
   isQuickEntryOpen,
   onQuickEntryOpenChange,
@@ -110,7 +114,7 @@ export function LocalDataView({
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null)
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(() =>
-    newTransactionDraft(month),
+    newTransactionDraft(month, userId),
   )
   const [historyState, setHistoryState] = useState(() => ({
     workspaceId,
@@ -155,8 +159,26 @@ export function LocalDataView({
     transactionDraft.kind === 'adjustment'
       ? ''
       : (availableCategories.find((category) => category.id === transactionDraft.categoryId)?.id ??
-        availableCategories[0]?.id ??
         '')
+  const workspaceMemberIds = new Set(
+    memberships
+      .filter((membership) => membership.workspace_id === workspaceId)
+      .map((membership) => membership.user_id),
+  )
+  workspaceMemberIds.add(userId)
+  const responsibleMembers = profiles
+    .filter((profile) => workspaceMemberIds.has(profile.id) && profile.deleted_at === null)
+    .map((profile) => ({
+      id: profile.id,
+      name:
+        profile.id === userId
+          ? `Moi${profile.display_name ? ` — ${profile.display_name}` : ''}`
+          : profile.display_name || 'Membre',
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'fr'))
+  if (!responsibleMembers.some((member) => member.id === userId)) {
+    responsibleMembers.unshift({ id: userId, name: 'Moi' })
+  }
   const historyFilters =
     historyState.workspaceId === workspaceId
       ? historyState.filters
@@ -232,7 +254,7 @@ export function LocalDataView({
     setTransactionError(null)
     setNotice(null)
     setEditingTransactionId(null)
-    setTransactionDraft(newTransactionDraft(month))
+    setTransactionDraft(newTransactionDraft(month, userId))
     onQuickEntryOpenChange(true)
   }
 
@@ -311,6 +333,7 @@ export function LocalDataView({
       categoryId: transaction.category_id ?? '',
       occurredOn: transaction.occurred_on,
       note: transaction.note ?? '',
+      responsibleId: transaction.paid_by,
     })
     onQuickEntryOpenChange(true)
   }
@@ -326,8 +349,12 @@ export function LocalDataView({
       setTransactionError('Aucun espace local n’est disponible. Recharge les données en ligne.')
       return
     }
-    if (transactionDraft.kind !== 'adjustment' && !selectedCategoryId) {
-      setTransactionError('Ajoute une catégorie correspondante avant de créer cette transaction.')
+    if (transactionDraft.kind === 'income' && !selectedCategoryId) {
+      setTransactionError('Choisis une catégorie de revenus avant de continuer.')
+      return
+    }
+    if (!responsibleMembers.some((member) => member.id === transactionDraft.responsibleId)) {
+      setTransactionError('Choisis un membre de cet espace comme responsable.')
       return
     }
 
@@ -335,13 +362,13 @@ export function LocalDataView({
     setNotice(null)
     const input = {
       workspace_id: workspaceId,
-      category_id: transactionDraft.kind === 'adjustment' ? null : selectedCategoryId,
+      category_id: transactionDraft.kind === 'adjustment' ? null : selectedCategoryId || null,
       kind: transactionDraft.kind,
       amount: Number(transactionDraft.amount),
       occurred_on: transactionDraft.occurredOn,
       note: transactionDraft.note.trim() || null,
       created_by: userId,
-      paid_by: userId,
+      paid_by: transactionDraft.responsibleId,
     }
 
     try {
@@ -361,7 +388,7 @@ export function LocalDataView({
         setNotice('Transaction enregistrée sur cet appareil.')
       }
       setEditingTransactionId(null)
-      setTransactionDraft(newTransactionDraft(month))
+      setTransactionDraft(newTransactionDraft(month, userId))
       closeTransactionDialog()
     } catch (failure) {
       setTransactionError(`Impossible d’enregistrer cette transaction. ${errorMessage(failure)}`)
@@ -934,15 +961,43 @@ export function LocalDataView({
                 onChange={(event) =>
                   setTransactionDraft({ ...transactionDraft, categoryId: event.target.value })
                 }
-                required
+                required={transactionDraft.kind === 'income'}
                 value={selectedCategoryId}
               >
+                {transactionDraft.kind === 'income' ? (
+                  <option value="">Choisir une catégorie de revenus</option>
+                ) : (
+                  <option value="">Sans catégorie</option>
+                )}
                 {availableCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
                 ))}
               </select>
+            </label>
+          )}
+
+          {isSharedWorkspace && (
+            <label className="grid gap-2 text-sm font-medium">
+              Responsable — qui a payé ou reçu l’argent ?
+              <select
+                className="min-h-12 rounded-xl border border-stone-300 bg-white px-3"
+                onChange={(event) =>
+                  setTransactionDraft({ ...transactionDraft, responsibleId: event.target.value })
+                }
+                required
+                value={transactionDraft.responsibleId}
+              >
+                {responsibleMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs font-normal text-stone-500">
+                Cette personne peut être différente de celle qui saisit l’opération.
+              </span>
             </label>
           )}
 

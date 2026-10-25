@@ -1235,6 +1235,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               isQuickEntryOpen={isQuickEntryOpen}
               key={activeWorkspace?.id}
               month={selectedMonth}
+              memberships={memberships}
               onQuickEntryOpenChange={setIsQuickEntryOpen}
               profiles={profiles}
               userId={session.user.id}

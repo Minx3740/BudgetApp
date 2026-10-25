@@ -2,10 +2,9 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 07:45 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 07:56 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R3 — validation SQL terminée ; attendre la validation de Laro
-  avant de commencer R4. R2 est validé par Laro ;
+- Lot/tâche en cours : R4 — transactions. R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
 - Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
   et Budgets affichent budget, dépenses nettes et solde ; les décisions de report sont
@@ -40,13 +39,22 @@
   pgTAP exécutés dans une transaction annulée : 29/29 assertions, zéro échec. La
   politique `memberships_update_role_owner`, absente du schéma distant, a été appliquée
   séparément puis ajoutée à la migration locale pour conserver la cohérence.
-- Prochaine action exacte : committer `PROGRESS.md`, la migration R1 et son test RLS,
-  sans inclure les changements préexistants non liés. Ne pas rejouer les migrations R1
-  ou R3 sur le projet distant.
+- Terminé et vérifié pour R3 : migration avatars appliquée au projet Supabase jetable ;
+  pgTAP 4/4, zéro échec. R3 validé par Laro ; R4 peut commencer.
+- Commit de suivi R1/R3 : `9bfd592` (`fix: validate R1 Supabase migration and RLS tests`).
+- Terminé et vérifié en R4 : le formulaire distingue l’auteur du responsable dans les
+  espaces partagés ; catégories facultatives pour dépenses/remboursements, requises pour
+  revenus. 63 tests, lint, typecheck, format check et `git diff --check` passent.
+- Prochaine action exacte : ajouter le filtre Dépenses/Revenus/Tout dans
+  `src/data/transaction-history.ts` et l’interface Historique de
+  `src/components/budget/local-data-view.tsx`, avec tests unitaires.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` avaient réussi avant ces corrections SQL ;
   `git diff --check` passe. Les tests pgTAP distants R1/R3 passent avec 29/29 et 4/4.
   Aucun test applicatif n’a été relancé pour ces seuls changements SQL.
+- Vérifications prévues pour R4 : `npm test`, `npm run lint`, `npm run typecheck`,
+  `npm run format:check`, `npm run build` et `git diff --check`. Aucune migration SQL
+  n’est prévue en R4 ; ne pas rejouer les migrations distantes.
 - Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
@@ -55,8 +63,8 @@
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
   prioritaire : adaptation minimale en R1, parcours complet en R4. P7 confirmé le
   2026-10-25 : bucket Storage privé et URLs signées pour les photos de profil.
-- Questions encore ouvertes : validation de Laro pour R3 avant de commencer R4.
-  L’essai manuel mobile/hors ligne est écarté à la demande de Laro.
+- Questions encore ouvertes : aucune décision bloquante pour R4. L’essai manuel
+  mobile/hors ligne est écarté à la demande de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration Supabase distante ne doit jamais être exécutée sans accord explicite ; R1
   et R3 ont déjà été appliquées sur le projet distant, ne pas les rejouer ;
@@ -69,8 +77,7 @@
 - Dernier jalon historique validé : M8 (2026-10-24).
 - Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
   appareils reste également à faire.
-- Réforme budget : R0–R2 terminés et validés ; R3 implémenté et vérifié, validation
-  finale de Laro attendue.
+- Réforme budget : R0–R3 terminés et validés ; R4 en cours.
 
 ## Jalons
 
@@ -94,15 +101,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                                  | Date       |
-| --- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                       | 2026-10-24 |
+| Lot | Statut                                                                                                 | Date       |
+| --- | ------------------------------------------------------------------------------------------------------ | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                      | 2026-10-24 |
 | R1  | Implémentation terminée ; validations automatisées et pgTAP distant réussis (29/29) ; Laro a validé R2 | 2026-10-25 |
-| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande                             | 2026-10-25 |
-| R3  | Implémentation et validations terminées ; pgTAP distant réussi (4/4) ; validation de Laro attendue                         | 2026-10-25 |
-| R4  | À faire — transactions, remboursements, ajustements et responsable                                                      |            |
-| R5  | À faire — forfaits                                                                                                      |            |
-| R6  | À faire — analyses                                                                                                      |            |
+| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande            | 2026-10-25 |
+| R3  | Implémentation et validations terminées ; pgTAP distant réussi (4/4) ; validation de Laro attendue     | 2026-10-25 |
+| R4  | À faire — transactions, remboursements, ajustements et responsable                                     |            |
+| R5  | À faire — forfaits                                                                                     |            |
+| R6  | À faire — analyses                                                                                     |            |
 
 ### État des lieux vérifié pour R0
 
@@ -125,16 +132,16 @@ le suivant.
 
 ### Tâches R1
 
-| Tâche                               | État                                                 | Détail                                                                                                            |
-| ----------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Contrats TypeScript/Zod             | Terminée, commitée et vérifiée                       | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                                |
-| Calculs purs et tests unitaires     | Terminée, commitée et vérifiée                       | Dépenses nettes, budget, reports et limites ; anciens calculs par comptes retirés                                 |
-| Migration Supabase et tests RLS     | Corrigés ; migration distante appliquée ; pgTAP réussi | `de32a7c`; 29/29 assertions, zéro échec ; politique propriétaire appliquée et intégrée à la migration locale       |
-| Schéma local Dexie et remise à zéro | Terminée, commitée                                   | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis         |
-| Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis            | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                           |
-| Synchronisation                     | Terminée, commitée ; 14 tests ciblés réussis         | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report                 |
-| Écran transactions minimum          | Terminée, commitée (`823b636`)                       | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
-| Validation R1                       | Réussie                                               | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP distant : 29/29, zéro échec                   |
+| Tâche                               | État                                                   | Détail                                                                                                            |
+| ----------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Contrats TypeScript/Zod             | Terminée, commitée et vérifiée                         | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                                |
+| Calculs purs et tests unitaires     | Terminée, commitée et vérifiée                         | Dépenses nettes, budget, reports et limites ; anciens calculs par comptes retirés                                 |
+| Migration Supabase et tests RLS     | Corrigés ; migration distante appliquée ; pgTAP réussi | `de32a7c`; 29/29 assertions, zéro échec ; politique propriétaire appliquée et intégrée à la migration locale      |
+| Schéma local Dexie et remise à zéro | Terminée, commitée                                     | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis         |
+| Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis              | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                           |
+| Synchronisation                     | Terminée, commitée ; 14 tests ciblés réussis           | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report                 |
+| Écran transactions minimum          | Terminée, commitée (`823b636`)                         | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
+| Validation R1                       | Réussie                                                | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP distant : 29/29, zéro échec                   |
 
 ### Tâches R2
 
@@ -147,15 +154,24 @@ le suivant.
 
 ### Tâches R3
 
-| Tâche                                      | État                 | Détail                                                                                                                                                                            |
-| ------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| En-tête compact et état de synchronisation | Terminée et vérifiée | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée. Commit `b039624`.                                              |
-| Navigation mobile et grand écran           | Terminée             | Barre mobile 5 places ; barre latérale groupée avec Forfaits désactivé jusqu’à R5, membres et réglages sous Espace ; Plus regroupe les outils. Commit `b039624`.                  |
-| Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif. Commit `da2e431`.                                                 |
-| Réglages de l’application                  | Terminée             | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé. Commit `5108755`.                                     |
-| Réglages de l’espace                       | Terminée             | Renommage pour le propriétaire ; archivage soft des espaces partagés, uniquement si un autre espace actif existe ; RLS existante demeure la protection serveur. Commit `0e56945`. |
+| Tâche                                      | État                    | Détail                                                                                                                                                                                                                   |
+| ------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| En-tête compact et état de synchronisation | Terminée et vérifiée    | Sélecteur d’espace mobile ; statut seulement si nécessaire ; avatar et déconnexion regroupés ; salutation retirée. Commit `b039624`.                                                                                     |
+| Navigation mobile et grand écran           | Terminée                | Barre mobile 5 places ; barre latérale groupée avec Forfaits désactivé jusqu’à R5, membres et réglages sous Espace ; Plus regroupe les outils. Commit `b039624`.                                                         |
+| Menu avatar et page Mon profil             | Terminée                | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif. Commit `da2e431`.                                                                                        |
+| Réglages de l’application                  | Terminée                | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé. Commit `5108755`.                                                                            |
+| Réglages de l’espace                       | Terminée                | Renommage pour le propriétaire ; archivage soft des espaces partagés, uniquement si un autre espace actif existe ; RLS existante demeure la protection serveur. Commit `0e56945`.                                        |
 | Photo de profil                            | Implémentée et vérifiée | P7 confirmé : bucket privé, téléversement WebP, suppression, URLs signées et avatars de membres ; `npm test` (63), lint, typecheck, format check et build OK. Commit `918982b` ; migration distante appliquée et testée. |
-| Validation R3                              | Terminée             | Vérifications applicatives automatisées OK ; pgTAP distant : 4/4 assertions, zéro échec ; essai téléphone écarté par Laro.                                  |
+| Validation R3                              | Terminée                | Vérifications applicatives automatisées OK ; pgTAP distant : 4/4 assertions, zéro échec ; essai téléphone écarté par Laro.                                                                                               |
+
+### Tâches R4
+
+| Tâche                                            | État                 | Détail                                                                                                                            |
+| ------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Formulaire complet et attribution du responsable | Terminée et vérifiée | Responsable distinct de l’auteur en espace partagé ; catégories facultatives pour dépenses/remboursements, requises pour revenus. |
+| Filtres de l’historique et attribution visible   | À faire              | Filtre Dépenses/Revenus/Tout ; distinguer le membre responsable de l’auteur de la saisie.                                         |
+| Vérification des agrégats R4                     | À faire              | Tester revenus, remboursements et ajustements selon les règles 3.1/3.2, sans impact hors périmètre.                               |
+| Validation R4                                    | À faire              | Tests, lint, typecheck, format check et build ; essai mobile écarté à la demande de Laro.                                         |
 
 ## Décisions prises
 
