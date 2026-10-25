@@ -2,9 +2,9 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 09:31 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 09:33 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R5 — attente de la validation de Laro avant R6. R4 a été
+- Lot/tâche en cours : R5 — tests pgTAP manuels autorisés, résultats en attente avant R6. R4 a été
   vu localement et validé par Laro le 2026-10-25.
   R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -82,18 +82,18 @@
   Répartition fixe/variable/non classée ajoutée au tableau de bord. `npm test` : 72 tests,
   12 fichiers ; lint, typecheck, format check, build et `git diff --check` passent.
   Le build réussit avec l’avertissement Vite non bloquant sur le chunk principal de 809 kB.
+  Laro a validé l’écran et le parcours R5 le 2026-10-25.
 - Fait mais pas encore vérifié en R5 : migration SQL avec politiques RLS, RPC d’écriture
   avec contrôle de version, arrêt/split de série et génération mensuelle idempotente ;
   garde-fou contre la création client d’une occurrence au nom d’un autre créateur. Test
-  pgTAP de 33 assertions écrit mais non exécuté faute de PostgreSQL local. Rien n’a été
-  appliqué au Supabase distant. Pas d’essai visuel manuel effectué.
-- Prochaine action exacte : Laro valide l’écran et le parcours R5 dans l’application locale ;
-  ensuite, exécuter les 33 assertions pgTAP en ligne. Ne pas appliquer la migration R5
-  distante sans autorisation explicite distincte.
+  pgTAP de 33 assertions écrit mais non exécuté faute de PostgreSQL local. Laro a autorisé
+  l’application au projet Supabase jetable, mais la migration n’est pas encore exécutée.
+- Prochaine action exacte : dans le SQL Editor du projet Supabase jetable, exécuter
+  `supabase/migrations/20261025090000_r5_recurring_expenses.sql`, puis exécuter
+  `supabase/tests/database/003_recurring_expenses.test.sql` et reporter le résultat.
 - Vérifications R5 : `npm test` (72 tests/12 fichiers), `npm run lint`,
   `npm run typecheck`, `npm run format:check`, `npm run build` et `git diff --check`
-  réussis le 2026-10-25. pgTAP (33 assertions) reste à exécuter manuellement ; le déploiement
-  de la migration distante n’a pas été autorisé.
+  réussis le 2026-10-25. pgTAP (33 assertions) reste à exécuter manuellement.
 - Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
@@ -106,12 +106,14 @@
   latérale sur ordinateur ; propriétaire seul pour créer/modifier/arrêter, lecture hors
   ligne ; modification d’une occurrence ou de la série ; confirmation avant génération
   rétroactive ; génération des mois manqués en ligne à l’ouverture d’un mois.
-- Questions encore ouvertes : validation des tests SQL et autorisation explicite avant
-  toute application de la nouvelle migration R5 au projet Supabase. L’essai manuel
-  mobile/hors ligne est écarté à la demande de Laro.
+- 2026-10-25 : Laro a validé l’écran R5 et autorisé explicitement l’application de la
+  migration R5 sur le projet Supabase jetable pour exécuter les 33 tests pgTAP. Cette
+  autorisation ne vaut pas pour un autre projet.
+- Questions encore ouvertes : résultats des 33 assertions pgTAP après exécution. L’essai
+  manuel mobile/hors ligne est écarté à la demande de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
-  migration Supabase distante ne doit jamais être exécutée sans accord explicite ; R1
-  et R3 ont déjà été appliquées sur le projet distant, ne pas les rejouer ;
+  migration R5 est autorisée uniquement sur le projet Supabase jetable confirmé par Laro ;
+  vérifier le projet avant exécution ; R1 et R3 ont déjà été appliquées, ne pas les rejouer ;
   workflow Cloudflare `deploy-pages.yml` doit se déclencher uniquement sur `main` ;
   vérifié : son déclencheur push ne cible que `main`. Aucun push n’a été effectué.
 
