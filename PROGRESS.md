@@ -2,9 +2,9 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 09:06 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 09:14 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R5 — migration Supabase, RLS et génération idempotente. R4 a été
+- Lot/tâche en cours : R5 — écran Forfaits et parcours utilisateur. R4 a été
   vu localement et validé par Laro le 2026-10-25.
   R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -57,9 +57,10 @@
   des calculs : 13/13. Suite complète : 66 tests ; lint, typecheck, format check et
   `git diff --check` passent. `npm run build` réussit ; avertissement Vite existant :
   bundle JavaScript principal de 791 kB.
-- Prochaine action exacte : ouvrir `supabase/migrations/20261025000000_r3_private_avatars.sql`
-  et `supabase/tests/database/002_private_avatars.test.sql` pour réutiliser les conventions,
-  puis créer une migration R5 et son test pgTAP dans `supabase/tests/database/`.
+- Prochaine action exacte : intégrer un nouvel écran `RecurringExpensesView` dans
+  `src/App.tsx`, avec les RPC définis dans
+  `supabase/migrations/20261025090000_r5_recurring_expenses.sql`; lire le hook de synchronisation
+  et le composant de transactions avant d’ajouter le parcours.
 - Vérifications à lancer pour R5 : `npm test`, `npm run lint`, `npm run typecheck`,
   `npm run format:check`, `npm run build`, `git diff --check` et pgTAP exécuté manuellement
   en ligne. Ne pas exécuter la migration distante sans nouvel accord explicite.
@@ -76,9 +77,10 @@
   pull synchronisé en lecture seule. Tests de migration Dexie v4→v5, bootstrap et pull
   inclus. Validation : 68 tests, lint, typecheck, format check, build et `git diff --check`
   réussis le 2026-10-25. Le build garde l’avertissement Vite sur le bundle (~794 kB).
-- Pas encore fait/vérifié en R5 : migration SQL, politiques RLS, génération mensuelle,
-  tests pgTAP, écran et parcours utilisateur. Aucune migration R5 n’a été créée ou
-  appliquée au Supabase distant.
+- Fait mais pas encore vérifié en R5 : migration SQL avec politiques RLS, RPC d’écriture
+  avec contrôle de version, arrêt/split de série et génération mensuelle idempotente ;
+  test pgTAP de 32 assertions écrit mais non exécuté faute de PostgreSQL local. Rien n’a
+  été appliqué au Supabase distant. L’écran et le parcours utilisateur restent à faire.
 - Vérifications prévues R5 : `npm test`, `npm run lint`, `npm run typecheck`,
   `npm run format:check`, `npm run build`, `git diff --check` et tests SQL pgTAP. Pas de
   PostgreSQL local confirmé ; la nouvelle migration distante attendra une autorisation
@@ -204,12 +206,12 @@ le suivant.
 
 ### Tâches R5
 
-| Tâche                                             | État    | Détail                                                                                                                        |
-| ------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Modèle, Dexie, bootstrap et synchronisation       | Terminé | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
-| Migration Supabase, RLS et génération idempotente | À faire | RPC propriétaire/version ; génération mensuelle membre ; tests pgTAP, aucun push distant.                                     |
-| Écran Forfaits et parcours                        | À faire | Lecture hors ligne ; création/modification/arrêt en ligne ; occurrence ou série.                                              |
-| Validation R5                                     | À faire | Tests, lint, typecheck, format, build, SQL ; demander validation avant R6.                                                    |
+| Tâche                                             | État       | Détail                                                                                                                        |
+| ------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Modèle, Dexie, bootstrap et synchronisation       | Terminé    | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
+| Migration Supabase, RLS et génération idempotente | À vérifier | Migration et pgTAP (32 assertions) écrits ; exécution manuelle requise, migration distante non appliquée.                     |
+| Écran Forfaits et parcours                        | En cours   | Lecture hors ligne ; création/modification/arrêt en ligne ; occurrence ou série.                                              |
+| Validation R5                                     | À faire    | Tests, lint, typecheck, format, build, SQL ; demander validation avant R6.                                                    |
 
 ## Décisions prises
 
