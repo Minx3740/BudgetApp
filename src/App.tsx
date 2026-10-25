@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BudgetDashboard } from './components/budget/budget-dashboard'
 import { LocalDataView } from './components/budget/local-data-view'
+import { RecurringExpensesView } from './components/budget/recurring-expenses-view'
 import {
   InvitationAcceptance,
   WorkspaceManagement,
@@ -37,6 +38,7 @@ import {
   useWorkspaces,
 } from './data/hooks'
 import { monthKeyForDate, shiftMonth } from './data/calculations'
+import { generateRecurringForMonth } from './data/recurring-expenses'
 import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync'
 import { supabase } from './lib/supabase'
 
@@ -45,6 +47,7 @@ type AppSection =
   | 'home'
   | 'transactions'
   | 'budgets'
+  | 'recurring-expenses'
   | 'spaces'
   | 'workspace-settings'
   | 'profile'
@@ -78,6 +81,11 @@ const sectionDetails: Record<
     description: 'Retrouve ici l’enveloppe du mois et les seuils par catégorie.',
     milestone: 'Ton enveloppe, ton solde et les seuils sont calculés sur cet appareil.',
   },
+  'recurring-expenses': {
+    title: 'Forfaits',
+    description: 'Les dépenses qui reviennent chaque mois.',
+    milestone: 'Crée, modifie ou arrête les forfaits de cet espace.',
+  },
   spaces: {
     title: 'Espaces',
     description: 'Ton espace personnel est prêt pour la suite.',
@@ -101,7 +109,7 @@ const sectionDetails: Record<
   plus: {
     title: 'Plus',
     description: 'Les outils moins fréquents et les réglages de l’espace.',
-    milestone: 'Les fonctions de forfaits seront disponibles dans le lot R5.',
+    milestone: 'Retrouve les forfaits et les réglages moins fréquents.',
   },
 }
 
@@ -675,6 +683,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     const abortController = new AbortController()
     syncAbortController.current = abortController
     const syncEngine = createSupabaseSyncEngine(client, session.user.id)
+    let generatedMonthKey: string | null = null
 
     function synchronize() {
       if (
@@ -689,8 +698,23 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
       isRunning = true
       setIsSyncing(true)
       setSyncError(null)
-      void syncEngine
-        .synchronize(abortController.signal)
+      void (async () => {
+        await syncEngine.synchronize(abortController.signal)
+        if (abortController.signal.aborted || !activeWorkspace?.id) return
+
+        const monthKey = `${activeWorkspace.id}:${selectedMonth}`
+        if (generatedMonthKey !== monthKey) {
+          const generatedCount = await generateRecurringForMonth(
+            client,
+            activeWorkspace.id,
+            selectedMonth,
+          )
+          generatedMonthKey = monthKey
+          if (generatedCount > 0) {
+            await syncEngine.synchronize(abortController.signal)
+          }
+        }
+      })()
         .catch((failure: unknown) => {
           if (!isMounted || abortController.signal.aborted) {
             return
@@ -728,7 +752,16 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
       window.removeEventListener('online', synchronize)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [bootstrapError, client, isBootstrapping, isOnline, session.user.id, syncAttempt])
+  }, [
+    activeWorkspace?.id,
+    bootstrapError,
+    client,
+    isBootstrapping,
+    isOnline,
+    selectedMonth,
+    session.user.id,
+    syncAttempt,
+  ])
 
   async function retrySynchronization() {
     setSyncError(null)
@@ -907,15 +940,11 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
         <nav aria-label="Navigation principale" className="grid gap-1">
           {navigation.map(renderNavigationItem)}
-          <button
-            className="flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-medium text-stone-400"
-            disabled
-            title="Les forfaits seront disponibles dans le lot R5."
-            type="button"
-          >
-            <RefreshCw aria-hidden="true" size={20} strokeWidth={1.8} />
-            Forfaits
-          </button>
+          {renderNavigationItem({
+            id: 'recurring-expenses',
+            label: 'Forfaits',
+            icon: RefreshCw,
+          })}
         </nav>
 
         <div className="mt-6">
@@ -1249,6 +1278,16 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               mode="manage"
               workspaceId={activeWorkspace?.id}
             />
+          ) : activeSection === 'recurring-expenses' ? (
+            <RecurringExpensesView
+              canManage={canManageWorkspace}
+              client={client}
+              isOnline={isOnline}
+              key={`${activeWorkspace?.id}:${selectedMonth}`}
+              month={selectedMonth}
+              onRefresh={() => setBootstrapAttempt((attempt) => attempt + 1)}
+              workspaceId={activeWorkspace?.id}
+            />
           ) : activeSection === 'spaces' ? (
             <WorkspaceManagement
               client={client}
@@ -1383,11 +1422,10 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 </Button>
                 <Button
                   className="min-h-16 justify-between text-left"
-                  disabled
-                  title="Disponible dans le lot R5"
+                  onClick={() => setActiveSection('recurring-expenses')}
                   variant="outline"
                 >
-                  Forfaits · bientôt disponibles
+                  Forfaits
                   <RefreshCw aria-hidden="true" size={18} />
                 </Button>
               </div>

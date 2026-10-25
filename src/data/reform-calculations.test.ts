@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateMonthLedger } from './reform-calculations'
+import { calculateExpenseComposition, calculateMonthLedger } from './reform-calculations'
 import type { CashflowTransaction, MonthCarryDecision, MonthlyBudget } from './models'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
@@ -58,6 +58,54 @@ function decision(month: string, accepted: boolean): MonthCarryDecision {
 }
 
 describe('calculs budget, solde et report R1', () => {
+  it('sépare les dépenses fixes, variables et non classées', () => {
+    const recurringId = '00000000-0000-4000-8000-000000000099'
+    const transactions = [
+      {
+        ...transaction(
+          '00000000-0000-4000-8000-000000000081',
+          'expense',
+          10_000,
+          '2026-10-02',
+          categoryId,
+        ),
+        recurring_id: recurringId,
+        recurring_month: '2026-10-01',
+      },
+      transaction(
+        '00000000-0000-4000-8000-000000000082',
+        'expense',
+        6_000,
+        '2026-10-03',
+        categoryId,
+      ),
+      transaction('00000000-0000-4000-8000-000000000083', 'expense', 2_000, '2026-10-04'),
+      transaction('00000000-0000-4000-8000-000000000084', 'refund', 500, '2026-10-05'),
+      transaction(
+        '00000000-0000-4000-8000-000000000085',
+        'income',
+        90_000,
+        '2026-10-06',
+        categoryId,
+      ),
+      transaction(
+        '00000000-0000-4000-8000-000000000086',
+        'expense',
+        1_000,
+        '2026-10-07',
+        null,
+        timestamp,
+      ),
+    ]
+
+    expect(calculateExpenseComposition('2026-10-01', transactions)).toEqual({
+      fixedExpenses: 10_000,
+      variableExpenses: 7_500,
+      uncategorizedExpenses: 1_500,
+      netExpenses: 17_500,
+    })
+  })
+
   it('calcule le budget global séparément des dépenses nettes et des seuils', () => {
     const summary = calculateMonthLedger(
       '2026-10-01',

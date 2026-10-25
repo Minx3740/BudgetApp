@@ -10,7 +10,7 @@ import {
   useTransactions,
 } from '@/data/hooks'
 import { calculateMonthlyBudgetSummary, shiftMonth } from '@/data/calculations'
-import { calculateMonthLedger } from '@/data/reform-calculations'
+import { calculateExpenseComposition, calculateMonthLedger } from '@/data/reform-calculations'
 import {
   budgetsRepository,
   monthCarryDecisionsRepository,
@@ -46,6 +46,10 @@ function formatMonth(month: string): string {
 function progressPercentage(spent: number, budget: number): number {
   if (budget === 0) return spent > 0 ? 100 : 0
   return Math.round(Math.max(0, Math.min((spent / budget) * 100, 100)))
+}
+
+function expenseShare(amount: number, total: number): string {
+  return total > 0 ? `${Math.round((amount / total) * 100)} %` : 'Part non disponible'
 }
 
 function budgetErrorMessage(failure: unknown, item = 'seuil'): string {
@@ -124,18 +128,21 @@ export function BudgetDashboard({
           transactions,
           carryDecisions,
         ),
+        composition: calculateExpenseComposition(month, transactions),
         error: null,
       }
     } catch (failure) {
       return {
         current: null,
         previous: null,
+        composition: null,
         error: failure instanceof Error ? failure.message : 'Erreur inconnue de calcul.',
       }
     }
   }, [carryDecisions, month, monthlyBudgets, transactions])
   const currentLedger = ledger.current
   const previousLedger = ledger.previous
+  const expenseComposition = ledger.composition
   const monthBudgets = budgets.filter(
     (budget) => budget.month === month && budget.deleted_at === null,
   )
@@ -697,6 +704,57 @@ export function BudgetDashboard({
             </p>
           </CardContent>
         )}
+      </Card>
+
+      <Card className="mt-6 rounded-2xl border-0 shadow-sm ring-stone-200">
+        <CardHeader>
+          <CardTitle>Répartition des dépenses · {formatMonth(month)}</CardTitle>
+          <CardDescription>
+            Les forfaits sont fixes ; les autres dépenses et remboursements sont variables.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-emerald-50 p-4">
+            <p className="text-sm text-emerald-900">Dépenses fixes</p>
+            <p className="mt-1 text-lg font-bold">
+              {expenseComposition ? formatMoney(expenseComposition.fixedExpenses) : 'Indisponible'}
+            </p>
+            {expenseComposition ? (
+              <p className="mt-1 text-xs text-emerald-900">
+                {expenseShare(expenseComposition.fixedExpenses, expenseComposition.netExpenses)}
+              </p>
+            ) : null}
+          </div>
+          <div className="rounded-xl bg-stone-50 p-4">
+            <p className="text-sm text-stone-700">Dépenses variables nettes</p>
+            <p className="mt-1 text-lg font-bold">
+              {expenseComposition
+                ? formatMoney(expenseComposition.variableExpenses)
+                : 'Indisponible'}
+            </p>
+            {expenseComposition ? (
+              <p className="mt-1 text-xs text-stone-600">
+                {expenseShare(expenseComposition.variableExpenses, expenseComposition.netExpenses)}
+              </p>
+            ) : null}
+          </div>
+          <div className="rounded-xl bg-amber-50 p-4">
+            <p className="text-sm text-amber-950">Non classé · net</p>
+            <p className="mt-1 text-lg font-bold">
+              {expenseComposition
+                ? formatMoney(expenseComposition.uncategorizedExpenses)
+                : 'Indisponible'}
+            </p>
+            {expenseComposition ? (
+              <p className="mt-1 text-xs text-amber-950">
+                {expenseShare(
+                  expenseComposition.uncategorizedExpenses,
+                  expenseComposition.netExpenses,
+                )}
+              </p>
+            ) : null}
+          </div>
+        </CardContent>
       </Card>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">

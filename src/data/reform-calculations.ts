@@ -14,6 +14,13 @@ export interface MonthLedger {
   remainingBudget: number | null
 }
 
+export interface ExpenseComposition {
+  fixedExpenses: number
+  variableExpenses: number
+  uncategorizedExpenses: number
+  netExpenses: number
+}
+
 function addSafe(left: number, right: number): number {
   const result = left + right
   if (!Number.isSafeInteger(result)) {
@@ -28,6 +35,41 @@ function monthTransactions(month: string, transactions: CashflowTransaction[]) {
     (transaction) =>
       transaction.deleted_at === null && transaction.occurred_on.startsWith(`${prefix}-`),
   )
+}
+
+export function calculateExpenseComposition(
+  month: string,
+  transactions: CashflowTransaction[],
+): ExpenseComposition {
+  shiftMonth(month, 0)
+  let fixedExpenses = 0
+  let variableExpenses = 0
+  let uncategorizedExpenses = 0
+
+  for (const transaction of monthTransactions(month, transactions)) {
+    if (transaction.kind === 'expense') {
+      if (transaction.recurring_id === null) {
+        variableExpenses = addSafe(variableExpenses, transaction.amount)
+      } else {
+        fixedExpenses = addSafe(fixedExpenses, transaction.amount)
+      }
+      if (transaction.category_id === null) {
+        uncategorizedExpenses = addSafe(uncategorizedExpenses, transaction.amount)
+      }
+    } else if (transaction.kind === 'refund') {
+      variableExpenses = addSafe(variableExpenses, -transaction.amount)
+      if (transaction.category_id === null) {
+        uncategorizedExpenses = addSafe(uncategorizedExpenses, -transaction.amount)
+      }
+    }
+  }
+
+  return {
+    fixedExpenses,
+    variableExpenses,
+    uncategorizedExpenses,
+    netExpenses: addSafe(fixedExpenses, variableExpenses),
+  }
 }
 
 function totalsForMonth(month: string, transactions: CashflowTransaction[]) {
