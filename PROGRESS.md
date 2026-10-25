@@ -2,9 +2,10 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 01:10 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 07:45 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R3 — navigation, compte et réglages. R2 est validé par Laro ;
+- Lot/tâche en cours : R3 — validation SQL terminée ; attendre la validation de Laro
+  avant de commencer R4. R2 est validé par Laro ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
 - Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
   et Budgets affichent budget, dépenses nettes et solde ; les décisions de report sont
@@ -26,20 +27,26 @@
   Validations de cette étape : 60 tests, lint, typecheck, format check et build OK.
   Aucune vérification visuelle responsive ne peut être revendiquée ; essai téléphone écarté
   à la demande de Laro. Les actions de renommage/archivage utilisent les politiques RLS
-  existantes ; aucun test SQL ni accès Supabase distant n’a été effectué.
+  existantes et n’ont nécessité aucun changement de schéma.
 - Terminé et vérifié en R3 : photos de profil en WebP redimensionnées à 256 × 256,
   téléversement dans un bucket privé, affichage avec URL signée et renouvelée, possibilité
-  de retirer la photo, et avatars des membres dans les réglages d’espace. Migration et
-  tests pgTAP écrits mais non exécutés ; aucune migration distante n’a été appliquée.
+  de retirer la photo, et avatars des membres dans les réglages d’espace. Migration
+  appliquée au projet Supabase jetable avec l’accord explicite de Laro ; pgTAP : 4/4,
+  zéro échec.
 - Vérifications du changement photo : `npm test` (63 tests), `npm run lint`,
   `npm run typecheck`, `npm run format:check` et `npm run build` réussis. Le build conserve
   l’avertissement Vite sur le bundle JavaScript supérieur à 500 kB.
-- Prochaine action exacte : vérifier la disponibilité d’un environnement PostgreSQL local
-  pour exécuter `supabase/tests/database/002_private_avatars.test.sql`, puis consigner le
-  résultat ; ne jamais appliquer cette migration au projet distant sans accord explicite.
+- Terminé et vérifié pour R1 : migration appliquée au projet Supabase jetable ; tests
+  pgTAP exécutés dans une transaction annulée : 29/29 assertions, zéro échec. La
+  politique `memberships_update_role_owner`, absente du schéma distant, a été appliquée
+  séparément puis ajoutée à la migration locale pour conserver la cohérence.
+- Prochaine action exacte : committer `PROGRESS.md`, la migration R1 et son test RLS,
+  sans inclure les changements préexistants non liés. Ne pas rejouer les migrations R1
+  ou R3 sur le projet distant.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
-  `npm run build`, `npm run format:check` et tests SQL pgTAP. Aucun test ne doit
-  appliquer de migration au projet Supabase distant.
+  `npm run build`, `npm run format:check` avaient réussi avant ces corrections SQL ;
+  `git diff --check` passe. Les tests pgTAP distants R1/R3 passent avec 29/29 et 4/4.
+  Aucun test applicatif n’a été relancé pour ces seuls changements SQL.
 - Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
@@ -48,12 +55,11 @@
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
   prioritaire : adaptation minimale en R1, parcours complet en R4. P7 confirmé le
   2026-10-25 : bucket Storage privé et URLs signées pour les photos de profil.
-- Questions encore ouvertes : tests pgTAP R1 et R3 à exécuter lorsqu’un environnement
-  PostgreSQL local sera disponible. Aucun PostgreSQL local n’est disponible actuellement ;
-  aucune installation n’a été lancée. L’essai manuel mobile/hors ligne est écarté à la
-  demande de Laro.
+- Questions encore ouvertes : validation de Laro pour R3 avant de commencer R4.
+  L’essai manuel mobile/hors ligne est écarté à la demande de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
-  migration Supabase distante ne doit jamais être exécutée sans accord explicite ;
+  migration Supabase distante ne doit jamais être exécutée sans accord explicite ; R1
+  et R3 ont déjà été appliquées sur le projet distant, ne pas les rejouer ;
   workflow Cloudflare `deploy-pages.yml` doit se déclencher uniquement sur `main` ;
   vérifié : son déclencheur push ne cible que `main`. Aucun push n’a été effectué.
 
@@ -63,7 +69,8 @@
 - Dernier jalon historique validé : M8 (2026-10-24).
 - Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
   appareils reste également à faire.
-- Réforme budget : R0–R2 terminés et R2 validé ; R3 en cours.
+- Réforme budget : R0–R2 terminés et validés ; R3 implémenté et vérifié, validation
+  finale de Laro attendue.
 
 ## Jalons
 
@@ -90,9 +97,9 @@ le suivant.
 | Lot | Statut                                                                                                                  | Date       |
 | --- | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
 | R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                       | 2026-10-24 |
-| R1  | Implémentation terminée ; validations disponibles réussies ; pgTAP non exécuté faute d’outils locaux ; Laro a validé R2 | 2026-10-24 |
+| R1  | Implémentation terminée ; validations automatisées et pgTAP distant réussis (29/29) ; Laro a validé R2 | 2026-10-25 |
 | R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande                             | 2026-10-25 |
-| R3  | En cours — navigation, réglages et photos implémentés ; validation SQL locale en attente                                  | 2026-10-25 |
+| R3  | Implémentation et validations terminées ; pgTAP distant réussi (4/4) ; validation de Laro attendue                         | 2026-10-25 |
 | R4  | À faire — transactions, remboursements, ajustements et responsable                                                      |            |
 | R5  | À faire — forfaits                                                                                                      |            |
 | R6  | À faire — analyses                                                                                                      |            |
@@ -122,12 +129,12 @@ le suivant.
 | ----------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Contrats TypeScript/Zod             | Terminée, commitée et vérifiée                       | Montants sûrs, budgets globaux/catégorie, reports et nouveaux types de transaction                                |
 | Calculs purs et tests unitaires     | Terminée, commitée et vérifiée                       | Dépenses nettes, budget, reports et limites ; anciens calculs par comptes retirés                                 |
-| Migration Supabase et tests RLS     | Code simplifié et commité ; non validé à l’exécution | `de32a7c`; pgTAP réécrit ; outil PostgreSQL local absent, aucun accès distant autorisé                            |
+| Migration Supabase et tests RLS     | Corrigés ; migration distante appliquée ; pgTAP réussi | `de32a7c`; 29/29 assertions, zéro échec ; politique propriétaire appliquée et intégrée à la migration locale       |
 | Schéma local Dexie et remise à zéro | Terminée, commitée                                   | v2→v4 vide les données de test/outbox, retire `accounts` et ajoute les tables R1 ; 9 tests ciblés réussis         |
 | Repositories et bootstrap           | Terminée, commitée ; tests ciblés réussis            | Import/purge des budgets mensuels et décisions de report ; repositories R1 sans comptes                           |
 | Synchronisation                     | Terminée, commitée ; 14 tests ciblés réussis         | Push/pull catégories, transactions, budgets de catégorie, budgets mensuels et décisions de report                 |
 | Écran transactions minimum          | Terminée, commitée (`823b636`)                       | Dépenses, remboursements, revenus et ajustements ; comptes/transferts retirés ; parcours complet conservé pour R4 |
-| Validation R1                       | Réussie sauf SQL non exécuté                         | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP bloqué par l’absence d’outils locaux          |
+| Validation R1                       | Réussie                                               | `npm test` : 56 ; lint, typecheck, build, format check : OK ; pgTAP distant : 29/29, zéro échec                   |
 
 ### Tâches R2
 
@@ -147,12 +154,15 @@ le suivant.
 | Menu avatar et page Mon profil             | Terminée             | Le menu sépare Mon profil et Réglages de l’application ; la page profil affiche identité, e-mail et rôle actif. Commit `da2e431`.                                                 |
 | Réglages de l’application                  | Terminée             | Thème système/clair/sombre local, langue française, lien de modification du mot de passe et À propos ; état de sync séparé. Commit `5108755`.                                     |
 | Réglages de l’espace                       | Terminée             | Renommage pour le propriétaire ; archivage soft des espaces partagés, uniquement si un autre espace actif existe ; RLS existante demeure la protection serveur. Commit `0e56945`. |
-| Photo de profil                            | Implémentée et vérifiée | P7 confirmé : bucket privé, téléversement WebP, suppression, URLs signées et avatars de membres ; `npm test` (63), lint, typecheck, format check et build OK. Commit `918982b` ; migration non appliquée. |
-| Validation R3                              | En cours             | Vérifications applicatives automatisées OK ; tests pgTAP non exécutés faute d’environnement PostgreSQL local ; essai téléphone écarté par Laro.                                  |
+| Photo de profil                            | Implémentée et vérifiée | P7 confirmé : bucket privé, téléversement WebP, suppression, URLs signées et avatars de membres ; `npm test` (63), lint, typecheck, format check et build OK. Commit `918982b` ; migration distante appliquée et testée. |
+| Validation R3                              | Terminée             | Vérifications applicatives automatisées OK ; pgTAP distant : 4/4 assertions, zéro échec ; essai téléphone écarté par Laro.                                  |
 
 ## Décisions prises
 
 - 2026-10-24 : nom officiel de l'application : cashFlow+.
+- 2026-10-25 : Laro a confirmé que le projet Supabase affiché « Production » est jetable
+  et a autorisé la suppression de ses données ainsi que l’application des migrations R1
+  et R3 ; ces migrations ont été appliquées, ne pas les rejouer.
 - 2026-10-24 : l'import initial des données Supabase dans Dexie précède les écrans M5 afin de conserver les identifiants des espaces et des données déjà créés côté serveur.
 - 2026-10-19 : Vite + React + TypeScript (SPA) à la place de Next.js, car l'app est pilotée par la base locale et n'a pas besoin de rendu serveur.
 - 2026-10-19 : vite-plugin-pwa à la place de Serwist (conséquence du choix de Vite).

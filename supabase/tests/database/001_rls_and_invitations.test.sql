@@ -106,6 +106,42 @@ values (
   false
 );
 
+insert into public.invitations (
+  id, workspace_id, token_hash, role, expires_at, revoked_at, created_by
+)
+values
+  (
+    '39000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    encode(extensions.digest(convert_to('valid-invitation-token-32-bytes!', 'UTF8'), 'sha256'), 'hex'),
+    'member',
+    now() + interval '7 days',
+    null,
+    '10000000-0000-0000-0000-000000000001'
+  ),
+  (
+    '39000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000001',
+    encode(extensions.digest(convert_to('expired-invitation-token-32-bytes!', 'UTF8'), 'sha256'), 'hex'),
+    'member',
+    now() - interval '1 minute',
+    null,
+    '10000000-0000-0000-0000-000000000001'
+  ),
+  (
+    '39000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000001',
+    encode(extensions.digest(convert_to('revoked-invitation-token-32-bytes!', 'UTF8'), 'sha256'), 'hex'),
+    'member',
+    now() + interval '7 days',
+    now(),
+    '10000000-0000-0000-0000-000000000001'
+  );
+
+update public.invitations
+set revoked_at = now()
+where id = '39000000-0000-0000-0000-000000000003';
+
 select throws_ok(
   $$insert into public.transactions (
       id, workspace_id, category_id, kind, amount, occurred_on, created_by, paid_by
@@ -136,7 +172,7 @@ select throws_ok(
       '10000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001'
     )$$,
-  '23503',
+  'P0001',
   null,
   'a transaction cannot reference a category from another workspace'
 );
@@ -351,6 +387,8 @@ select throws_ok(
 );
 
 reset role;
+delete from public.transactions
+where id = '36000000-0000-0000-0000-000000000012';
 delete from public.memberships
 where workspace_id = '20000000-0000-0000-0000-000000000001'
   and user_id = '10000000-0000-0000-0000-000000000002';

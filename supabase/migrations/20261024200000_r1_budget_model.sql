@@ -12,11 +12,19 @@ alter table public.transactions
   drop constraint if exists transactions_amount_check,
   drop constraint if exists transactions_check;
 
+drop trigger if exists categories_protect_budget_kind on public.categories;
 alter table public.categories
   alter column kind type public.category_kind using kind::text::public.category_kind;
+create trigger categories_protect_budget_kind
+  before update of kind on public.categories
+  for each row execute function private.protect_budget_category_kind();
 drop trigger if exists accounts_set_timestamps on public.accounts;
 drop trigger if exists accounts_lock_workspace_id on public.accounts;
 drop trigger if exists accounts_lock_id on public.accounts;
+drop trigger if exists transactions_set_timestamps on public.transactions;
+drop trigger if exists transactions_lock_workspace_id on public.transactions;
+drop trigger if exists transactions_lock_author on public.transactions;
+drop trigger if exists transactions_lock_id on public.transactions;
 drop index if exists public.transactions_account_id_idx;
 
 create type public.cashflow_transaction_kind as enum (
@@ -209,6 +217,18 @@ create policy budgets_update_owner on public.budgets
   for update to authenticated
   using (private.has_workspace_role(workspace_id, array['owner']::public.member_role[]))
   with check (private.has_workspace_role(workspace_id, array['owner']::public.member_role[]));
+
+drop policy if exists memberships_update_role_owner on public.memberships;
+create policy memberships_update_role_owner on public.memberships
+  for update to authenticated
+  using (
+    role <> 'owner'
+    and private.has_workspace_role(workspace_id, array['owner']::public.member_role[])
+  )
+  with check (
+    role <> 'owner'
+    and private.has_workspace_role(workspace_id, array['owner']::public.member_role[])
+  );
 
 drop policy if exists transactions_update_writer on public.transactions;
 create policy transactions_update_author_or_owner on public.transactions
