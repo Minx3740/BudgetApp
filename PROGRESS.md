@@ -2,11 +2,37 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 18:32 (UTC+03:00).
-- Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
-  `main`.
-- Lot/tâche en cours : intégration du logo cashFlow+ terminée, vérifiée et commitée en trois
-  points ; pousser uniquement `reforme-budget`.
+- Dernière mise à jour : 2026-10-25 19:20 (UTC+03:00).
+- Branche courante : `reforme-budget`. Objectif de la tâche : préparer et demander sa
+  fusion dans `main`; aucune fusion n'a encore été faite.
+- Tâche en cours : promotion en production après l'implémentation des lots R0–R9 et du
+  logo cashFlow+. Les cinq changements locaux préexistants ont été examinés et committés
+  séparément par sujet ; `.env.example` ne contient que des valeurs vides. Commits :
+  `8b2a5b1`, `9b31946`, `d5d0a76`, `38648fa`, `fa309cb`, puis `282fde7` pour le formatage
+  du workflow CI.
+- Vérifications locales du 2026-10-25 : `npm run lint`, `npm run typecheck`,
+  `npm run format:check` (après correction Prettier de `.github/workflows/ci.yml`),
+  `npm test` (94 tests/15 fichiers) et `npm run build` réussis. Avertissement non bloquant
+  du build : bundle JavaScript principal de 819,68 kB.
+- Contrôle de promotion : le manifeste et les favicons sont intégrés ; les trois icônes
+  PWA sont déclarées et aucun « CF+ » n'est présent dans `src`. Le diff de branche ne
+  contient pas de fichier `.env` réel ; `.env.example` est un modèle sans valeurs.
+  Recherche de formats de secrets : aucun `sb_secret_` ni JWT détecté ; le build ne
+  contient qu'une clé `sb_publishable_`, prévue pour le navigateur.
+- Supabase : aucune action effectuée. Les huit migrations listées dans README sont déjà
+  appliquées au projet distant ; ne pas les rejouer ni en appliquer de nouvelle.
+- Déploiement : Cloudflare Pages déploie `main` en production et les autres branches en
+  aperçu. La PR, ses contrôles CI et le déploiement de production restent à faire.
+- Points restant hors de cette promotion : test de conflit M6 entre appareils et jalon
+  M10 ; deux observations d'interface non modifiées sans accord (deux boutons « Ajouter »
+  visibles sur grand écran, et l'onglet Catégories dans Transactions). Les essais du guide
+  téléphone sont rapportés par Laro, sans répétition indépendante dans cette tâche.
+- Prochaine action : pousser `reforme-budget`, ouvrir une PR vers `main`, attendre une CI
+  verte, fusionner par commit de merge sans supprimer la branche, puis vérifier Cloudflare
+  et les URLs de production.
+
+- Notes ci-dessous : historique de reprise antérieur à la promotion en cours ; en cas de
+  contradiction, les lignes datées ci-dessus décrivent l'état actuel.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
   références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.

@@ -4,6 +4,20 @@ Application web installable (PWA) de gestion de budget : un budget personnel et 
 
 Le cahier des charges est dans `docs/cahier-des-charges.md`. L'état d'avancement est dans `PROGRESS.md`.
 
+## État de livraison
+
+Les lots de réforme R0 à R9 et l'intégration du logo cashFlow+ sont implémentés. La
+promotion en production est en attente de la fusion de `reforme-budget` dans `main` et
+du déploiement Cloudflare Pages correspondant. Les huit migrations listées dans la
+section Cloudflare ont déjà été appliquées au projet Supabase distant ; aucune migration
+supplémentaire n'est prévue pour cette promotion.
+
+Restent notamment à faire : le test de conflit de synchronisation M6 entre deux appareils
+et le jalon historique M10. Deux points d'interface déjà signalés restent sans décision
+de modification : les deux actions « Ajouter » visibles sur grand écran et l'onglet
+« Catégories » placé dans Transactions. Les résultats du guide de test téléphone sont
+ceux rapportés par Laro, ils n'ont pas été rejoués indépendamment pour cette livraison.
+
 ## Stack
 
 Vite, React, TypeScript strict, Tailwind CSS 4, shadcn/ui, Supabase (Postgres, Auth, RLS), Dexie (IndexedDB), Zod et vite-plugin-pwa.
