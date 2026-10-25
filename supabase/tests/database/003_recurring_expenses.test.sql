@@ -84,7 +84,7 @@ select lives_ok(
       'Loyer',
       120000,
       '52000000-0000-0000-0000-000000000001',
-      5,
+      5::smallint,
       (date_trunc('month', current_date)::date - interval '2 months')::date
     )$$,
   'the owner can create a recurring expense'
@@ -107,7 +107,7 @@ select throws_ok(
       'Transport',
       5000,
       null,
-      1,
+      1::smallint,
       date_trunc('month', current_date)::date
     )$$,
   '42501',
@@ -293,7 +293,7 @@ select throws_ok(
       'Loyer modifié',
       130000,
       '52000000-0000-0000-0000-000000000001',
-      6
+      6::smallint
     )$$,
   '40001',
   'Ce forfait a été modifié, recharge la page',
@@ -312,7 +312,7 @@ select lives_ok(
       'Loyer révisé',
       130000,
       '52000000-0000-0000-0000-000000000001',
-      6
+      6::smallint
     )$$,
   'the owner can split a recurring expense from a month'
 );

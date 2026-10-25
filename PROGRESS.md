@@ -2,9 +2,9 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 09:50 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 10:06 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R5 — corriger les échecs pgTAP avant validation finale. R4 a été
+- Lot/tâche en cours : R5 — appliquer et vérifier le correctif SQL après autorisation. R4 a été
   vu localement et validé par Laro le 2026-10-25.
   R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -85,21 +85,23 @@
   Laro a validé l’écran et le parcours R5 le 2026-10-25.
 - Migration R5 : exécutée par Laro sur le projet Supabase jetable le 2026-10-25 après
   son autorisation explicite ; Supabase a confirmé « Success. No rows returned ».
-- Tests SQL R5 : pgTAP (33 assertions) exécuté dans une transaction annulée. Résultat
-  `# Looks like you failed 18 tests of 33`. Le SQL Editor n’a affiché que le résumé ; une
-  seconde exécution instrumentée pour capturer chaque ligne TAP n’a pas permis d’obtenir
-  le détail. Il faut isoler les assertions en échec avant de déclarer R5 validé.
-- Fait mais pas encore vérifié en R5 : migration SQL avec politiques RLS, RPC d’écriture
-  avec contrôle de version, arrêt/split de série et génération mensuelle idempotente ;
-  garde-fou contre la création client d’une occurrence au nom d’un autre créateur. La
-  validation fonctionnelle SQL est en échec partiel (18 échecs sur 33), diagnostic requis.
-- Prochaine action exacte : identifier les assertions pgTAP en échec dans le SQL Editor,
-  corriger la cause dans `supabase/migrations/20261025090000_r5_recurring_expenses.sql`
-  ou `supabase/tests/database/003_recurring_expenses.test.sql`, puis relancer les tests.
+- Tests SQL R5 : pgTAP (33 assertions) exécuté dans une transaction annulée. Le premier
+  essai avait 18 échecs, car les appels de test omettaient des casts `smallint`; casts
+  corrigés dans `003_recurring_expenses.test.sql`. Réexécution instrumentée : 25/33
+  réussis ; tests 23–27 et 29–31 échouent en cascade parce que le trigger de modification
+  appelle `private.set_timestamps()`, qui attend `deleted_at`, absent de `recurring_expenses`.
+- Correctif local fait, non appliqué : nouvelle fonction de timestamps spécifique aux
+  forfaits et trigger mis à jour dans la migration R5; migration corrective
+  `20261025095000_r5_recurring_expense_timestamps.sql` créée. La migration distante déjà
+  appliquée reste en place ; le correctif attend l’autorisation d’application.
+- Prochaine action exacte : obtenir l’accord explicite de Laro pour appliquer
+  `supabase/migrations/20261025095000_r5_recurring_expense_timestamps.sql` au même projet
+  Supabase jetable, puis rejouer les 33 assertions pgTAP.
 - Vérifications R5 : `npm test` (72 tests/12 fichiers), `npm run lint`,
   `npm run typecheck`, `npm run format:check`, `npm run build` et `git diff --check`
-  réussis le 2026-10-25. pgTAP : 33 exécutés, 18 en échec ; ne pas valider R5 tant que
-  ces échecs ne sont pas compris et corrigés.
+  réussis le 2026-10-25 avant le correctif SQL. pgTAP : 33 exécutés, 25 réussis et
+  8 échecs causés par le trigger de timestamps ; le correctif local doit être appliqué
+  au projet jetable et vérifié avant de valider R5.
 - Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
@@ -115,8 +117,9 @@
 - 2026-10-25 : Laro a validé l’écran R5 et autorisé explicitement l’application de la
   migration R5 sur le projet Supabase jetable pour exécuter les 33 tests pgTAP. La migration
   a été appliquée ; cette autorisation ne vaut pas pour un autre projet.
-- Questions encore ouvertes : détail et cause des 18 échecs pgTAP. L’essai manuel
-  mobile/hors ligne est écarté à la demande de Laro.
+- Questions encore ouvertes : autorisation pour appliquer la migration corrective, puis
+  résultat des 33 assertions pgTAP. L’essai manuel mobile/hors ligne est écarté à la demande
+  de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration R5 est autorisée uniquement sur le projet Supabase jetable confirmé par Laro ;
   vérifier le projet avant exécution ; R1 et R3 ont déjà été appliquées, ne pas les rejouer ;
@@ -227,12 +230,12 @@ le suivant.
 
 ### Tâches R5
 
-| Tâche                                             | État       | Détail                                                                                                                        |
-| ------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Modèle, Dexie, bootstrap et synchronisation       | Terminé    | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
-| Migration Supabase, RLS et génération idempotente | À corriger | Migration appliquée au projet jetable ; pgTAP exécuté : 18 échecs sur 33, diagnostic requis.                                  |
-| Écran Forfaits et parcours                        | Terminé    | Lecture hors ligne ; création/édition/arrêt ; génération au changement de mois ; tests automatisés réussis.                   |
-| Validation R5                                     | Bloquée    | Vérifications applicatives réussies ; 18 échecs pgTAP à corriger puis validation de Laro avant R6.                            |
+| Tâche                                             | État           | Détail                                                                                                                        |
+| ------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Modèle, Dexie, bootstrap et synchronisation       | Terminé        | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
+| Migration Supabase, RLS et génération idempotente | Correctif prêt | Migration appliquée au projet jetable ; helper de timestamps corrigé localement ; correctif distant et pgTAP en attente.      |
+| Écran Forfaits et parcours                        | Terminé        | Lecture hors ligne ; création/édition/arrêt ; génération au changement de mois ; tests automatisés réussis.                   |
+| Validation R5                                     | Bloquée        | Vérifications applicatives réussies ; appliquer le correctif SQL et réussir pgTAP avant validation de Laro/R6.                |
 
 ## Décisions prises
 
