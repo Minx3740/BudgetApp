@@ -2,12 +2,12 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 15:17 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 15:24 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R7 — nouveau modèle A du disponible. Implémentation, documentation
-  et vérifications terminées ; commit et push de `reforme-budget` à effectuer, puis arrêt
-  jusqu'à ce que Laro écrive « continue ». Les nouveaux lots R8/R9 ne sont pas commencés ;
+- Lot/tâche en cours : R7 — modèle A du disponible terminé, vérifié, committé et poussé
+  (`03a0600` sur `origin/reforme-budget`). Arrêt en attente du message « continue » de Laro.
+  Les nouveaux lots R8/R9 ne sont pas commencés ;
   certains écrans Transactions du futur R9 ont déjà été implémentés dans l'ancienne séquence.
   Aucun merge dans `main`; aucune migration sans accord de Laro.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
@@ -51,8 +51,8 @@
   doublé et l'emplacement de Catégories restent signalés sans correction non autorisée.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : commit R7, push uniquement `reforme-budget`, puis arrêt en
-  attente du message « continue ». Ne pas fusionner dans `main` et ne pas appliquer de SQL.
+- Prochaine action exacte : attendre que Laro vérifie R7 et écrive « continue » avant
+  d'entamer R8, puis R9. Ne pas fusionner dans `main` et ne pas appliquer de SQL.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
@@ -170,7 +170,7 @@ le suivant.
 | R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
 | R5  | Validé par Laro ; migration, interface et tests SQL terminés (33/33)                                   | 2026-10-25 |
 | R6  | Validé par Laro ; implémentation et contrôles terminés                                                 | 2026-10-25 |
-| R7  | Modèle A du disponible implémenté et validé automatiquement ; push puis revue de Laro en attente       | 2026-10-25 |
+| R7  | Modèle A du disponible implémenté, validé automatiquement et poussé ; revue de Laro en attente         | 2026-10-25 |
 | R8  | En attente du message « continue » après validation de R7                                              |            |
 | R9  | En attente du message « continue » après validation de R7 ; ancien code Transactions déjà présent      |            |
 
