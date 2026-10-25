@@ -2,9 +2,9 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 10:55 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 10:56 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R6 — résultats terminés, en attente de validation de Laro. Le « ok,
+- Lot/tâche en cours : réforme R0–R6 terminée ; R6 validé par Laro le 2026-10-25. Le « ok,
   reprends alors » de Laro valide R5 et autorise la reprise du lot suivant.
   R5 est terminé et validé ; R4 a été vu localement et validé par Laro le 2026-10-25.
   R3 a été validé par Laro le 2026-10-25 ;
@@ -106,8 +106,8 @@
   (avertissement Vite existant, non bloquant).
 - Fait mais pas vérifié manuellement : rendu responsive dans un navigateur ; Laro a demandé
   précédemment de ne pas faire d’essai smartphone.
-- Prochaine action exacte : demander à Laro de valider R6. Aucun déploiement ni migration
-  Supabase n’est requis pour ce lot.
+- Prochaine action exacte : aucune tâche R0–R6 restante ; attendre les nouvelles consignes
+  de Laro. Aucun déploiement ni migration Supabase n’a été réalisé pour R6.
 - Vérifications R5 : `npm test` (72 tests/12 fichiers), `npm run lint`,
   `npm run typecheck`, `npm run format:check`, `npm run build` et `git diff --check`
   réussis le 2026-10-25 avant les dernières corrections SQL/test ; pgTAP final : 33/33,
@@ -130,8 +130,8 @@
 - 2026-10-25 : après nouvel accord explicite, la migration corrective des timestamps a été
   appliquée au même projet Supabase jetable. Ne pas appliquer de migration à un autre projet
   sans un nouvel accord.
-- Questions encore ouvertes : aucune décision produit bloquante pour R6 ; l’essai manuel
-  mobile/hors ligne reste écarté à la demande de Laro.
+- Questions encore ouvertes : aucune pour R0–R6. La vérification visuelle smartphone reste
+  écartée à la demande de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration R5 est autorisée uniquement sur le projet Supabase jetable confirmé par Laro ;
   vérifier le projet avant exécution ; R1 et R3 ont déjà été appliquées, ne pas les rejouer ;
@@ -176,7 +176,7 @@ le suivant.
 | R3  | Validé par Laro ; implémentation terminée ; pgTAP distant réussi (4/4)                                 | 2026-10-25 |
 | R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
 | R5  | Validé par Laro ; migration, interface et tests SQL terminés (33/33)                                   | 2026-10-25 |
-| R6  | Implémenté et vérifié ; en attente de validation de Laro                                               | 2026-10-25 |
+| R6  | Validé par Laro ; implémentation et contrôles terminés                                                 | 2026-10-25 |
 
 ### État des lieux vérifié pour R0
 
@@ -251,11 +251,11 @@ le suivant.
 
 ### Tâches R6
 
-| Tâche                                  | État               | Détail                                                                                                |
-| -------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
-| Agrégations et tests unitaires         | Terminé            | Quatre séries et indicateurs purs ; 5 tests ciblés, typecheck et format vérifiés.                     |
-| Volet Analyses accessible et paresseux | Terminé            | Quatre graphiques SVG, valeurs consultables en texte ; code séparé dans un chunk chargé à la demande. |
-| Validation R6                          | En attente de Laro | 77 tests, lint, typecheck, format, build et diff check OK ; contrôle du chunk lazy confirmé.          |
+| Tâche                                  | État     | Détail                                                                                                |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| Agrégations et tests unitaires         | Terminé  | Quatre séries et indicateurs purs ; 5 tests ciblés, typecheck et format vérifiés.                     |
+| Volet Analyses accessible et paresseux | Terminé  | Quatre graphiques SVG, valeurs consultables en texte ; code séparé dans un chunk chargé à la demande. |
+| Validation R6                          | Terminée | Validée par Laro le 2026-10-25 ; 77 tests, lint, typecheck, format, build et diff check OK.           |
 
 ## Décisions prises
 
