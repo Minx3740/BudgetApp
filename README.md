@@ -61,6 +61,10 @@ et leurs rôles, et de créer ou révoquer des invitations. Les liens sont à us
 sept jours par défaut ; seul leur condensat est enregistré. L'acceptation nécessite Internet.
 Les viewers ont une interface en lecture seule et les permissions restent imposées par la RLS.
 
+L'historique des transactions peut être recherché par note, catégorie, compte, membre, montant ou
+date, et filtré par période, catégorie, compte et membre. La liste est paginée par 50 lignes pour
+garder un rendu léger même lorsque l'espace contient plusieurs milliers de transactions.
+
 Pour vérifier l'installation, lance `npm run build`, puis `npm run preview` et ouvre
 l'URL locale dans Chrome. Utilise le menu du navigateur **Installer cashFlow+**. Le
 service worker de production est activé dans le build ; en développement, il est
