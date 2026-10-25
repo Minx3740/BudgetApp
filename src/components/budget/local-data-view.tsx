@@ -96,6 +96,19 @@ function transactionLabel(kind: TransactionKind): string {
   }
 }
 
+function responsibilityLabel(kind: TransactionKind): string {
+  switch (kind) {
+    case 'expense':
+      return 'payé par'
+    case 'refund':
+      return 'remboursement reçu par'
+    case 'income':
+      return 'revenu reçu par'
+    case 'adjustment':
+      return 'ajustement pour'
+  }
+}
+
 export function LocalDataView({
   workspaceId,
   month,
@@ -491,6 +504,38 @@ export function LocalDataView({
               )}
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div
+                  aria-label="Filtrer les transactions par type"
+                  className="grid grid-cols-3 gap-2"
+                >
+                  {(
+                    [
+                      { value: 'all', label: 'Tout' },
+                      { value: 'expenses', label: 'Dépenses' },
+                      { value: 'income', label: 'Revenus' },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      aria-pressed={historyFilters.transactionType === option.value}
+                      className={`min-h-11 rounded-xl px-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
+                        historyFilters.transactionType === option.value
+                          ? 'bg-emerald-800 text-white'
+                          : 'bg-stone-100 text-stone-700'
+                      }`}
+                      key={option.value}
+                      onClick={() => updateHistoryFilter('transactionType', option.value)}
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-stone-500">
+                  Les remboursements sont classés avec les dépenses ; les ajustements apparaissent
+                  dans Tout.
+                </p>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
                   <span className="flex items-center gap-2">
@@ -545,7 +590,7 @@ export function LocalDataView({
                 </label>
                 {isSharedWorkspace && (
                   <label className="grid gap-1.5 text-sm font-medium">
-                    Membre
+                    Saisi par
                     <select
                       className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 font-normal"
                       onChange={(event) => updateHistoryFilter('memberId', event.target.value)}
@@ -602,6 +647,12 @@ export function LocalDataView({
               ) : (
                 transactionPage.items.map((transaction) => {
                   const category = categories.find((item) => item.id === transaction.category_id)
+                  const responsibleName = historyNames.members.get(transaction.paid_by) || 'Membre'
+                  const authorName = historyNames.members.get(transaction.created_by) || 'Membre'
+                  const attribution =
+                    transaction.created_by === transaction.paid_by
+                      ? `${responsibilityLabel(transaction.kind)} ${responsibleName}`
+                      : `${responsibilityLabel(transaction.kind)} ${responsibleName} · saisi par ${authorName}`
                   const amountPrefix =
                     transaction.kind === 'income' || transaction.kind === 'refund'
                       ? '+'
@@ -623,11 +674,7 @@ export function LocalDataView({
                             'fr-FR',
                           )}
                           {transaction.note ? ` · ${transaction.note}` : ''}
-                          {isSharedWorkspace &&
-                            ` · par ${
-                              profiles.find((profile) => profile.id === transaction.created_by)
-                                ?.display_name || transaction.created_by
-                            }`}
+                          {isSharedWorkspace && ` · ${attribution}`}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">

@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 07:56 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 08:02 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
 - Lot/tâche en cours : R4 — transactions. R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -44,10 +44,15 @@
 - Commit de suivi R1/R3 : `9bfd592` (`fix: validate R1 Supabase migration and RLS tests`).
 - Terminé et vérifié en R4 : le formulaire distingue l’auteur du responsable dans les
   espaces partagés ; catégories facultatives pour dépenses/remboursements, requises pour
-  revenus. 63 tests, lint, typecheck, format check et `git diff --check` passent.
-- Prochaine action exacte : ajouter le filtre Dépenses/Revenus/Tout dans
-  `src/data/transaction-history.ts` et l’interface Historique de
-  `src/components/budget/local-data-view.tsx`, avec tests unitaires.
+  revenus. 63 tests, lint, typecheck, format check et `git diff --check` passent. Commit
+  `031a2e6`.
+- Tâche R4 en cours : filtre Dépenses/Revenus/Tout et attribution lisible dans l’historique.
+- Terminé et vérifié : historique filtrable par type ; remboursements classés avec les
+  dépenses et ajustements visibles seulement dans Tout ; responsable et auteur distingués.
+  Test ciblé : 7/7 ; lint et typecheck passent.
+- Prochaine action exacte : vérifier les tests de calcul existants dans
+  `src/data/reform-calculations.test.ts` et `src/data/budget-calculations.test.ts` ;
+  ajouter un cas ciblé si un effet R4 n’est pas couvert.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` avaient réussi avant ces corrections SQL ;
   `git diff --check` passe. Les tests pgTAP distants R1/R3 passent avec 29/29 et 4/4.
@@ -169,8 +174,8 @@ le suivant.
 | Tâche                                            | État                 | Détail                                                                                                                            |
 | ------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Formulaire complet et attribution du responsable | Terminée et vérifiée | Responsable distinct de l’auteur en espace partagé ; catégories facultatives pour dépenses/remboursements, requises pour revenus. |
-| Filtres de l’historique et attribution visible   | À faire              | Filtre Dépenses/Revenus/Tout ; distinguer le membre responsable de l’auteur de la saisie.                                         |
-| Vérification des agrégats R4                     | À faire              | Tester revenus, remboursements et ajustements selon les règles 3.1/3.2, sans impact hors périmètre.                               |
+| Filtres de l’historique et attribution visible   | Terminée et vérifiée | Filtres Dépenses/Revenus/Tout ; remboursement avec dépenses ; ajustement seulement dans Tout ; responsable séparé de l’auteur.    |
+| Vérification des agrégats R4                     | En cours             | Vérifier la couverture des règles 3.1/3.2 pour les calculs par mois, budget et catégorie.                                         |
 | Validation R4                                    | À faire              | Tests, lint, typecheck, format check et build ; essai mobile écarté à la demande de Laro.                                         |
 
 ## Décisions prises

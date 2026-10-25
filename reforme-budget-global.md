@@ -387,7 +387,7 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 ### R4. Revenus, remboursements, ajustements, responsable
 
 - [x] Panneau d'ajout complet (types, responsable).
-- [ ] Filtre Dépenses / Revenus / Tout, historique des revenus.
+- [x] Filtre Dépenses / Revenus / Tout, historique des revenus.
 - [ ] Remboursement et ajustement de solde.
 - Validation : chaque type modifie les chiffres comme décrit en 3.1.
 

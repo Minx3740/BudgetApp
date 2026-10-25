@@ -3,6 +3,7 @@ import type { Transaction } from './models'
 import {
   createEmptyTransactionHistoryFilters,
   filterAndSortTransactions,
+  hasTransactionHistoryFilters,
   paginateTransactions,
   TRANSACTION_HISTORY_PAGE_SIZE,
 } from './transaction-history'
@@ -29,6 +30,26 @@ function createTransaction(index: number): Transaction {
 }
 
 describe('transaction history', () => {
+  it('filters expenses with refunds, shows incomes separately, and keeps adjustments in all', () => {
+    const transactions: Transaction[] = [
+      { ...createTransaction(1), kind: 'expense' },
+      { ...createTransaction(2), kind: 'refund' },
+      { ...createTransaction(3), kind: 'income' },
+      { ...createTransaction(4), kind: 'adjustment', category_id: null, amount: -500 },
+    ]
+    const filters = createEmptyTransactionHistoryFilters()
+    const getKinds = (transactionType: 'all' | 'expenses' | 'income') =>
+      filterAndSortTransactions(transactions, { ...filters, transactionType }, new Map(), new Map())
+        .map((transaction) => transaction.kind)
+        .sort()
+
+    expect(getKinds('expenses')).toEqual(['expense', 'refund'])
+    expect(getKinds('income')).toEqual(['income'])
+    expect(getKinds('all')).toEqual(['adjustment', 'expense', 'income', 'refund'])
+    expect(hasTransactionHistoryFilters(filters)).toBe(false)
+    expect(hasTransactionHistoryFilters({ ...filters, transactionType: 'expenses' })).toBe(true)
+  })
+
   it('filters by date, category, member, and accent-insensitive text', () => {
     const transactions = [createTransaction(1), createTransaction(2), createTransaction(4999)]
     const filters = {
@@ -48,6 +69,20 @@ describe('transaction history', () => {
         new Map([[memberId, 'Testé']]),
       ).map((transaction) => transaction.note),
     ).toEqual(['Taxi aéroport'])
+  })
+
+  it('searches the responsible member separately from the transaction author', () => {
+    const responsibleId = 'cb2157bf-3710-4b0a-9c7d-18e690a8072e'
+    const transaction = { ...createTransaction(6), paid_by: responsibleId }
+
+    expect(
+      filterAndSortTransactions(
+        [transaction],
+        { ...createEmptyTransactionHistoryFilters(), search: 'Aïcha' },
+        new Map(),
+        new Map([[responsibleId, 'Aïcha']]),
+      ),
+    ).toEqual([transaction])
   })
 
   it('recherche les ajustements par leur libellé', () => {

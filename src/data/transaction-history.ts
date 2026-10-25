@@ -2,7 +2,10 @@ import type { Transaction } from './models'
 
 export const TRANSACTION_HISTORY_PAGE_SIZE = 50
 
+export type TransactionTypeFilter = 'all' | 'expenses' | 'income'
+
 export interface TransactionHistoryFilters {
+  transactionType: TransactionTypeFilter
   search: string
   startDate: string
   endDate: string
@@ -11,6 +14,7 @@ export interface TransactionHistoryFilters {
 }
 
 const defaultTransactionHistoryFilters: TransactionHistoryFilters = {
+  transactionType: 'all',
   search: '',
   startDate: '',
   endDate: '',
@@ -40,7 +44,14 @@ function transactionKindLabel(kind: Transaction['kind']): string {
 }
 
 export function hasTransactionHistoryFilters(filters: TransactionHistoryFilters): boolean {
-  return Object.values(filters).some((value) => value !== '')
+  return (
+    filters.transactionType !== 'all' ||
+    filters.search !== '' ||
+    filters.startDate !== '' ||
+    filters.endDate !== '' ||
+    filters.categoryId !== '' ||
+    filters.memberId !== ''
+  )
 }
 
 export function filterAndSortTransactions(
@@ -54,6 +65,14 @@ export function filterAndSortTransactions(
 
   return transactions
     .filter((transaction) => {
+      if (
+        filters.transactionType === 'expenses' &&
+        transaction.kind !== 'expense' &&
+        transaction.kind !== 'refund'
+      ) {
+        return false
+      }
+      if (filters.transactionType === 'income' && transaction.kind !== 'income') return false
       if (month && !transaction.occurred_on.startsWith(`${month.slice(0, 7)}-`)) return false
       if (filters.startDate && transaction.occurred_on < filters.startDate) return false
       if (filters.endDate && transaction.occurred_on > filters.endDate) return false
@@ -65,6 +84,7 @@ export function filterAndSortTransactions(
       const searchableValues = [
         categoryNames.get(transaction.category_id ?? '') ?? '',
         memberNames.get(transaction.created_by) ?? '',
+        memberNames.get(transaction.paid_by) ?? '',
         transaction.note ?? '',
         String(transaction.amount),
         transaction.occurred_on,
