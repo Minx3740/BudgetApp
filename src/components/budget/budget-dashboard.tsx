@@ -368,6 +368,9 @@ export function BudgetDashboard({
   function renderBudgetCard(item: (typeof summary.categories)[number]) {
     const isOverBudget = item.isOverBudget
     const isNearThreshold = !isOverBudget && item.progressPercentage >= 80
+    const categoryColor =
+      categories.find((category) => category.id === item.categoryId)?.color ??
+      'var(--category-uncategorized)'
     const statusColor = isOverBudget
       ? 'text-red-700'
       : isNearThreshold
@@ -414,10 +417,11 @@ export function BudgetDashboard({
               role="progressbar"
             >
               <div
-                className={`h-full rounded-full ${
-                  isOverBudget ? 'bg-red-600' : isNearThreshold ? 'bg-amber-500' : 'bg-emerald-700'
-                }`}
-                style={{ width: `${item.progressPercentage}%` }}
+                className="h-full rounded-full"
+                style={{
+                  backgroundColor: categoryColor,
+                  width: `${item.progressPercentage}%`,
+                }}
               />
             </div>
             <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm">

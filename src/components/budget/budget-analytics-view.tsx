@@ -140,7 +140,7 @@ function CategorySpendingChart({
                       {clampLabel(item.name)}
                     </text>
                     <rect
-                      fill={chartColors.current}
+                      fill={item.color ?? 'var(--category-uncategorized)'}
                       height="16"
                       rx="5"
                       width={width}

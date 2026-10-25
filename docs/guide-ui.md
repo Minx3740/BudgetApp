@@ -1,9 +1,9 @@
 # Guide UI — cashFlow+
 
-Version 1.0 — conventions de conception de la réforme (24 octobre 2026).
+Version 1.1 — conventions de conception de la réforme (25 octobre 2026).
 
 Ce guide définit les règles visuelles et d’interaction à appliquer aux nouveaux écrans
-et aux écrans remaniés des lots R1 à R6. Il s’appuie sur les styles présents dans
+et aux écrans remaniés des lots R1 à R7. Il s’appuie sur les styles présents dans
 `src/index.css` et sur les exigences validées dans `docs/cahier-des-charges.md` v1.2.
 Il ne signifie pas que tous les écrans respectent déjà ces règles.
 
@@ -41,6 +41,40 @@ les rôles existants plutôt que des couleurs codées localement :
 
 L’accent de l’application est le vert déjà défini par `--primary` et ses variantes.
 Ne pas introduire une deuxième couleur d’accent pour une page ou une fonctionnalité.
+
+### Couleurs des catégories
+
+Les couleurs de catégorie sont des jetons sémantiques, et non des valeurs hexadécimales
+choisies librement. Les jetons gardent leur identité tandis que leur valeur est adaptée
+au thème. Les contrastes ci-dessous sont calculés contre les surfaces carte de
+l’application : `#ffffff` en clair et `#18221e` en sombre ; chaque valeur atteint au
+moins 3:1, requis pour les éléments graphiques non textuels.
+
+| Jeton CSS       | Valeur claire | Contraste clair | Valeur sombre | Contraste sombre |
+| --------------- | ------------- | --------------: | ------------- | ---------------: |
+| `--category-1`  | `#B91C1C`     |          6.47:1 | `#F87171`     |           5.90:1 |
+| `--category-2`  | `#C2410C`     |          5.18:1 | `#FB923C`     |           7.21:1 |
+| `--category-3`  | `#A16207`     |          4.92:1 | `#FBBF24`     |           9.78:1 |
+| `--category-4`  | `#4D7C0F`     |          4.99:1 | `#A3E635`     |          10.83:1 |
+| `--category-5`  | `#15803D`     |          5.02:1 | `#4ADE80`     |           9.37:1 |
+| `--category-6`  | `#0F766E`     |          5.47:1 | `#2DD4BF`     |           8.77:1 |
+| `--category-7`  | `#0E7490`     |          5.36:1 | `#22D3EE`     |           9.03:1 |
+| `--category-8`  | `#1D4ED8`     |          6.70:1 | `#60A5FA`     |           6.42:1 |
+| `--category-9`  | `#4338CA`     |          7.90:1 | `#818CF8`     |           5.47:1 |
+| `--category-10` | `#6D28D9`     |          7.10:1 | `#A78BFA`     |           6.00:1 |
+| `--category-11` | `#A21CAF`     |          6.32:1 | `#E879F9`     |           6.63:1 |
+| `--category-12` | `#BE185D`     |          6.04:1 | `#FB7185`     |           6.07:1 |
+
+Enregistrer le jeton (`var(--category-1)` à `var(--category-12)`) avec la catégorie.
+Les nouvelles catégories prennent la première couleur de palette non utilisée ; si
+les douze sont déjà affectées, la première est réutilisée. Une couleur historique
+enregistrée hors palette est conservée et affichée telle quelle jusqu'à ce que
+l'utilisateur choisisse explicitement un jeton.
+
+Appliquer la couleur à la pastille de transaction, aux puces dans le panneau d'ajout,
+aux barres « Où va l'argent ? » et à la progression du seuil par catégorie. La catégorie
+« Non classé » reste gris neutre. Toujours montrer le nom ; ne jamais transmettre une
+information par la couleur seule.
 
 Les états de budget ne dépendent jamais de la seule couleur :
 

@@ -7,6 +7,11 @@ import { categoriesRepository, transactionsRepository } from '@/data/repositorie
 import type { Category, Membership, Transaction } from '@/data/models'
 import type { Profile } from '@/data/models'
 import { db } from '@/data/database'
+import {
+  CATEGORY_COLOR_TOKENS,
+  firstUnusedCategoryColor,
+  isCategoryPaletteColor,
+} from '@/data/category-colors'
 import { useCategories, useTransactions } from '@/data/hooks'
 import {
   createEmptyTransactionHistoryFilters,
@@ -436,7 +441,7 @@ export function LocalDataView({
           <span
             aria-hidden="true"
             className="size-4 shrink-0 rounded-full ring-1 ring-black/10"
-            style={{ backgroundColor: category.color ?? '#d6d3d1' }}
+            style={{ backgroundColor: category.color ?? 'var(--category-uncategorized)' }}
           />
           <div className="min-w-0">
             <p className="truncate font-medium">
@@ -461,7 +466,13 @@ export function LocalDataView({
                   name: category.name,
                   kind: category.kind,
                   icon: category.icon ?? '',
-                  color: category.color ?? '#3d8b8b',
+                  color:
+                    category.color ??
+                    firstUnusedCategoryColor(
+                      categories
+                        .filter((existing) => existing.id !== category.id)
+                        .map((existing) => existing.color),
+                    ),
                 })
               }
               size="icon"
@@ -819,6 +830,13 @@ export function LocalDataView({
                     >
                       <div className="min-w-0">
                         <p className="truncate font-medium">
+                          <span
+                            aria-hidden="true"
+                            className="mr-2 inline-block size-2.5 rounded-full align-middle ring-1 ring-black/10"
+                            style={{
+                              backgroundColor: category?.color ?? 'var(--category-uncategorized)',
+                            }}
+                          />
                           {category?.name ?? transactionLabel(transaction.kind)}
                         </p>
                         <p className="truncate text-sm text-stone-500">
@@ -921,7 +939,7 @@ export function LocalDataView({
                       name: '',
                       kind: 'expense',
                       icon: 'tag',
-                      color: '#3d8b8b',
+                      color: firstUnusedCategoryColor(categories.map((category) => category.color)),
                     })
                   }
                   variant="outline"
@@ -1072,17 +1090,44 @@ export function LocalDataView({
                 value={categoryDraft.icon}
               />
             </label>
-            <label className="grid gap-2 text-sm font-medium sm:col-span-2">
-              Couleur
-              <input
-                className="min-h-12 w-full rounded-xl border border-stone-300 bg-white p-2"
-                onChange={(event) =>
-                  setCategoryDraft({ ...categoryDraft, color: event.target.value })
-                }
-                type="color"
-                value={categoryDraft.color}
-              />
-            </label>
+            <fieldset className="grid gap-2 sm:col-span-2">
+              <legend className="text-sm font-medium">Couleur</legend>
+              <div
+                aria-label="Palette de couleurs des catégories"
+                className="grid grid-cols-3 gap-2 sm:grid-cols-4"
+                role="group"
+              >
+                {!isCategoryPaletteColor(categoryDraft.color) && categoryDraft.id && (
+                  <div className="flex min-h-12 items-center gap-2 rounded-xl border border-primary p-2 text-left text-xs font-medium">
+                    <span
+                      aria-hidden="true"
+                      className="size-6 shrink-0 rounded-full ring-1 ring-black/10"
+                      style={{ backgroundColor: categoryDraft.color }}
+                    />
+                    Couleur actuelle (hors palette)
+                  </div>
+                )}
+                {CATEGORY_COLOR_TOKENS.map((color, index) => (
+                  <button
+                    aria-label={`Couleur ${index + 1}`}
+                    aria-pressed={categoryDraft.color === color}
+                    className={`flex min-h-12 items-center gap-2 rounded-xl border p-2 text-left text-xs font-medium ${
+                      categoryDraft.color === color ? 'border-primary ring-2 ring-primary/40' : ''
+                    }`}
+                    key={color}
+                    onClick={() => setCategoryDraft({ ...categoryDraft, color })}
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-6 shrink-0 rounded-full ring-1 ring-black/10"
+                      style={{ backgroundColor: color }}
+                    />
+                    Couleur {index + 1}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
             <div className="flex flex-col-reverse gap-3 pt-2 sm:col-span-2 sm:flex-row sm:justify-end">
               <Button
                 className="min-h-12"
@@ -1247,28 +1292,56 @@ export function LocalDataView({
           </label>
 
           {transactionDraft.kind !== 'adjustment' && (
-            <label className="grid gap-2 text-sm font-medium">
-              Catégorie
-              <select
-                className="min-h-12 rounded-xl border border-stone-300 bg-white px-3"
-                onChange={(event) =>
-                  setTransactionDraft({ ...transactionDraft, categoryId: event.target.value })
-                }
-                required={transactionDraft.kind === 'income'}
-                value={selectedCategoryId}
-              >
-                {transactionDraft.kind === 'income' ? (
-                  <option value="">Choisir une catégorie de revenus</option>
-                ) : (
-                  <option value="">Sans catégorie</option>
+            <fieldset className="grid gap-2">
+              <legend className="text-sm font-medium">Catégorie</legend>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Choisir une catégorie">
+                {transactionDraft.kind === 'expense' && (
+                  <button
+                    aria-pressed={selectedCategoryId === ''}
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 text-sm font-medium ${
+                      selectedCategoryId === '' ? 'border-primary ring-2 ring-primary/40' : ''
+                    }`}
+                    onClick={() => setTransactionDraft({ ...transactionDraft, categoryId: '' })}
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-2.5 rounded-full"
+                      style={{ backgroundColor: 'var(--category-uncategorized)' }}
+                    />
+                    Sans catégorie
+                  </button>
                 )}
                 {availableCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
+                  <button
+                    aria-pressed={selectedCategoryId === category.id}
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 text-sm font-medium ${
+                      selectedCategoryId === category.id
+                        ? 'border-primary ring-2 ring-primary/40'
+                        : ''
+                    }`}
+                    key={category.id}
+                    onClick={() =>
+                      setTransactionDraft({ ...transactionDraft, categoryId: category.id })
+                    }
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-2.5 rounded-full ring-1 ring-black/10"
+                      style={{
+                        backgroundColor: category.color ?? 'var(--category-uncategorized)',
+                      }}
+                    />
                     {category.name}
-                  </option>
+                    {category.archived_at && ' (archivée)'}
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+              {transactionDraft.kind === 'income' && !selectedCategoryId && (
+                <p className="text-sm text-red-700">Choisis une catégorie de revenus.</p>
+              )}
+            </fieldset>
           )}
 
           {isSharedWorkspace && (
