@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 12:49 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 12:50 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
 - Lot/tâche en cours : guide de test Cloudflare ; étapes 1 à 5 terminées ; validations
@@ -35,14 +35,16 @@ workspace-management.tsx`, les modifications préexistantes de `README.md` et
   `npm run typecheck`, `npm run build` et `git diff --check` réussis. Build PWA réussi ;
   avertissement Vite non bloquant sur le chunk principal de 811,57 kB.
 - Formatage : `npx prettier --check PROGRESS.md README.md vite.config.ts
-  docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
+docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
   `.github/workflows/ci.yml`, modification préexistante volontairement préservée.
 - Tests SQL : `supabase test db` non exécuté ; CLI Supabase et Docker ne sont pas installés.
   Les tests SQL R1/R3/R5 précédemment validés restent documentés ci-dessous. Aucun SQL ni
   migration distante n’a été exécuté pour cette tâche.
-- Prochaine action exacte : créer un commit avec les quatre fichiers déjà staged
-  (`PROGRESS.md`, `README.md`, `vite.config.ts`, `docs/test-telephone.md`), revérifier que
-  la branche est `reforme-budget`, puis pousser uniquement celle-ci.
+- Commit et push effectués : `f781f3e` (`docs: prepare Cloudflare Pages branch preview`)
+  sur `origin/reforme-budget`. La branche suit son upstream et est synchronisée.
+- Prochaine action exacte : dans Cloudflare Pages, ouvrir **Deployments** et vérifier que
+  le build de l’aperçu `reforme-budget` s’est terminé sans erreur ; ensuite jouer les
+  scénarios du guide `docs/test-telephone.md` sur téléphone.
 - Vérifications finales à lancer : `npm test`, `npm run lint`,
   `npm run typecheck`, `npm run format:check`, `npm run build`, `git diff --check` et
   `supabase test db` (tests SQL locaux, si Docker et la CLI Supabase sont disponibles).
@@ -59,8 +61,12 @@ workspace-management.tsx`, les modifications préexistantes de `README.md` et
 - Pièges connus : le workflow est non suivi, cible l’ancien projet `cashflow-plus`, et
   offre un déclenchement manuel en plus du push sur `main`. Sa suppression ne doit pas
   toucher la CI ni l’intégration Git Cloudflare. Préserver les changements préexistants
-  listés ci-dessus. Le push
-  de `reforme-budget` produira l’aperçu attendu
+  listés ci-dessus. Le fichier `deploy-pages.yml` était non suivi avant sa suppression :
+  sa suppression locale ne constitue donc pas un changement de fichier suivi dans le
+  commit. Les changements préexistants toujours non committés sont `.env.example`,
+  `.github/workflows/ci.yml`, la partie antérieure de `README.md`, les modifications
+  antérieures de `src/components/workspaces/workspace-management.tsx` et de
+  `vite.config.ts`. L’aperçu attendu est
   `reforme-budget.budgetapp-epz.pages.dev`, sans modifier la production.
 
 ## État actuel
