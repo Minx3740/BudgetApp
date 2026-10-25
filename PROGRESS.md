@@ -2,10 +2,11 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 10:22 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 10:40 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R5 — validation utilisateur après les vérifications finales. R4 a
-  été vu localement et validé par Laro le 2026-10-25.
+- Lot/tâche en cours : R6 — analyses, tâche 2 (vue graphique paresseuse et accessible). Le « ok,
+  reprends alors » de Laro valide R5 et autorise la reprise du lot suivant.
+  R5 est terminé et validé ; R4 a été vu localement et validé par Laro le 2026-10-25.
   R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
 - Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
@@ -93,7 +94,12 @@
 - Terminé et vérifié : assertion d’arrêt avec identité viewer corrigée dans
   `supabase/tests/database/003_recurring_expenses.test.sql` ; pgTAP 33/33 vérifié. Le
   format check et `git diff --check` passent.
-- Prochaine action exacte : demander à Laro de valider R5 avant tout démarrage de R6.
+- Terminé et vérifié en R6 : `src/data/analytics.ts` calcule les dépenses nettes par
+  catégorie, la comparaison au mois précédent, le cumul quotidien, six mois de flux et les
+  indicateurs de catégories/parts/responsables. Tests ciblés : 5/5 ; typecheck et format
+  check passent.
+- Prochaine action exacte : créer `src/components/budget/budget-analytics-view.tsx` avec
+  quatre graphiques SVG lisibles, puis l’afficher à la demande depuis le volet Budgets.
 - Vérifications R5 : `npm test` (72 tests/12 fichiers), `npm run lint`,
   `npm run typecheck`, `npm run format:check`, `npm run build` et `git diff --check`
   réussis le 2026-10-25 avant les dernières corrections SQL/test ; pgTAP final : 33/33,
@@ -116,8 +122,8 @@
 - 2026-10-25 : après nouvel accord explicite, la migration corrective des timestamps a été
   appliquée au même projet Supabase jetable. Ne pas appliquer de migration à un autre projet
   sans un nouvel accord.
-- Questions encore ouvertes : validation de R5 par Laro avant le démarrage de R6. L’essai
-  manuel mobile/hors ligne est écarté à sa demande.
+- Questions encore ouvertes : aucune décision produit bloquante pour R6 ; l’essai manuel
+  mobile/hors ligne reste écarté à la demande de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration R5 est autorisée uniquement sur le projet Supabase jetable confirmé par Laro ;
   vérifier le projet avant exécution ; R1 et R3 ont déjà été appliquées, ne pas les rejouer ;
@@ -161,8 +167,8 @@ le suivant.
 | R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande            | 2026-10-25 |
 | R3  | Validé par Laro ; implémentation terminée ; pgTAP distant réussi (4/4)                                 | 2026-10-25 |
 | R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
-| R5  | En cours — modèles locaux/synchronisation, migration Supabase, génération et interface forfaits        | 2026-10-25 |
-| R6  | À faire — analyses                                                                                     |            |
+| R5  | Validé par Laro ; migration, interface et tests SQL terminés (33/33)                                   | 2026-10-25 |
+| R6  | En cours — analyses                                                                                    | 2026-10-25 |
 
 ### État des lieux vérifié pour R0
 
@@ -228,12 +234,20 @@ le suivant.
 
 ### Tâches R5
 
-| Tâche                                             | État               | Détail                                                                                                                        |
-| ------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| Modèle, Dexie, bootstrap et synchronisation       | Terminé            | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
-| Migration Supabase, RLS et génération idempotente | Terminée           | Correctif timestamps appliqué au projet jetable après accord explicite ; pgTAP 33/33 réussis, 0 échec, transaction annulée.   |
-| Écran Forfaits et parcours                        | Terminé            | Lecture hors ligne ; création/édition/arrêt ; génération au changement de mois ; tests automatisés réussis.                   |
-| Validation R5                                     | En attente de Laro | Vérifications applicatives et SQL réussies ; attendre son accord avant R6.                                                    |
+| Tâche                                             | État     | Détail                                                                                                                        |
+| ------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Modèle, Dexie, bootstrap et synchronisation       | Terminé  | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
+| Migration Supabase, RLS et génération idempotente | Terminée | Correctif timestamps appliqué au projet jetable après accord explicite ; pgTAP 33/33 réussis, 0 échec, transaction annulée.   |
+| Écran Forfaits et parcours                        | Terminé  | Lecture hors ligne ; création/édition/arrêt ; génération au changement de mois ; tests automatisés réussis.                   |
+| Validation R5                                     | Terminée | R5 validé implicitement par « ok, reprends alors » ; pgTAP 33/33 et vérifications applicatives réussis.                       |
+
+### Tâches R6
+
+| Tâche                                  | État     | Détail                                                                                       |
+| -------------------------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| Agrégations et tests unitaires         | Terminé  | Quatre séries et indicateurs purs ; 5 tests ciblés, typecheck et format vérifiés.            |
+| Volet Analyses accessible et paresseux | En cours | Quatre graphiques SVG avec valeurs textuelles ; code graphique chargé à la demande.          |
+| Validation R6                          | À faire  | Tests, lint, typecheck, format, build, diff-check et contrôle du bundle chargé initialement. |
 
 ## Décisions prises
 
