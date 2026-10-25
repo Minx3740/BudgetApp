@@ -1,5 +1,6 @@
 export const analyticsChartIds = [
   'categorySpending',
+  'expenseComposition',
   'categoryComparison',
   'dailyCumulative',
   'sixMonthCashflow',
@@ -18,6 +19,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function defaultAnalyticsChartVisibility(isMobile: boolean): AnalyticsChartVisibility {
   return {
     categorySpending: true,
+    expenseComposition: !isMobile,
     categoryComparison: !isMobile,
     dailyCumulative: !isMobile,
     sixMonthCashflow: !isMobile,
@@ -42,6 +44,10 @@ export function loadAnalyticsChartVisibility(
         typeof parsed.categorySpending === 'boolean'
           ? parsed.categorySpending
           : defaults.categorySpending,
+      expenseComposition:
+        typeof parsed.expenseComposition === 'boolean'
+          ? parsed.expenseComposition
+          : defaults.expenseComposition,
       categoryComparison:
         typeof parsed.categoryComparison === 'boolean'
           ? parsed.categoryComparison

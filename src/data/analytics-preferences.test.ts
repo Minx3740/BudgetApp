@@ -17,12 +17,14 @@ describe('préférences des graphiques', () => {
   it('ouvre seulement le premier graphique par défaut sur téléphone', () => {
     expect(defaultAnalyticsChartVisibility(true)).toEqual({
       categorySpending: true,
+      expenseComposition: false,
       categoryComparison: false,
       dailyCumulative: false,
       sixMonthCashflow: false,
     })
     expect(defaultAnalyticsChartVisibility(false)).toEqual({
       categorySpending: true,
+      expenseComposition: true,
       categoryComparison: true,
       dailyCumulative: true,
       sixMonthCashflow: true,
@@ -32,12 +34,28 @@ describe('préférences des graphiques', () => {
   it('conserve un état valide dans le stockage local', () => {
     const visibility = {
       categorySpending: false,
+      expenseComposition: true,
       categoryComparison: true,
       dailyCumulative: false,
       sixMonthCashflow: true,
     }
     saveAnalyticsChartVisibility(visibility, storage)
     expect(loadAnalyticsChartVisibility(true, storage)).toEqual(visibility)
+  })
+
+  it('complète les préférences enregistrées avant l’ajout de la répartition', () => {
+    storage.setItem(
+      'cashFlow.analyticsChartVisibility',
+      JSON.stringify({ categorySpending: false }),
+    )
+
+    expect(loadAnalyticsChartVisibility(true, storage)).toEqual({
+      categorySpending: false,
+      expenseComposition: false,
+      categoryComparison: false,
+      dailyCumulative: false,
+      sixMonthCashflow: false,
+    })
   })
 
   it('utilise les valeurs par défaut si le stockage ou son contenu est invalide', () => {

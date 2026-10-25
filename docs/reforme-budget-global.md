@@ -431,8 +431,8 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 - **Budgets · Mois** : retirer les textes d'aide permanents et l'introduction technique.
   Remplacer l'aide sur les seuils par un bouton « ? » ouvrant une explication courte qui se
   ferme à l'extérieur. Garder un état vide compact lorsque aucun seuil n'est défini.
-- **Répartition des dépenses** : son déplacement vers Analyses est proposé, mais ne doit pas
-  être effectué sans accord de Laro.
+- **Répartition des dépenses** : après accord de Laro le 2026-10-25, déplacer cette carte
+  dans Analyses et la rendre repliable comme les autres cartes de visualisation.
 - **Analyses** : rendre chaque carte de graphique repliable, avec titre et chiffre résumé.
   Sur téléphone, seul le premier graphique est ouvert par défaut ; un graphique replié n'est
   pas rendu. Mémoriser séparément l'état des cartes dans le stockage local, sans bloquer

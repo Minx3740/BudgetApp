@@ -2,12 +2,12 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 16:32 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 16:50 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R8 et R9 sont implémentés, vérifiés, committés et poussés sur
-  `reforme-budget` ; attendre la validation de Laro sur l’aperçu Cloudflare.
-  Ne pas fusionner dans `main` et ne pas appliquer de migration.
+- Lot/tâche en cours : R8 et R9 ont été validés par Laro et poussés sur `reforme-budget`.
+  Le déplacement autorisé de « Répartition des dépenses » vers Analyses est implémenté et
+  vérifié ; committer puis pousser uniquement cette branche.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
   références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
@@ -44,28 +44,30 @@
 - R8 implémenté : accueil réorganisé et textes techniques retirés ; nom affiché modifiable
   en ligne ; recadrage photo interactif au canevas (déplacement, zoom, 256 × 256 WebP) ;
   aide des seuils en popover ; graphiques repliables et état mémorisé avec repli tolérant.
-- Contrôles finaux : 93 tests/15 fichiers, lint, typecheck et build passent ; tests R9
-  ciblés : 20/20. Prettier ciblé passe. L’avertissement Vite sur le chunk principal de
-  820,79 kB reste non bloquant.
-- R8 committé en quatre commits : `d0ab404` (accueil), `1a4df25` (profil), `65abf39`
-  (aide du budget et état vide) et `56506c4` (graphiques repliables). Push encore à faire.
-- Aucun nouveau paquet, aucune migration créée ou appliquée. Le déplacement de
-  « Répartition des dépenses » vers Analyses n’a pas été effectué ; à proposer à Laro.
+- Contrôles après déplacement : 94 tests/15 fichiers, lint, typecheck et build passent ;
+  tests R9 ciblés : 20/20. Prettier ciblé passe. L’avertissement Vite sur le chunk principal
+  de 819,17 kB reste non bloquant.
+- R8 committé en quatre commits poussés : `d0ab404` (accueil), `1a4df25` (profil),
+  `65abf39` (aide du budget et état vide) et `56506c4` (graphiques repliables). Le
+  déplacement autorisé est un ajout distinct encore à committer et pousser.
+- Aucun nouveau paquet, aucune migration créée ou appliquée. Laro a autorisé le déplacement
+  de « Répartition des dépenses » vers Analyses après validation de R8/R9 ; elle figure
+  maintenant comme carte repliable avec préférence sauvegardée.
 - SQL/migrations : aucune migration requise, créée ou appliquée ; aucune commande SQL.
 - Le bouton « Ajouter » du bandeau global et celui de la carte Historique restent tous deux
   visibles sur grand écran ; aucun n’a été retiré sans accord. Catégories reste un onglet de
   Transactions ; aucun déplacement vers Espace n’a été fait sans décision distincte.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : attendre la vérification de l’aperçu Cloudflare par Laro. Ne pas
-  fusionner dans `main`, ne pas appliquer de SQL.
+- Prochaine action exacte : committer les changements approuvés et pousser seulement
+  `reforme-budget`. Ne pas fusionner dans `main`, ne pas appliquer de SQL.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
   contrôle de contraste clair/sombre ; première couleur non utilisée attribuée à la création ;
   couleur historique hors palette préservée ; noms toujours visibles et « Non classé » neutre.
-- Questions ouvertes : proposer à Laro le déplacement de « Répartition des dépenses » vers
-  Analyses ; signaler les vérifications R9 sans corriger les éléments nécessitant son accord.
+- Questions ouvertes : signaler à Laro les deux boutons « Ajouter » visibles ensemble sur
+  grand écran et le placement de l’onglet Catégories ; ne pas modifier sans accord.
 - Pièges connus : préserver les modifications préexistantes non committées de
   `.env.example`, `.github/workflows/ci.yml`, `README.md`,
   `src/components/workspaces/workspace-management.tsx` et `vite.config.ts`; dans
@@ -269,7 +271,8 @@ le suivant.
 | 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256².                    |
 | 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                                   |
 | 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant.                    |
-| Vérification et livraison R8 | Terminé | 93 tests/15 fichiers, lint, typecheck et build OK ; quatre commits point par point, poussés sur `reforme-budget`. |
+| Répartition → Analyses      | Terminé | Accord de Laro ; carte repliable, sans doublons et avec préférence mémorisée.                                     |
+| Vérification et livraison R8 | Terminé | 94 tests/15 fichiers, lint, typecheck et build OK ; quatre commits R8 poussés, déplacement à committer.            |
 
 ### Tâches R9
 

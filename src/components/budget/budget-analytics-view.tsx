@@ -14,6 +14,7 @@ import {
   calculateCategorySpending,
   calculateDailyExpenseCumulative,
   calculateSixMonthCashflow,
+  type AnalyticsIndicators,
 } from '@/data/analytics'
 import type { Budget, CashflowTransaction, Category, Profile } from '@/data/models'
 
@@ -78,6 +79,63 @@ function AnalyticsChartCard({
         {expanded ? children : null}
       </div>
     </Card>
+  )
+}
+
+function ExpenseCompositionChart({
+  indicators,
+  expanded,
+  onToggle,
+}: {
+  indicators: AnalyticsIndicators
+  expanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <AnalyticsChartCard
+      chartId="expenseComposition"
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={`${formatMoney(indicators.netExpenses)} dépensés`}
+      title="Répartition des dépenses"
+    >
+      <CardContent>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Les forfaits sont fixes ; les autres dépenses et remboursements sont variables.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-emerald-50 p-4">
+            <p className="text-sm text-emerald-900">Dépenses fixes</p>
+            <p className="mt-1 text-lg font-bold">{formatMoney(indicators.fixedExpenses)}</p>
+            <p className="mt-1 text-xs text-emerald-900">
+              {indicators.fixedSharePercent === null
+                ? 'Part non disponible'
+                : `${indicators.fixedSharePercent} %`}
+            </p>
+          </div>
+          <div className="rounded-xl bg-stone-50 p-4">
+            <p className="text-sm text-stone-700">Dépenses variables nettes</p>
+            <p className="mt-1 text-lg font-bold">{formatMoney(indicators.variableExpenses)}</p>
+            <p className="mt-1 text-xs text-stone-600">
+              {indicators.variableSharePercent === null
+                ? 'Part non disponible'
+                : `${indicators.variableSharePercent} %`}
+            </p>
+          </div>
+          <div className="rounded-xl bg-amber-50 p-4">
+            <p className="text-sm text-amber-950">Non classé · net</p>
+            <p className="mt-1 text-lg font-bold">
+              {formatMoney(indicators.uncategorizedExpenses)}
+            </p>
+            <p className="mt-1 text-xs text-amber-950">
+              {indicators.uncategorizedSharePercent === null
+                ? 'Part non disponible'
+                : `${indicators.uncategorizedSharePercent} %`}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </AnalyticsChartCard>
   )
 }
 
@@ -631,38 +689,6 @@ export function BudgetAnalyticsView({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Fixes et variables</CardTitle>
-            <CardDescription>Dépenses nettes du mois</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              Fixes : <strong>{formatMoney(indicators.fixedExpenses)}</strong>
-              {indicators.fixedSharePercent === null ? '' : ` · ${indicators.fixedSharePercent} %`}
-            </p>
-            <p>
-              Variables : <strong>{formatMoney(indicators.variableExpenses)}</strong>
-              {indicators.variableSharePercent === null
-                ? ''
-                : ` · ${indicators.variableSharePercent} %`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Non classé</CardTitle>
-            <CardDescription>Dépenses sans catégorie, nettes des remboursements</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm">
-            <p className="font-semibold">{formatMoney(indicators.uncategorizedExpenses)}</p>
-            <p className="mt-1 text-muted-foreground">
-              {indicators.uncategorizedSharePercent === null
-                ? 'Part non disponible'
-                : `${indicators.uncategorizedSharePercent} % des dépenses nettes`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-          <CardHeader className="pb-2">
             <CardTitle className="text-base">Seuils</CardTitle>
             <CardDescription>Alertes à partir de 80 %</CardDescription>
           </CardHeader>
@@ -727,6 +753,11 @@ export function BudgetAnalyticsView({
           month={month}
           onToggle={() => toggleChart('categorySpending')}
           transactions={transactions}
+        />
+        <ExpenseCompositionChart
+          expanded={chartVisibility.expenseComposition}
+          indicators={indicators}
+          onToggle={() => toggleChart('expenseComposition')}
         />
         <CategoryComparisonChart
           categories={categories}
