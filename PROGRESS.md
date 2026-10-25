@@ -5,8 +5,8 @@
 - Dernière mise à jour : 2026-10-25 16:32 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R8 et R9 sont implémentés, vérifiés et committés ; il reste à pousser
-  uniquement `reforme-budget`.
+- Lot/tâche en cours : R8 et R9 sont implémentés, vérifiés, committés et poussés sur
+  `reforme-budget` ; attendre la validation de Laro sur l’aperçu Cloudflare.
   Ne pas fusionner dans `main` et ne pas appliquer de migration.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
@@ -57,8 +57,8 @@
   Transactions ; aucun déplacement vers Espace n’a été fait sans décision distincte.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : pousser `reforme-budget` et vérifier le résultat. Ne pas fusionner
-  dans `main`, ne pas appliquer de SQL.
+- Prochaine action exacte : attendre la vérification de l’aperçu Cloudflare par Laro. Ne pas
+  fusionner dans `main`, ne pas appliquer de SQL.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
@@ -263,13 +263,13 @@ le suivant.
 
 ### Tâches R8
 
-| Point                        | État    | Détail                                                                                            |
-| ---------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
-| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.      |
-| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256².    |
-| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                   |
-| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant.    |
-| Vérification et livraison R8 | Terminé | 93 tests/15 fichiers, lint, typecheck et build OK ; quatre commits point par point, push à faire. |
+| Point                        | État    | Détail                                                                                                            |
+| ---------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.                      |
+| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256².                    |
+| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                                   |
+| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant.                    |
+| Vérification et livraison R8 | Terminé | 93 tests/15 fichiers, lint, typecheck et build OK ; quatre commits point par point, poussés sur `reforme-budget`. |
 
 ### Tâches R9
 
@@ -278,7 +278,7 @@ le suivant.
 | 1. Filtres Transactions                    | Terminé | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK.                                          |
 | 2. Formulaires et archivage des catégories | Terminé | `<dialog>` bas sur téléphone/centré sur grand écran ; ajout visible en haut ; confirmation après sauvegarde/archivage ; « Archivées » replié avec restauration ; suppression uniquement sans référence de transaction ; `archived_at` existe déjà, aucune migration requise. Typecheck, lint et format OK. |
 | 3. Palette de catégories                   | Terminé | 12 jetons CSS ; ratios clair/sombre vérifiés ; attribution automatique et fallback après épuisement ; legacy préservée ; pastilles, puces d’ajout, analyse et seuils ; `Non classé` neutre ; tests ciblés 3/3.                                                                                             |
-| Vérifications et livraison R9              | Terminé | Filtres/mois, archivage/restauration et couleurs validés ; tests ciblés 20/20, contrôles complets au vert. Push à faire.                                                                                                                                                                                   |
+| Vérifications et livraison R9              | Terminé | Filtres/mois, archivage/restauration et couleurs validés ; tests ciblés 20/20, contrôles complets au vert ; poussé sur `reforme-budget`.                                                                                                                                                                   |
 
 ## Décisions prises
 
