@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './database'
-import type { Invitation, Membership, Profile } from './models'
+import type { Invitation, Membership, Profile, RecurringExpense } from './models'
 import {
   budgetsRepository,
   categoriesRepository,
@@ -47,6 +47,17 @@ export function useMonthCarryDecisions(workspaceId: string | undefined) {
     () => (workspaceId ? monthCarryDecisionsRepository.list(workspaceId) : Promise.resolve([])),
     [workspaceId],
     [],
+  )
+}
+
+export function useRecurringExpenses(workspaceId: string | undefined) {
+  return useLiveQuery(
+    () =>
+      workspaceId
+        ? db.recurringExpenses.where('workspace_id').equals(workspaceId).toArray()
+        : Promise.resolve([] as RecurringExpense[]),
+    [workspaceId],
+    [] as RecurringExpense[],
   )
 }
 

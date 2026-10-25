@@ -6,9 +6,11 @@ import { purgeLocalWorkspace } from './bootstrap'
 import {
   editableRowSchemas,
   membershipSchema,
+  recurringExpenseSchema,
   type EditableRows,
   type EditableTable,
   type Membership,
+  type SyncTable,
 } from './models'
 
 const pageSize = 1000
@@ -40,7 +42,7 @@ export interface SyncGateway {
   getServerTime(signal: AbortSignal): Promise<string>
   push(operation: OutboxOperation, signal: AbortSignal): Promise<unknown>
   fetchChangedRows(
-    table: EditableTable,
+    table: SyncTable,
     workspaceId: string,
     after: string,
     through: string,
@@ -144,7 +146,7 @@ function parseRow<K extends EditableTable>(table: K, row: unknown): EditableRows
 
 function createPageQuery(
   client: SupabaseClient,
-  table: EditableTable,
+  table: SyncTable,
   workspaceId: string,
   after: string,
   through: string,
@@ -203,6 +205,18 @@ function createPageQuery(
       return (from, to) =>
         client
           .from('month_carry_decisions')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .gt('updated_at', after)
+          .lte('updated_at', through)
+          .order('updated_at')
+          .order('id')
+          .abortSignal(signal)
+          .range(from, to)
+    case 'recurringExpenses':
+      return (from, to) =>
+        client
+          .from('recurring_expenses')
           .select('*')
           .eq('workspace_id', workspaceId)
           .gt('updated_at', after)
@@ -313,7 +327,7 @@ function operationKey(operation: OutboxOperation): string {
   return `${operation.table}:${operation.payload.id}`
 }
 
-function cursorId(workspaceId: string, table: EditableTable): string {
+function cursorId(workspaceId: string, table: SyncTable): string {
   return `${workspaceId}:${table}`
 }
 
@@ -526,6 +540,55 @@ async function pullTable<K extends EditableTable>(
   return rows.length
 }
 
+async function pullRecurringExpenses(
+  workspaceId: string,
+  through: string,
+  gateway: SyncGateway,
+  database: BudgetDatabase,
+  signal: AbortSignal,
+): Promise<number> {
+  const id = cursorId(workspaceId, 'recurringExpenses')
+  const cursor = await database.syncCursors.get(id)
+  const after = subtractOverlap(cursor?.cursor ?? new Date(0).toISOString())
+  const rawRows = await gateway.fetchChangedRows(
+    'recurringExpenses',
+    workspaceId,
+    after,
+    through,
+    signal,
+  )
+  throwIfAborted(signal)
+  const rows = rawRows.map((rawRow, index) => {
+    const result = recurringExpenseSchema.safeParse(rawRow)
+    if (!result.success) {
+      const detail = result.error.issues[0]?.message ?? 'structure invalide'
+      throw new SyncFailure(
+        `Données invalides reçues pour recurring_expenses, ligne ${index + 1} : ${detail}`,
+        'permanent',
+      )
+    }
+    if (result.data.workspace_id !== workspaceId) {
+      throw new SyncFailure(
+        `Le serveur a renvoyé un forfait appartenant à un autre espace (ligne ${index + 1}).`,
+        'permanent',
+      )
+    }
+    return result.data
+  })
+
+  await database.transaction('rw', database.recurringExpenses, database.syncCursors, async () => {
+    await database.recurringExpenses.bulkPut(rows)
+    const nextCursor: SyncCursor = {
+      id,
+      workspace_id: workspaceId,
+      table: 'recurringExpenses',
+      cursor: through,
+    }
+    await database.syncCursors.put(nextCursor)
+  })
+  return rows.length
+}
+
 async function runSync(
   userId: string,
   gateway: SyncGateway,
@@ -584,6 +647,8 @@ async function runSync(
       throwIfAborted(signal)
       pulled += await pullTable(workspaceId, table, through, gateway, database, signal)
     }
+    throwIfAborted(signal)
+    pulled += await pullRecurringExpenses(workspaceId, through, gateway, database, signal)
   }
 
   await database.syncMetadata.put({

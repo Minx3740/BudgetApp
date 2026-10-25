@@ -1,10 +1,15 @@
 import type { Table } from 'dexie'
 import { db, type BudgetDatabase, type OutboxOperation } from './database'
-import { editableRowSchemas, type EditableRows, type EditableTable } from './models'
+import {
+  editableRowSchemas,
+  type EditableInputs,
+  type EditableRows,
+  type EditableTable,
+} from './models'
 
 type RepositoryRow<K extends EditableTable> = EditableRows[K]
 type CreateInput<K extends EditableTable> = Omit<
-  RepositoryRow<K>,
+  EditableInputs[K],
   'id' | 'created_at' | 'updated_at' | 'deleted_at'
 > & { id?: string }
 type UpdateInput<K extends EditableTable> = Partial<

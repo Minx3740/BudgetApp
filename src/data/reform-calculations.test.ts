@@ -25,6 +25,8 @@ function transaction(
     note: null,
     created_by: userId,
     paid_by: userId,
+    recurring_id: null,
+    recurring_month: null,
     created_at: timestamp,
     updated_at: timestamp,
     deleted_at,

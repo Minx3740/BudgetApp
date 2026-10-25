@@ -10,6 +10,7 @@ import {
   monthCarryDecisionSchema,
   monthlyBudgetSchema,
   profileSchema,
+  recurringExpenseSchema,
   transactionSchema,
   workspaceSchema,
   type Budget,
@@ -21,6 +22,7 @@ import {
   type MonthCarryDecision,
   type MonthlyBudget,
   type Profile,
+  type RecurringExpense,
   type Transaction,
   type Workspace,
 } from './models'
@@ -35,6 +37,7 @@ export interface RawSnapshot {
   budgets: unknown[]
   monthlyBudgets: unknown[]
   monthCarryDecisions: unknown[]
+  recurringExpenses: unknown[]
 }
 
 export interface WorkspaceSnapshot {
@@ -47,6 +50,7 @@ export interface WorkspaceSnapshot {
   budgets: Budget[]
   monthlyBudgets: MonthlyBudget[]
   monthCarryDecisions: MonthCarryDecision[]
+  recurringExpenses: RecurringExpense[]
 }
 
 export interface SnapshotSource {
@@ -152,6 +156,7 @@ export function createSupabaseSnapshotSource(
           budgets: [],
           monthlyBudgets: [],
           monthCarryDecisions: [],
+          recurringExpenses: [],
         }
       }
 
@@ -163,6 +168,7 @@ export function createSupabaseSnapshotSource(
         budgets,
         monthlyBudgets,
         monthCarryDecisions,
+        recurringExpenses,
       ] = await Promise.all([
         fetchAllPages((from, to) =>
           client
@@ -226,6 +232,15 @@ export function createSupabaseSnapshotSource(
             .order('id')
             .range(from, to),
         ),
+        fetchAllPages((from, to) =>
+          client
+            .from('recurring_expenses')
+            .select('*')
+            .in('workspace_id', workspaceIds)
+            .order('id')
+            .abortSignal(signal)
+            .range(from, to),
+        ),
       ])
 
       return {
@@ -238,6 +253,7 @@ export function createSupabaseSnapshotSource(
         budgets,
         monthlyBudgets,
         monthCarryDecisions,
+        recurringExpenses,
       }
     },
   }
@@ -264,6 +280,7 @@ export async function purgeLocalWorkspace(
     database.budgets.where('workspace_id').equals(workspaceId).delete(),
     database.monthlyBudgets.where('workspace_id').equals(workspaceId).delete(),
     database.monthCarryDecisions.where('workspace_id').equals(workspaceId).delete(),
+    database.recurringExpenses.where('workspace_id').equals(workspaceId).delete(),
   ])
 
   const operations = await database.outbox.toArray()
@@ -297,6 +314,11 @@ export async function bootstrapLocalData(
       monthCarryDecisionSchema,
       raw.monthCarryDecisions,
     ),
+    recurringExpenses: parseRows(
+      'recurring_expenses',
+      recurringExpenseSchema,
+      raw.recurringExpenses,
+    ),
   }
 
   const accessibleWorkspaceIds = new Set(
@@ -319,6 +341,7 @@ export async function bootstrapLocalData(
     ...snapshot.budgets.map((row) => row.workspace_id),
     ...snapshot.monthlyBudgets.map((row) => row.workspace_id),
     ...snapshot.monthCarryDecisions.map((row) => row.workspace_id),
+    ...snapshot.recurringExpenses.map((row) => row.workspace_id),
   ]
   if (scopedWorkspaceIds.some((workspaceId) => !workspaceIds.has(workspaceId))) {
     throw new Error('Le serveur a renvoyé des données appartenant à un espace inaccessible.')
@@ -397,6 +420,8 @@ export async function bootstrapLocalData(
       'monthCarryDecisions',
       snapshot.monthCarryDecisions,
     )
+    await database.recurringExpenses.bulkPut(snapshot.recurringExpenses)
+    importedRowCount += snapshot.recurringExpenses.length
   })
 
   return { workspaceCount: workspaceIds.size, importedRowCount }

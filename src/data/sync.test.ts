@@ -4,7 +4,7 @@ import { bootstrapLocalData } from './bootstrap'
 import { BudgetDatabase, type OutboxOperation } from './database'
 import { createRepository } from './repositories'
 import { createSyncEngine, retryFailedSyncOperations, SyncFailure, type SyncGateway } from './sync'
-import type { Category, EditableTable, Membership } from './models'
+import type { Category, Membership, RecurringExpense, SyncTable } from './models'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
 const userId = '00000000-0000-4000-8000-000000000002'
@@ -50,12 +50,32 @@ function makeMembership(workspace = workspaceId): Membership {
   }
 }
 
+function makeRecurringExpense(overrides: Partial<RecurringExpense> = {}): RecurringExpense {
+  return {
+    id: '00000000-0000-4000-8000-000000000005',
+    series_id: '00000000-0000-4000-8000-000000000006',
+    workspace_id: workspaceId,
+    label: 'Loyer',
+    amount: 200_000,
+    category_id: categoryId,
+    day_of_month: 5,
+    start_month: '2026-10-01',
+    end_month: null,
+    created_by: userId,
+    version: 1,
+    created_at: epoch,
+    updated_at: epoch,
+    ...overrides,
+  }
+}
+
 class FakeSyncGateway implements SyncGateway {
   memberships: Membership[] = [makeMembership()]
   serverTime = epoch
   pushes: OutboxOperation[] = []
-  changedQueries: { table: EditableTable; after: string; through: string }[] = []
+  changedQueries: { table: SyncTable; after: string; through: string }[] = []
   remoteCategories = new Map<string, Category>()
+  remoteRecurringExpenses = new Map<string, RecurringExpense>()
   failNextPush: SyncFailure | null = null
   failOnPushNumber: number | null = null
   failAfterCommitOnce = false
@@ -108,12 +128,20 @@ class FakeSyncGateway implements SyncGateway {
   }
 
   async fetchChangedRows(
-    table: EditableTable,
+    table: SyncTable,
     workspaceId: string,
     after: string,
     through: string,
   ): Promise<unknown[]> {
     this.changedQueries.push({ table, after, through })
+    if (table === 'recurringExpenses') {
+      return [...this.remoteRecurringExpenses.values()].filter(
+        (row) =>
+          row.workspace_id === workspaceId &&
+          Date.parse(row.updated_at) > Date.parse(after) &&
+          Date.parse(row.updated_at) <= Date.parse(through),
+      )
+    }
     if (table !== 'categories') {
       return []
     }
@@ -315,6 +343,23 @@ describe('moteur de synchronisation', () => {
     })
   })
 
+  it('récupère les forfaits en cache sans les ajouter à la file hors ligne', async () => {
+    const recurringExpense = makeRecurringExpense()
+    gateway.remoteRecurringExpenses.set(recurringExpense.id, recurringExpense)
+
+    const result = await createSyncEngine(userId, gateway, database).synchronize(
+      new AbortController().signal,
+    )
+
+    expect(await database.recurringExpenses.get(recurringExpense.id)).toEqual(recurringExpense)
+    expect(await database.outbox.count()).toBe(0)
+    expect(result.pulled).toBe(1)
+    expect(await database.syncCursors.get(`${workspaceId}:recurringExpenses`)).toMatchObject({
+      table: 'recurringExpenses',
+      cursor: epoch,
+    })
+  })
+
   it('synchronise les tables de budget mensuel et de report en push et en pull', async () => {
     await createRepository('categories', database.categories, database).create(
       categoryInput(categoryId),
@@ -359,7 +404,14 @@ describe('moteur de synchronisation', () => {
       'monthCarryDecisions',
     ])
     expect(new Set(gateway.changedQueries.map((query) => query.table))).toEqual(
-      new Set(['categories', 'transactions', 'budgets', 'monthlyBudgets', 'monthCarryDecisions']),
+      new Set([
+        'categories',
+        'transactions',
+        'budgets',
+        'monthlyBudgets',
+        'monthCarryDecisions',
+        'recurringExpenses',
+      ]),
     )
     expect(await database.outbox.count()).toBe(0)
   })
@@ -436,6 +488,7 @@ describe('moteur de synchronisation', () => {
           budgets: [],
           monthlyBudgets: [],
           monthCarryDecisions: [],
+          recurringExpenses: [],
         }),
       },
       database,

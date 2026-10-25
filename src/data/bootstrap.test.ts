@@ -70,6 +70,22 @@ const monthCarryDecision = {
   deleted_at: null,
 }
 
+const recurringExpense = {
+  id: '00000000-0000-4000-8000-000000000006',
+  series_id: '00000000-0000-4000-8000-000000000007',
+  workspace_id: workspaceId,
+  label: 'Loyer',
+  amount: 200_000,
+  category_id: categoryId,
+  day_of_month: 5,
+  start_month: '2026-10-01',
+  end_month: null,
+  created_by: userId,
+  version: 1,
+  created_at: timestamp,
+  updated_at: timestamp,
+}
+
 function makeSnapshot(overrides: Partial<RawSnapshot> = {}): RawSnapshot {
   return {
     profiles: [profile],
@@ -81,6 +97,7 @@ function makeSnapshot(overrides: Partial<RawSnapshot> = {}): RawSnapshot {
     budgets: [],
     monthlyBudgets: [monthlyBudget],
     monthCarryDecisions: [monthCarryDecision],
+    recurringExpenses: [recurringExpense],
     ...overrides,
   }
 }
@@ -104,13 +121,14 @@ describe('import initial vers Dexie', () => {
   it('importe les espaces et leurs données sans créer d’opérations à synchroniser', async () => {
     const result = await bootstrapLocalData(userId, makeSource(makeSnapshot()), database)
 
-    expect(result).toEqual({ workspaceCount: 1, importedRowCount: 6 })
+    expect(result).toEqual({ workspaceCount: 1, importedRowCount: 7 })
     expect(await database.workspaces.get(workspaceId)).toEqual(workspace)
     expect(await database.categories.get(categoryId)).toEqual(category)
     expect(await database.monthlyBudgets.get(monthlyBudget.id)).toEqual(monthlyBudget)
     expect(await database.monthCarryDecisions.get(monthCarryDecision.id)).toEqual(
       monthCarryDecision,
     )
+    expect(await database.recurringExpenses.get(recurringExpense.id)).toEqual(recurringExpense)
     expect(await database.outbox.count()).toBe(0)
 
     await bootstrapLocalData(userId, makeSource(makeSnapshot()), database)
@@ -152,6 +170,7 @@ describe('import initial vers Dexie', () => {
     await database.categories.add(category)
     await database.monthlyBudgets.add(monthlyBudget)
     await database.monthCarryDecisions.add(monthCarryDecision)
+    await database.recurringExpenses.add(recurringExpense)
     await database.outbox.add(operation)
 
     await bootstrapLocalData(
@@ -163,6 +182,7 @@ describe('import initial vers Dexie', () => {
           categories: [],
           monthlyBudgets: [],
           monthCarryDecisions: [],
+          recurringExpenses: [],
         }),
       ),
       database,
@@ -172,6 +192,7 @@ describe('import initial vers Dexie', () => {
     expect(await database.categories.get(categoryId)).toBeUndefined()
     expect(await database.monthlyBudgets.get(monthlyBudget.id)).toBeUndefined()
     expect(await database.monthCarryDecisions.get(monthCarryDecision.id)).toBeUndefined()
+    expect(await database.recurringExpenses.get(recurringExpense.id)).toBeUndefined()
     expect(await database.outbox.get(operation.op_id)).toBeUndefined()
   })
 

@@ -2,9 +2,10 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 08:11 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 09:06 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : R4 terminé ; attendre la validation de Laro avant de commencer R5.
+- Lot/tâche en cours : R5 — migration Supabase, RLS et génération idempotente. R4 a été
+  vu localement et validé par Laro le 2026-10-25.
   R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
 - Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
@@ -56,8 +57,12 @@
   des calculs : 13/13. Suite complète : 66 tests ; lint, typecheck, format check et
   `git diff --check` passent. `npm run build` réussit ; avertissement Vite existant :
   bundle JavaScript principal de 791 kB.
-- Prochaine action exacte : demander à Laro sa validation de R4 ; ne pas démarrer R5 avant
-  son accord.
+- Prochaine action exacte : ouvrir `supabase/migrations/20261025000000_r3_private_avatars.sql`
+  et `supabase/tests/database/002_private_avatars.test.sql` pour réutiliser les conventions,
+  puis créer une migration R5 et son test pgTAP dans `supabase/tests/database/`.
+- Vérifications à lancer pour R5 : `npm test`, `npm run lint`, `npm run typecheck`,
+  `npm run format:check`, `npm run build`, `git diff --check` et pgTAP exécuté manuellement
+  en ligne. Ne pas exécuter la migration distante sans nouvel accord explicite.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` avaient réussi avant ces corrections SQL ;
   `git diff --check` passe. Les tests pgTAP distants R1/R3 passent avec 29/29 et 4/4.
@@ -65,6 +70,19 @@
 - Vérifications R4 : `npm test` (66), `npm run lint`, `npm run typecheck`,
   `npm run format:check`, `npm run build` et `git diff --check` réussis. Aucun changement
   SQL ni migration en R4 ; les migrations distantes R1/R3 ne doivent pas être rejouées.
+- Terminé et vérifié en R5 — fondation locale : modèle `RecurringExpense`, références
+  facultatives des transactions, Dexie v5 conservatrice (transactions et opérations
+  d’outbox conservées et complétées avec les références nulles), bootstrap Supabase et
+  pull synchronisé en lecture seule. Tests de migration Dexie v4→v5, bootstrap et pull
+  inclus. Validation : 68 tests, lint, typecheck, format check, build et `git diff --check`
+  réussis le 2026-10-25. Le build garde l’avertissement Vite sur le bundle (~794 kB).
+- Pas encore fait/vérifié en R5 : migration SQL, politiques RLS, génération mensuelle,
+  tests pgTAP, écran et parcours utilisateur. Aucune migration R5 n’a été créée ou
+  appliquée au Supabase distant.
+- Vérifications prévues R5 : `npm test`, `npm run lint`, `npm run typecheck`,
+  `npm run format:check`, `npm run build`, `git diff --check` et tests SQL pgTAP. Pas de
+  PostgreSQL local confirmé ; la nouvelle migration distante attendra une autorisation
+  explicite distincte.
 - Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
   les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
   données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
@@ -73,7 +91,8 @@
   préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
   prioritaire : adaptation minimale en R1, parcours complet en R4. P7 confirmé le
   2026-10-25 : bucket Storage privé et URLs signées pour les photos de profil.
-- Questions encore ouvertes : aucune décision bloquante pour R4. L’essai manuel
+- Questions encore ouvertes : validation des tests SQL et autorisation explicite avant
+  toute application de la nouvelle migration R5 au projet Supabase. L’essai manuel
   mobile/hors ligne est écarté à la demande de Laro.
 - Pièges connus : préserver les autres changements préexistants du worktree ; la
   migration Supabase distante ne doit jamais être exécutée sans accord explicite ; R1
@@ -87,7 +106,7 @@
 - Dernier jalon historique validé : M8 (2026-10-24).
 - Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
   appareils reste également à faire.
-- Réforme budget : R0–R3 terminés et validés ; R4 en cours.
+- Réforme budget : R0–R4 terminés et validés ; R5 en cours.
 
 ## Jalons
 
@@ -111,15 +130,15 @@ Ces lots suivent la cible validée dans `docs/cahier-des-charges.md` v1.2. Ils s
 distincts des jalons historiques M0–M10. Chaque lot attend la validation de Laro avant
 le suivant.
 
-| Lot | Statut                                                                                                                   | Date       |
-| --- | ------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                                        | 2026-10-24 |
-| R1  | Implémentation terminée ; validations automatisées et pgTAP distant réussis (29/29) ; Laro a validé R2                   | 2026-10-25 |
-| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande                              | 2026-10-25 |
-| R3  | Validé par Laro ; implémentation terminée ; pgTAP distant réussi (4/4)                                                   | 2026-10-25 |
-| R4  | Implémentation et validations terminées ; 66 tests, lint, typecheck, build et format check OK ; validation Laro attendue | 2026-10-25 |
-| R5  | À faire — forfaits                                                                                                       |            |
-| R6  | À faire — analyses                                                                                                       |            |
+| Lot | Statut                                                                                                 | Date       |
+| --- | ------------------------------------------------------------------------------------------------------ | ---------- |
+| R0  | Validé — cahier v1.2, guide UI, état des lieux et propositions R1                                      | 2026-10-24 |
+| R1  | Implémentation terminée ; validations automatisées et pgTAP distant réussis (29/29) ; Laro a validé R2 | 2026-10-25 |
+| R2  | Validé par Laro ; validations automatisées OK ; essai mobile/hors ligne écarté à sa demande            | 2026-10-25 |
+| R3  | Validé par Laro ; implémentation terminée ; pgTAP distant réussi (4/4)                                 | 2026-10-25 |
+| R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
+| R5  | En cours — modèles locaux/synchronisation, migration Supabase, génération et interface forfaits        | 2026-10-25 |
+| R6  | À faire — analyses                                                                                     |            |
 
 ### État des lieux vérifié pour R0
 
@@ -182,6 +201,15 @@ le suivant.
 | Filtres de l’historique et attribution visible   | Terminée et vérifiée | Filtres Dépenses/Revenus/Tout ; remboursement avec dépenses ; ajustement seulement dans Tout ; responsable séparé de l’auteur.    |
 | Vérification des agrégats R4                     | Terminée et vérifiée | 13 tests de calcul passent ; dépenses/remboursements sans catégorie comptés une fois ; revenus et ajustements exclus du budget.   |
 | Validation R4                                    | Terminée             | 66 tests, lint, typecheck, format check, diff check et build OK ; avertissement bundle 791 kB ; essai mobile écarté.              |
+
+### Tâches R5
+
+| Tâche                                             | État    | Détail                                                                                                                        |
+| ------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Modèle, Dexie, bootstrap et synchronisation       | Terminé | Récurrence en lecture seule, références nullables, migration Dexie v5 conservatrice ; 68 tests et contrôles complets réussis. |
+| Migration Supabase, RLS et génération idempotente | À faire | RPC propriétaire/version ; génération mensuelle membre ; tests pgTAP, aucun push distant.                                     |
+| Écran Forfaits et parcours                        | À faire | Lecture hors ligne ; création/modification/arrêt en ligne ; occurrence ou série.                                              |
+| Validation R5                                     | À faire | Tests, lint, typecheck, format, build, SQL ; demander validation avant R6.                                                    |
 
 ## Décisions prises
 

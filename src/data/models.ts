@@ -100,6 +100,22 @@ export const monthCarryDecisionSchema = z.object({
   accepted: z.boolean(),
 })
 
+export const recurringExpenseSchema = z.object({
+  id: uuidSchema,
+  series_id: uuidSchema,
+  workspace_id: uuidSchema,
+  label: z.string().trim().min(1).max(120),
+  amount: moneySchema.positive(),
+  category_id: uuidSchema.nullable(),
+  day_of_month: z.number().int().min(1).max(28),
+  start_month: monthSchema,
+  end_month: monthSchema.nullable(),
+  created_by: uuidSchema,
+  version: z.number().int().positive(),
+  created_at: timestampSchema,
+  updated_at: timestampSchema,
+})
+
 export const cashflowTransactionSchema = z
   .object({
     ...syncFields,
@@ -111,6 +127,8 @@ export const cashflowTransactionSchema = z
     note: z.string().nullable(),
     created_by: uuidSchema,
     paid_by: uuidSchema,
+    recurring_id: uuidSchema.nullable().default(null),
+    recurring_month: monthSchema.nullable().default(null),
   })
   .superRefine((transaction, context) => {
     if (transaction.kind === 'adjustment') {
@@ -158,10 +176,12 @@ export type Transaction = z.infer<typeof cashflowTransactionSchema>
 export type Budget = z.infer<typeof budgetSchema>
 export type MonthlyBudget = z.infer<typeof monthlyBudgetSchema>
 export type MonthCarryDecision = z.infer<typeof monthCarryDecisionSchema>
+export type RecurringExpense = z.infer<typeof recurringExpenseSchema>
 export type CashflowTransaction = z.infer<typeof cashflowTransactionSchema>
 
 export type EditableTable =
   'categories' | 'transactions' | 'budgets' | 'monthlyBudgets' | 'monthCarryDecisions'
+export type SyncTable = EditableTable | 'recurringExpenses'
 
 export interface EditableRows {
   categories: Category
@@ -169,6 +189,14 @@ export interface EditableRows {
   budgets: Budget
   monthlyBudgets: MonthlyBudget
   monthCarryDecisions: MonthCarryDecision
+}
+
+export interface EditableInputs {
+  categories: z.input<typeof categorySchema>
+  transactions: z.input<typeof cashflowTransactionSchema>
+  budgets: z.input<typeof budgetSchema>
+  monthlyBudgets: z.input<typeof monthlyBudgetSchema>
+  monthCarryDecisions: z.input<typeof monthCarryDecisionSchema>
 }
 
 export const editableRowSchemas: {
