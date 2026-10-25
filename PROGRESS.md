@@ -2,12 +2,12 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 16:50 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 18:32 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R8 et R9 sont validés ; le déplacement approuvé de « Répartition des
-  dépenses » est implémenté, vérifié, committé et poussé sur `reforme-budget`. Attendre le
-  retour de Laro sur le nouvel aperçu Cloudflare.
+- Lot/tâche en cours : intégration du logo cashFlow+ — liens de favicon, manifeste PWA,
+  ressources de marque dans l’interface et documentation ; build, tests et précache vérifiés.
+  Commits par point et push de `reforme-budget` à finaliser.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
   références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
@@ -59,8 +59,21 @@
   Transactions ; aucun déplacement vers Espace n’a été fait sans décision distincte.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : attendre la vérification du déplacement sur l’aperçu par Laro.
-  Ne pas fusionner dans `main`, ne pas appliquer de SQL.
+- Intégration du logo : index.html référence favicon.svg, favicon.ico 48 × 48, favicon-32.png
+  et apple-touch-icon.png. Le manifeste PWA référence les trois nouvelles icônes ; includeAssets
+  les place dans le précache. theme_color = #004E33 (accent OKLCH converti) et
+  background_color = #F4F5EF. Tous les fichiers cités ont été vérifiés dans dist/ et le SW.
+- Logo source : icone.svg dans l’en-tête mobile et la barre latérale ; texte cashFlow+ réservé
+  à la barre latérale grand écran. logo-complet.svg sur la connexion et dans À propos ; images
+  importées sans inline et avec alt « cashFlow+ ». Aucune source dans design/ n’a été modifiée.
+- Aucun identifiant interne (Dexie, stockage ou caches) n’a été changé. Assets fournis en
+  place ; ne pas régénérer les icônes.
+- Contrôles logo : lint, typecheck, 94 tests/15 fichiers et build OK. Les sept fichiers
+  favicon/icônes sont présents dans dist et dans le précache SW ; le manifeste final contient
+  exactement les trois icônes attendues et les bonnes couleurs. Les deux SVG de marque sont
+  émis dans dist/assets.
+- Prochaine action exacte : créer le commit du point 3, puis pousser uniquement
+  `reforme-budget`. Ne pas fusionner dans `main`.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et

@@ -1,6 +1,6 @@
 # Guide UI — cashFlow+
 
-Version 1.2 — conventions de conception de la réforme (25 octobre 2026).
+Version 1.3 — conventions de conception de la réforme (25 octobre 2026).
 
 Ce guide définit les règles visuelles et d’interaction à appliquer aux nouveaux écrans
 et aux écrans remaniés des lots R1 à R9. Il s’appuie sur les styles présents dans
@@ -24,6 +24,16 @@ Il ne signifie pas que tous les écrans respectent déjà ces règles.
 - Les références visuelles partagées par Laro servent d’inspiration pour la hiérarchie,
   la compacité et la navigation mobile ; ne pas recopier un écran ou une identité
   graphique externe.
+
+## 1.1 Identité et logo
+
+- Utiliser le logo complet dans les espaces suffisamment grands, notamment la connexion
+  et la rubrique « À propos » des réglages.
+- Utiliser l’icône seule dans l’en-tête mobile, la barre latérale et les petites surfaces.
+- Ne jamais afficher le logo complet à moins de 48 px ; conserver le texte alternatif
+  « cashFlow+ » pour les images de marque.
+- Le fond de référence de la marque est le blanc cassé `#F4F5EF`.
+- Importer les SVG fournis comme ressources ; ne pas en dériver ni en modifier les fichiers.
 
 ## 2. Couleurs et états
 

@@ -15,6 +15,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { Session, SupabaseClient } from '@supabase/supabase-js'
+import iconLogoUrl from '../design/icone.svg?no-inline'
+import completeLogoUrl from '../design/logo-complet.svg?no-inline'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BudgetDashboard } from './components/budget/budget-dashboard'
@@ -295,12 +297,12 @@ function AuthForm({
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-stone-50 px-5 py-10 text-stone-900">
+    <main className="flex min-h-svh items-center justify-center bg-[#F4F5EF] px-5 py-10 text-stone-900">
       <section className="w-full max-w-md rounded-3xl border border-stone-200 bg-white p-7 shadow-sm sm:p-9">
         <div className="mb-8">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-emerald-800">
-            cashFlow+
-          </p>
+          <div className="mb-5 inline-flex rounded-2xl bg-[#F4F5EF] p-3">
+            <img alt="cashFlow+" className="w-40 max-w-full" src={completeLogoUrl} />
+          </div>
           <h1 className="text-3xl font-bold tracking-tight">
             {mode === 'sign-in' && 'Content de te revoir'}
             {mode === 'sign-up' && 'Créer ton compte'}
@@ -889,11 +891,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           href={import.meta.env.BASE_URL}
           aria-label="cashFlow+, accueil"
         >
-          <img
-            alt=""
-            className="size-10 rounded-xl"
-            src={`${import.meta.env.BASE_URL}budget-app-icon.svg`}
-          />
+          <img alt="cashFlow+" className="size-10" src={iconLogoUrl} />
           <span className="text-lg font-bold tracking-tight">cashFlow+</span>
         </a>
 
@@ -949,22 +947,31 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-3 border-b border-stone-200 bg-white/95 px-4 backdrop-blur sm:px-8 md:px-10">
-          <div className="min-w-0 md:hidden">
-            <label className="sr-only" htmlFor="active-workspace-mobile">
-              Choisir l’espace actif
-            </label>
-            <select
-              className="min-h-11 max-w-[55vw] truncate rounded-xl border border-stone-300 bg-white px-3 text-sm font-semibold"
-              id="active-workspace-mobile"
-              onChange={(event) => selectWorkspace(event.target.value)}
-              value={activeWorkspace?.id ?? ''}
+          <div className="flex min-w-0 items-center gap-2 md:hidden">
+            <a
+              aria-label="cashFlow+, accueil"
+              className="flex size-10 shrink-0 items-center justify-center"
+              href={import.meta.env.BASE_URL}
             >
-              {availableWorkspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>
-                  {workspace.name}
-                </option>
-              ))}
-            </select>
+              <img alt="cashFlow+" className="size-9" src={iconLogoUrl} />
+            </a>
+            <div className="min-w-0">
+              <label className="sr-only" htmlFor="active-workspace-mobile">
+                Choisir l’espace actif
+              </label>
+              <select
+                className="min-h-11 max-w-[45vw] truncate rounded-xl border border-stone-300 bg-white px-3 text-sm font-semibold"
+                id="active-workspace-mobile"
+                onChange={(event) => selectWorkspace(event.target.value)}
+                value={activeWorkspace?.id ?? ''}
+              >
+                {availableWorkspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -1410,7 +1417,10 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                       cashFlow+ · gestion du budget mensuel par espace.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="text-sm text-stone-600">
+                  <CardContent className="space-y-3 text-sm text-stone-600">
+                    <div className="inline-flex rounded-2xl bg-[#F4F5EF] p-2">
+                      <img alt="cashFlow+" className="w-28 max-w-full" src={completeLogoUrl} />
+                    </div>
                     <p>Les montants sont affichés en ariary (Ar).</p>
                   </CardContent>
                 </Card>
