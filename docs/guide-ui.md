@@ -1,9 +1,9 @@
 # Guide UI — cashFlow+
 
-Version 1.1 — conventions de conception de la réforme (25 octobre 2026).
+Version 1.2 — conventions de conception de la réforme (25 octobre 2026).
 
 Ce guide définit les règles visuelles et d’interaction à appliquer aux nouveaux écrans
-et aux écrans remaniés des lots R1 à R7. Il s’appuie sur les styles présents dans
+et aux écrans remaniés des lots R1 à R9. Il s’appuie sur les styles présents dans
 `src/index.css` et sur les exigences validées dans `docs/cahier-des-charges.md` v1.2.
 Il ne signifie pas que tous les écrans respectent déjà ces règles.
 
@@ -122,6 +122,12 @@ utilisateur est une fonctionnalité distincte à implémenter au lot prévu.
 
 ## 5. Composants et interactions
 
+- Le bouton « ? » ouvre une explication courte, fermée par un appui à l'extérieur ou sur
+  Échap. Ne pas laisser de paragraphes d'aide permanents lorsqu'une aide à la demande suffit.
+- Une carte de graphique repliée conserve son titre et un chiffre résumé ; le graphique
+  n'est pas rendu tant que la carte reste fermée.
+- L'état de chaque graphique peut être mémorisé localement, mais l'application doit continuer
+  à fonctionner si la lecture ou l'écriture du stockage du navigateur échoue.
 - Réutiliser les composants `Button`, `Card`, champs et autres composants de
   `src/components/ui/`. Étendre leurs variantes seulement lorsqu’un besoin récurrent
   le justifie.

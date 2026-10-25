@@ -34,7 +34,6 @@ import {
   useMemberships,
   useProfiles,
   useSyncSummary,
-  useTransactions,
   useWorkspaces,
 } from './data/hooks'
 import { monthKeyForDate, shiftMonth } from './data/calculations'
@@ -79,7 +78,7 @@ const sectionDetails: Record<
   budgets: {
     title: 'Budgets',
     description: 'Retrouve ici l’enveloppe du mois et les seuils par catégorie.',
-    milestone: 'Ton enveloppe, ton solde et les seuils sont calculés sur cet appareil.',
+    milestone: 'Suis ton budget et les repères de chaque catégorie.',
   },
   'recurring-expenses': {
     title: 'Forfaits',
@@ -150,12 +149,6 @@ function getAuthLinkError(): string | null {
 
 function getApplicationUrl(): string {
   return new URL(import.meta.env.BASE_URL, window.location.origin).toString()
-}
-
-function formatMoney(amount: number): string {
-  return `${new Intl.NumberFormat('fr-FR', {
-    maximumFractionDigits: 0,
-  }).format(amount)} Ar`
 }
 
 function selectedMonthFromLocation(): string {
@@ -515,19 +508,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     activeMembership?.role === 'member'
   const canManageWorkspace =
     activeWorkspace?.type === 'personal' || activeMembership?.role === 'owner'
-  const transactions = useTransactions(activeWorkspace?.id)
   const syncSummary = useSyncSummary()
-  const activeTransactions = transactions.filter((transaction) => transaction.deleted_at === null)
-  const monthTransactions = activeTransactions.filter((transaction) =>
-    transaction.occurred_on.startsWith(`${selectedMonth.slice(0, 7)}-`),
-  )
-  const recentTransactions = [...monthTransactions]
-    .sort(
-      (left, right) =>
-        right.occurred_on.localeCompare(left.occurred_on) ||
-        right.created_at.localeCompare(left.created_at),
-    )
-    .slice(0, 5)
   const metadataDisplayName = session.user.user_metadata['display_name']
   const displayName =
     (typeof metadataDisplayName === 'string' && metadataDisplayName.trim()) ||
@@ -537,15 +518,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const isBootstrapping = bootstrapResult?.key !== bootstrapKey
   const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
   const visibleSyncError = syncError ?? syncSummary.lastError
-  const syncStatusLabel = isSyncing
-    ? 'Synchronisation en cours'
-    : visibleSyncError || syncSummary.failedCount > 0
-      ? 'Échec de la synchronisation'
-      : syncSummary.pendingCount > 0
-        ? `${syncSummary.pendingCount} en attente`
-        : !isOnline
-          ? 'Hors ligne'
-          : null
   const initials = displayName
     .trim()
     .split(/\s+/)
@@ -721,7 +693,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
             return
           }
           const message =
-            failure instanceof Error ? failure.message : 'Erreur inconnue de synchronisation.'
+            failure instanceof Error ? failure.message : 'Erreur inconnue lors de l’envoi.'
           setSyncError(message)
         })
         .finally(() => {
@@ -771,7 +743,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
       setSyncAttempt((attempt) => attempt + 1)
     } catch (failure) {
       const message =
-        failure instanceof Error ? failure.message : 'Erreur inconnue de synchronisation.'
+        failure instanceof Error ? failure.message : 'Erreur inconnue lors de l’envoi.'
       setSyncError(`Impossible de relancer la file locale. ${message}`)
     }
   }
@@ -994,27 +966,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            {syncStatusLabel && (
-              <span
-                aria-label={syncStatusLabel}
-                className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ${
-                  syncSummary.failedCount > 0 || visibleSyncError
-                    ? 'bg-red-50 text-red-800'
-                    : !isOnline
-                      ? 'bg-amber-50 text-amber-900'
-                      : 'bg-stone-100 text-stone-700'
-                }`}
-                role="status"
-                title={syncStatusLabel}
-              >
-                {!isOnline ? (
-                  <WifiOff aria-hidden="true" size={14} />
-                ) : (
-                  <RefreshCw aria-hidden="true" size={14} />
-                )}
-                <span className="hidden sm:inline">{syncStatusLabel}</span>
-              </span>
-            )}
             <details className="relative">
               <summary
                 aria-label={`Profil de ${displayName}`}
@@ -1112,11 +1063,17 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               className="mb-6 flex flex-col gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
               role="alert"
             >
-              <p>
-                Synchronisation interrompue : {visibleSyncError}
+              <div>
+                Certaines modifications n’ont pas encore été enregistrées en ligne.
                 {syncSummary.pendingCount + syncSummary.failedCount > 0 &&
-                  ` ${syncSummary.pendingCount + syncSummary.failedCount} opération(s) locale(s) restent dans la file.`}
-              </p>
+                  ` ${syncSummary.pendingCount + syncSummary.failedCount} modification(s) restent à envoyer.`}
+                <details className="mt-2">
+                  <summary className="min-h-11 cursor-pointer py-2 font-medium">
+                    Voir les détails
+                  </summary>
+                  <span>{visibleSyncError}</span>
+                </details>
+              </div>
               <Button
                 className="min-h-12 shrink-0"
                 onClick={() => void retrySynchronization()}
@@ -1161,93 +1118,6 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   {activeWorkspace?.type === 'shared' ? 'Espace partagé' : 'Espace personnel'}
                 </p>
               </div>
-
-              <section
-                aria-label="Aperçu du budget"
-                className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr]"
-              >
-                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle>Transactions</CardTitle>
-                        <CardDescription>
-                          Les opérations de ton espace, à jour sur cet appareil.
-                        </CardDescription>
-                      </div>
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-900">
-                        {activeWorkspace?.type === 'shared' ? 'Partagé' : 'Perso'}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-4xl font-bold tracking-tight text-emerald-950">
-                      {activeTransactions.length}
-                    </p>
-                    <p className="text-sm text-stone-600">
-                      {activeTransactions.length === 1 ? 'transaction' : 'transactions'} enregistrée
-                      {activeTransactions.length === 1 ? '' : 's'}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button className="min-h-11" onClick={addTransaction} variant="default">
-                        <CirclePlus aria-hidden="true" size={18} />
-                        Ajouter
-                      </Button>
-                      <Button
-                        className="min-h-11"
-                        onClick={() => setActiveSection('budgets')}
-                        variant="outline"
-                      >
-                        Budgets
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                  <CardHeader>
-                    <CardTitle>Ce mois</CardTitle>
-                    <CardDescription>Le point clé pour savoir où tu en es.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {recentTransactions.length === 0 ? (
-                      <p className="text-sm text-stone-500">Aucune transaction récente.</p>
-                    ) : (
-                      recentTransactions.slice(0, 3).map((transaction) => (
-                        <div
-                          className="flex items-center justify-between gap-3 text-sm"
-                          key={transaction.id}
-                        >
-                          <span className="truncate text-stone-600">
-                            {transaction.kind === 'expense'
-                              ? 'Dépense'
-                              : transaction.kind === 'refund'
-                                ? 'Remboursement'
-                                : transaction.kind === 'income'
-                                  ? 'Revenu'
-                                  : 'Ajustement'}
-                          </span>
-                          <span className="shrink-0 font-semibold">
-                            {transaction.kind === 'expense'
-                              ? '−'
-                              : transaction.kind === 'income' || transaction.kind === 'refund'
-                                ? '+'
-                                : ''}
-                            {formatMoney(transaction.amount)}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                    <Button
-                      className="mt-2 min-h-11 w-full"
-                      onClick={() => setActiveSection('transactions')}
-                      variant="outline"
-                    >
-                      Voir les transactions
-                    </Button>
-                  </CardContent>
-                </Card>
-              </section>
 
               <BudgetDashboard
                 canManageBudget={canManageWorkspace}
@@ -1466,7 +1336,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
                     <CardTitle>Préférences d’affichage</CardTitle>
-                    <CardDescription>Le choix est conservé sur cet appareil.</CardDescription>
+                    <CardDescription>Personnalise l’apparence de l’application.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -1537,12 +1407,14 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
                 <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                   <CardHeader>
-                    <CardTitle>État de connexion</CardTitle>
-                    <CardDescription>Réseau et synchronisation sur cet appareil.</CardDescription>
+                    <CardTitle>Données et connexion</CardTitle>
+                    <CardDescription>
+                      Connexion et état des dernières modifications.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm text-stone-600">
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2">
-                      <span className="font-medium text-stone-800">Réseau</span>
+                      <span className="font-medium text-stone-800">Connexion</span>
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
                           isOnline ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
@@ -1553,11 +1425,11 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                         ) : (
                           <WifiOff aria-hidden="true" size={12} />
                         )}
-                        {isOnline ? 'En ligne' : 'Hors-ligne'}
+                        {isOnline ? 'Connecté' : 'Sans connexion'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-3 py-2">
-                      <span className="font-medium text-stone-800">Synchronisation</span>
+                      <span className="font-medium text-stone-800">Modifications</span>
                       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-700">
                         <RefreshCw
                           aria-hidden="true"
@@ -1565,14 +1437,14 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                           size={12}
                         />
                         {isSyncing
-                          ? 'Sync…'
+                          ? 'Envoi en cours'
                           : syncSummary.failedCount > 0
-                            ? 'Échec'
+                            ? 'À réessayer'
                             : syncSummary.pendingCount > 0
-                              ? `${syncSummary.pendingCount} en attente`
+                              ? `${syncSummary.pendingCount} à envoyer`
                               : syncSummary.lastSuccessfulSync
                                 ? 'À jour'
-                                : 'À synchroniser'}
+                                : 'Prêtes à envoyer'}
                       </span>
                     </div>
                   </CardContent>

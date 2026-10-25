@@ -55,7 +55,7 @@ validation par Laro.
 ## 1. Contexte et objectif
 
 cashFlow+ aide une personne ou un groupe à suivre ses dépenses et revenus, à définir
-son budget mensuel disponible et à suivre ce qui lui reste. L’application est
+son budget mensuel disponible et à comprendre ce qui a déjà été dépensé. L’application est
 une PWA mobile-first, utilisable hors ligne après le premier chargement des données.
 
 Promesse : **comprendre rapidement le disponible du mois, ce qui a été dépensé et

@@ -179,7 +179,9 @@ export function RecurringExpensesView({
       }
       setDraft(emptyDraft(month))
       onRefresh()
-      setNotice('Forfait enregistré. Les dépenses couvertes seront visibles après synchronisation.')
+      setNotice(
+        'Forfait enregistré. Les dépenses couvertes apparaîtront dès que tu seras connecté.',
+      )
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : 'Erreur inconnue.'
       setError(`Impossible d’enregistrer ce forfait. ${message}`)
@@ -235,7 +237,7 @@ export function RecurringExpensesView({
         setNotice(
           isOnline
             ? `La dépense de ${monthLabel(month)} a été modifiée.`
-            : `La dépense de ${monthLabel(month)} est modifiée sur cet appareil et sera synchronisée en ligne.`,
+            : `La dépense de ${monthLabel(month)} a été modifiée et sera envoyée dès que tu seras connecté.`,
         )
       }
       setEditingId(null)
@@ -289,8 +291,7 @@ export function RecurringExpensesView({
         </h1>
         <p className="mt-2 max-w-2xl leading-7 text-stone-600">
           Un forfait crée automatiquement une dépense chaque mois, au jour choisi. Les mois manqués
-          sont rattrapés à la prochaine synchronisation ; hors ligne, tu peux consulter les
-          forfaits.
+          sont ajoutés quand tu te reconnectes. Tu peux consulter tes forfaits sans connexion.
         </p>
       </div>
 

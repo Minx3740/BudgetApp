@@ -220,6 +220,19 @@ export function BudgetDashboard({
   const consumedCategories = summary.categories
     .filter((item) => item.spentAmount > 0)
     .slice(0, mode === 'home' ? 3 : 10)
+  const recentTransactions = transactions
+    .filter(
+      (transaction) =>
+        transaction.deleted_at === null &&
+        transaction.occurred_on.startsWith(`${month.slice(0, 7)}-`),
+    )
+    .sort(
+      (left, right) =>
+        right.occurred_on.localeCompare(left.occurred_on) ||
+        right.created_at.localeCompare(left.created_at),
+    )
+    .slice(0, 3)
+  const categoriesById = new Map(categories.map((category) => [category.id, category]))
   const resourceUsage = currentLedger
     ? resourceUsagePercentage(currentLedger.netExpenses, currentLedger.resources)
     : null
@@ -450,14 +463,14 @@ export function BudgetDashboard({
 
   if (mode === 'home') {
     return (
-      <section aria-label={`Budget de ${formatMonth(month)}`} className="mt-4 space-y-4">
+      <section aria-label={`Budget de ${formatMonth(month)}`} className="space-y-4">
         {ledger.error && (
           <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
             Impossible de calculer le disponible du mois. {ledger.error}
           </p>
         )}
         {currentLedger && (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
             <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
               <CardHeader>
                 <CardTitle>Disponible · {formatMonth(month)}</CardTitle>
@@ -520,61 +533,108 @@ export function BudgetDashboard({
               </CardContent>
             </Card>
 
-            <div className="space-y-4">
-              {shouldOfferCarry && previousLedger && (
-                <Card className="rounded-2xl border-0 bg-amber-50 shadow-sm ring-amber-200">
-                  <CardHeader>
-                    <CardTitle>Reporter le disponible précédent ?</CardTitle>
-                    <CardDescription className="text-stone-700">
-                      Le mois précédent se termine avec un disponible positif de{' '}
-                      {formatMoney(previousLedger.available)}. Ce choix ne change pas le budget du
-                      mois.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
-                    {canManageBudget ? (
-                      <>
-                        <Button className="min-h-11" onClick={() => void saveCarryDecision(true)}>
-                          Reporter ce montant
-                        </Button>
-                        <Button
-                          className="min-h-11"
-                          onClick={() => void saveCarryDecision(false)}
-                          variant="outline"
-                        >
-                          Ne pas reporter
-                        </Button>
-                      </>
-                    ) : (
-                      <p className="text-sm text-stone-700">
-                        Seul le propriétaire peut décider du report.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
+            <div className="grid grid-cols-2 gap-3">
               <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                <CardHeader>
-                  <CardTitle>Ce mois</CardTitle>
-                  <CardDescription>{formatMonth(month)}</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                  <div className="rounded-xl bg-stone-50 p-3">
-                    <p className="text-sm text-stone-600">Dépenses nettes</p>
-                    <p className="mt-1 font-semibold">{formatMoney(currentLedger.netExpenses)}</p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 p-3">
-                    <p className="text-sm text-stone-600">Revenus</p>
-                    <p className="mt-1 font-semibold">{formatMoney(currentLedger.income)}</p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 p-3">
-                    <p className="text-sm text-stone-600">Ajustements</p>
-                    <p className="mt-1 font-semibold">{formatMoney(currentLedger.adjustments)}</p>
-                  </div>
+                <CardContent className="p-4">
+                  <p className="text-sm text-stone-600">Revenus</p>
+                  <p className="mt-1 text-lg font-semibold">{formatMoney(currentLedger.income)}</p>
                 </CardContent>
               </Card>
+              <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+                <CardContent className="p-4">
+                  <p className="text-sm text-stone-600">Dépenses</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatMoney(currentLedger.netExpenses)}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
+            {shouldOfferCarry && previousLedger && (
+              <Card className="rounded-2xl border-0 bg-amber-50 shadow-sm ring-amber-200">
+                <CardHeader>
+                  <CardTitle>Reporter le disponible précédent ?</CardTitle>
+                  <CardDescription className="text-stone-700">
+                    Le mois précédent se termine avec un disponible positif de{' '}
+                    {formatMoney(previousLedger.available)}. Ce choix ne change pas le budget du
+                    mois.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {canManageBudget ? (
+                    <>
+                      <Button className="min-h-11" onClick={() => void saveCarryDecision(true)}>
+                        Reporter ce montant
+                      </Button>
+                      <Button
+                        className="min-h-11"
+                        onClick={() => void saveCarryDecision(false)}
+                        variant="outline"
+                      >
+                        Ne pas reporter
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-stone-700">
+                      Seul le propriétaire peut décider du report.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+              <CardHeader>
+                <CardTitle>Dernières transactions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentTransactions.length === 0 ? (
+                  <p className="text-sm text-stone-500">Aucune transaction ce mois-ci.</p>
+                ) : (
+                  recentTransactions.map((transaction) => {
+                    const category = transaction.category_id
+                      ? categoriesById.get(transaction.category_id)
+                      : undefined
+                    const typeLabel =
+                      transaction.kind === 'expense'
+                        ? 'Dépense'
+                        : transaction.kind === 'refund'
+                          ? 'Remboursement'
+                          : transaction.kind === 'income'
+                            ? 'Revenu'
+                            : 'Ajustement'
+                    const signedAmount =
+                      transaction.kind === 'expense'
+                        ? -transaction.amount
+                        : transaction.kind === 'adjustment'
+                          ? transaction.amount
+                          : transaction.amount
+                    return (
+                      <div
+                        className="flex min-w-0 items-center justify-between gap-3 text-sm"
+                        key={transaction.id}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor: category?.color ?? 'var(--category-uncategorized)',
+                            }}
+                          />
+                          <span className="truncate">
+                            {category?.name ?? (transaction.note?.trim() || typeLabel)}
+                          </span>
+                        </div>
+                        <span className="shrink-0 font-semibold">{formatMoney(signedAmount)}</span>
+                      </div>
+                    )
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
               <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                 <CardHeader>
                   <CardTitle>Catégories les plus consommées</CardTitle>

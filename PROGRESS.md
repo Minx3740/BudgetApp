@@ -2,14 +2,12 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 15:24 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 15:50 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R7 — modèle A du disponible terminé, vérifié, committé et poussé
-  (`03a0600` sur `origin/reforme-budget`). Arrêt en attente du message « continue » de Laro.
-  Les nouveaux lots R8/R9 ne sont pas commencés ;
-  certains écrans Transactions du futur R9 ont déjà été implémentés dans l'ancienne séquence.
-  Aucun merge dans `main`; aucune migration sans accord de Laro.
+- Lot/tâche en cours : R8 — implémentation et contrôles terminés ; les commits point par
+  point et le push de `reforme-budget` restent à faire. Après livraison de R8, traiter R9
+  sans fusionner dans `main` et sans appliquer de migration.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
   références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
@@ -39,30 +37,37 @@
   le panneau d’ajout, barres du graphique « Où va l’argent ? » et de seuil colorées ;
   « Non classé » gris neutre. Tests d’attribution dédiés : 3/3 ; tests filtrage/analyses/
   couleurs ciblés : 16/16 ; typecheck et lint passent.
-- R7 modèle A terminé : fonctions pures calculent ressources, disponible et report
+- R7 modèle A terminé et poussé : fonctions pures calculent ressources, disponible et report
   positif en chaîne ; la carte d'accueil, la barre d'usage, le graphique journalier et les
   textes des champs Budget/Revenu reflètent la règle. Tests ciblés : 12/12.
-- Tests R7 : `npm test` 86/86 sur 14 fichiers ; `npm run lint`, `npm run typecheck`,
-  `npm run build` et `git diff --check` passent. Prettier a été passé sur les fichiers
-  modifiés ; build avec avertissement Vite non bloquant sur le chunk principal (818,99 kB).
+- R8 implémenté : accueil réorganisé et textes techniques retirés ; nom affiché modifiable
+  en ligne ; recadrage photo interactif au canevas (déplacement, zoom, 256 × 256 WebP) ;
+  aide des seuils en popover ; graphiques repliables et état mémorisé avec repli tolérant.
+- Contrôles R8 : 92 tests/15 fichiers, lint, typecheck et build passent ; Prettier ciblé
+  passe. L’avertissement Vite sur le chunk principal de 820,54 kB reste non bloquant.
+- Aucun nouveau paquet, aucune migration créée ou appliquée. Le déplacement de
+  « Répartition des dépenses » vers Analyses n’a pas été effectué ; à proposer à Laro.
 - SQL/migrations : aucune migration requise, créée ou appliquée ; aucune commande SQL.
 - Tâches anciennement appelées R7 (Transactions) déjà présentes dans le code ; dans cette
   séquence elles relèvent de R9 et restent à revalider après « continue ». Le bouton Ajouter
   doublé et l'emplacement de Catégories restent signalés sans correction non autorisée.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : attendre que Laro vérifie R7 et écrive « continue » avant
-  d'entamer R8, puis R9. Ne pas fusionner dans `main` et ne pas appliquer de SQL.
+- Prochaine action exacte : faire les quatre commits R8 séparés, pousser uniquement
+  `reforme-budget`, puis revalider R9 (filtres, catégories et couleurs), ses tests, lint,
+  typecheck et build. Ne pas fusionner dans `main`, ne pas appliquer de SQL.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
   contrôle de contraste clair/sombre ; première couleur non utilisée attribuée à la création ;
   couleur historique hors palette préservée ; noms toujours visibles et « Non classé » neutre.
-- Questions ouvertes : revue de l'aperçu R7 par Laro ; attendre « continue » avant R8/R9.
+- Questions ouvertes : proposer à Laro le déplacement de « Répartition des dépenses » vers
+  Analyses ; signaler les vérifications R9 sans corriger les éléments nécessitant son accord.
 - Pièges connus : préserver les modifications préexistantes non committées de
   `.env.example`, `.github/workflows/ci.yml`, `README.md`,
-  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts`; ne pas fusionner
-  R7 dans `main`.
+  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts`; dans
+  `workspace-management.tsx`, ne pas inclure le changement préexistant du lien d’invitation
+  dans les commits R8. Ne pas fusionner dans `main`.
   La spécification de réforme a été déplacée dans `docs/reforme-budget-global.md`.
   La fonction `Intl.NumberFormat('fr-FR')` produit le séparateur U+202F
   (espace fine insécable) entre milliers ; ne pas remplacer avant de confirmer un défaut
@@ -136,8 +141,8 @@ docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
 - Dernier jalon historique validé : M8 (2026-10-24).
 - Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
   appareils reste également à faire.
-- Réforme budget : R0–R6 terminés et validés ; R7 modèle A en attente de push et revue ;
-  R8 et R9 attendent « continue ».
+- Réforme budget : R0–R7 terminés et poussés ; R8 implémenté et validé automatiquement,
+  livraison en cours ; R9 à revalider ensuite.
 
 ## Jalons
 
@@ -170,9 +175,9 @@ le suivant.
 | R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
 | R5  | Validé par Laro ; migration, interface et tests SQL terminés (33/33)                                   | 2026-10-25 |
 | R6  | Validé par Laro ; implémentation et contrôles terminés                                                 | 2026-10-25 |
-| R7  | Modèle A du disponible implémenté, validé automatiquement et poussé ; revue de Laro en attente         | 2026-10-25 |
-| R8  | En attente du message « continue » après validation de R7                                              |            |
-| R9  | En attente du message « continue » après validation de R7 ; ancien code Transactions déjà présent      |            |
+| R7  | Modèle A du disponible implémenté, validé automatiquement et poussé                                    | 2026-10-25 |
+| R8  | Implémenté et vérifié (92 tests, lint, typecheck, build) ; commits et push en cours                    | 2026-10-25 |
+| R9  | À revalider après livraison R8 ; code Transactions existant à contrôler selon les décisions            |            |
 
 ### État des lieux vérifié pour R0
 
@@ -253,14 +258,24 @@ le suivant.
 | Volet Analyses accessible et paresseux | Terminé  | Quatre graphiques SVG, valeurs consultables en texte ; code séparé dans un chunk chargé à la demande. |
 | Validation R6                          | Terminée | Validée par Laro le 2026-10-25 ; 77 tests, lint, typecheck, format, build et diff check OK.           |
 
-### Tâches R7
+### Tâches R8
 
-| Point                                      | État     | Détail                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Filtres Transactions                    | Terminé  | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK.                                          |
-| 2. Formulaires et archivage des catégories | Terminé  | `<dialog>` bas sur téléphone/centré sur grand écran ; ajout visible en haut ; confirmation après sauvegarde/archivage ; « Archivées » replié avec restauration ; suppression uniquement sans référence de transaction ; `archived_at` existe déjà, aucune migration requise. Typecheck, lint et format OK. |
-| 3. Palette de catégories                   | Terminé  | 12 jetons CSS ; ratios clair/sombre vérifiés ; attribution automatique et fallback après épuisement ; legacy préservée ; pastilles, puces d’ajout, analyse et seuils ; `Non classé` neutre ; tests ciblés 3/3.                                                                                             |
-| Vérifications et livraison R7              | En cours | 81 tests, lint, typecheck, build et diff check OK ; Prettier ciblé OK, format global bloqué par le fichier CI préexistant. Commits séparés par point ; pousser uniquement `reforme-budget`, puis attendre la validation de Laro.                                                                           |
+| Point                        | État    | Détail                                                                                         |
+| ---------------------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.   |
+| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256². |
+| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                |
+| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant. |
+| Vérification et livraison R8 | Terminé | 92 tests/15 fichiers, lint, typecheck et build OK ; commits point par point et push à faire.   |
+
+### Tâches R9 préexistantes à revalider
+
+| Point                                      | État    | Détail                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Filtres Transactions                    | Terminé | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK.                                          |
+| 2. Formulaires et archivage des catégories | Terminé | `<dialog>` bas sur téléphone/centré sur grand écran ; ajout visible en haut ; confirmation après sauvegarde/archivage ; « Archivées » replié avec restauration ; suppression uniquement sans référence de transaction ; `archived_at` existe déjà, aucune migration requise. Typecheck, lint et format OK. |
+| 3. Palette de catégories                   | Terminé | 12 jetons CSS ; ratios clair/sombre vérifiés ; attribution automatique et fallback après épuisement ; legacy préservée ; pastilles, puces d’ajout, analyse et seuils ; `Non classé` neutre ; tests ciblés 3/3.                                                                                             |
+| Vérifications et livraison R9              | À faire | Revalider les points déjà implémentés et tester les filtres, l’attribution des couleurs et les parcours accessibles ; rapporter les anomalies non autorisées avant correction.                                                                                                                             |
 
 ## Décisions prises
 

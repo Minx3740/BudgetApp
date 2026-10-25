@@ -374,7 +374,7 @@ export function LocalDataView({
         })
       }
       categoryDialogRef.current?.close()
-      setNotice('Catégorie enregistrée sur cet appareil.')
+      setNotice('Catégorie enregistrée.')
     } catch (failure) {
       setCategoryFormError(`Impossible d’enregistrer cette catégorie. ${errorMessage(failure)}`)
     }
@@ -581,10 +581,10 @@ export function LocalDataView({
           paid_by: input.paid_by,
         }
         await transactionsRepository.update(editingTransactionId, workspaceId, changes)
-        setNotice('Transaction mise à jour sur cet appareil.')
+        setNotice('Transaction mise à jour.')
       } else {
         await transactionsRepository.create(input)
-        setNotice('Transaction enregistrée sur cet appareil.')
+        setNotice('Transaction enregistrée.')
       }
       setEditingTransactionId(null)
       setTransactionDraft(newTransactionDraft(month, userId))
@@ -600,7 +600,7 @@ export function LocalDataView({
     setNotice(null)
     try {
       await transactionsRepository.softDelete(transaction.id, workspaceId)
-      setNotice('Transaction supprimée sur cet appareil.')
+      setNotice('Transaction supprimée.')
     } catch (failure) {
       setError(`Impossible de supprimer cette transaction. ${errorMessage(failure)}`)
     }
@@ -614,8 +614,8 @@ export function LocalDataView({
       </h1>
       <p className="mt-3 leading-7 text-stone-600">
         {canEdit
-          ? 'Tes changements sont enregistrés sur cet appareil, même sans connexion.'
-          : 'Les données de cet espace sont disponibles sur cet appareil.'}
+          ? 'Tes changements sont enregistrés, même sans connexion.'
+          : 'Les données de cet espace sont disponibles.'}
       </p>
       {!canEdit && (
         <p className="mt-4 rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-700">

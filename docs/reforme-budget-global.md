@@ -418,6 +418,29 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 - Validation : tests du calcul, du report, des états absent/0 et du ratio de barre au vert ;
   règles répercutées dans le cahier, le guide UI et le test téléphonique.
 
+### R8. Accueil, profil, Budgets et Analyses
+
+- **Accueil** : afficher dans l'ordre le disponible, revenus/dépenses, le report lorsqu'une
+  décision est à prendre, les trois dernières transactions et les trois catégories les plus
+  consommées. Retirer le compteur de transactions, le doublon « Ce mois » et les textes
+  techniques. Les transactions récentes reprennent la couleur de leur catégorie.
+- **Profil** : permettre de modifier le nom affiché en ligne et répercuter ce nom dans les
+  espaces et les transactions. Permettre le choix, le déplacement et le zoom de la photo dans
+  un cadre rond, puis l'exporter en WebP 256 × 256. La modification du nom et de la photo
+  nécessite une connexion. Réutiliser le canevas, sans dépendance supplémentaire.
+- **Budgets · Mois** : retirer les textes d'aide permanents et l'introduction technique.
+  Remplacer l'aide sur les seuils par un bouton « ? » ouvrant une explication courte qui se
+  ferme à l'extérieur. Garder un état vide compact lorsque aucun seuil n'est défini.
+- **Répartition des dépenses** : son déplacement vers Analyses est proposé, mais ne doit pas
+  être effectué sans accord de Laro.
+- **Analyses** : rendre chaque carte de graphique repliable, avec titre et chiffre résumé.
+  Sur téléphone, seul le premier graphique est ouvert par défaut ; un graphique replié n'est
+  pas rendu. Mémoriser séparément l'état des cartes dans le stockage local, sans bloquer
+  l'écran si ce stockage est indisponible.
+- Validation : vérifier l'ordre et l'absence des anciennes cartes d'accueil, le changement
+  de nom dans les membres/transactions, le recadrage 256 × 256 WebP, la fermeture extérieure
+  de l'aide et la persistance tolérante de l'état des graphiques.
+
 ### R9. Filtres, catégories et couleurs de Transactions
 
 Les décisions de Laro s'appliquent à l'écran Transactions, aux formulaires de catégories et
