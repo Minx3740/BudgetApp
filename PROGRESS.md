@@ -2,141 +2,66 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 10:56 (UTC+03:00).
-- Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
-- Lot/tâche en cours : réforme R0–R6 terminée ; R6 validé par Laro le 2026-10-25. Le « ok,
-  reprends alors » de Laro valide R5 et autorise la reprise du lot suivant.
-  R5 est terminé et validé ; R4 a été vu localement et validé par Laro le 2026-10-25.
-  R3 a été validé par Laro le 2026-10-25 ;
-  l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
-- Terminé et vérifié : l’enveloppe globale manuelle est indépendante des seuils ; accueil
-  et Budgets affichent budget, dépenses nettes et solde ; les décisions de report sont
-  réservées au propriétaire ; le mois partagé persiste dans `?mois=YYYY-MM` et filtre
-  l’historique. Format `Ar`, états seuil à 80/100 %, et remboursements pris en compte.
-  Validation complète : 58 tests, lint, typecheck, build et format check réussis ;
-  `prettier --check` ciblé et `git diff --check` confirmés le 2026-10-24.
-- Fait mais non vérifié à l’exécution : aucun essai manuel téléphone/hors ligne (non
-  souhaité par Laro). L’outil navigateur précédent n’a pas démarré, car Chromium
-  Playwright manque localement ; aucune installation n’a été lancée.
-- Terminé et vérifié en R3 : en-tête compact avec sélecteur d’espace mobile, indicateur de
-  synchronisation uniquement lorsqu’il est utile, menu avatar et déconnexion regroupée ;
-  salutation et actions rapides redondantes retirées ; barre mobile à cinq emplacements
-  avec « + » central et onglet Plus ; accès distinct à une page Mon profil en lecture.
-  Réglages application : thème système/clair/sombre persisté localement, français, lien
-  de réinitialisation du mot de passe et À propos. `npm test` (58), lint, typecheck,
-  format check et build passent. En R3, l’écran Réglages de l’espace permet le renommage et
-  l’archivage soft d’un espace partagé ; l’archivage exige un autre espace actif.
-  Validations de cette étape : 60 tests, lint, typecheck, format check et build OK.
-  Aucune vérification visuelle responsive ne peut être revendiquée ; essai téléphone écarté
-  à la demande de Laro. Les actions de renommage/archivage utilisent les politiques RLS
-  existantes et n’ont nécessité aucun changement de schéma.
-- Terminé et vérifié en R3 : photos de profil en WebP redimensionnées à 256 × 256,
-  téléversement dans un bucket privé, affichage avec URL signée et renouvelée, possibilité
-  de retirer la photo, et avatars des membres dans les réglages d’espace. Migration
-  appliquée au projet Supabase jetable avec l’accord explicite de Laro ; pgTAP : 4/4,
-  zéro échec.
-- Vérifications du changement photo : `npm test` (63 tests), `npm run lint`,
-  `npm run typecheck`, `npm run format:check` et `npm run build` réussis. Le build conserve
-  l’avertissement Vite sur le bundle JavaScript supérieur à 500 kB.
-- Terminé et vérifié pour R1 : migration appliquée au projet Supabase jetable ; tests
-  pgTAP exécutés dans une transaction annulée : 29/29 assertions, zéro échec. La
-  politique `memberships_update_role_owner`, absente du schéma distant, a été appliquée
-  séparément puis ajoutée à la migration locale pour conserver la cohérence.
-- Terminé et vérifié pour R3 : migration avatars appliquée au projet Supabase jetable ;
-  pgTAP 4/4, zéro échec. R3 validé par Laro ; R4 peut commencer.
-- Commit de suivi R1/R3 : `9bfd592` (`fix: validate R1 Supabase migration and RLS tests`).
-- Terminé et vérifié en R4 : le formulaire distingue l’auteur du responsable dans les
-  espaces partagés ; catégories facultatives pour dépenses/remboursements, requises pour
-  revenus. 63 tests, lint, typecheck, format check et `git diff --check` passent. Commit
-  `031a2e6`.
-- Tâche R4 en cours : filtre Dépenses/Revenus/Tout et attribution lisible dans l’historique.
-- Terminé et vérifié : historique filtrable par type ; remboursements classés avec les
-  dépenses et ajustements visibles seulement dans Tout ; responsable et auteur distingués.
-  Test ciblé : 7/7 ; lint et typecheck passent.
-- Terminé et vérifié : règles d’agrégat R4 couvertes, y compris dépenses/remboursements
-  sans catégorie, revenus exclus du budget et ajustements limités au solde. Tests ciblés
-  des calculs : 13/13. Suite complète : 66 tests ; lint, typecheck, format check et
-  `git diff --check` passent. `npm run build` réussit ; avertissement Vite existant :
-  bundle JavaScript principal de 791 kB.
-- Prochaine action exacte : lancer `npm test`, puis `npm run lint`, `npm run typecheck`,
-  `npm run format:check`, `npm run build` et `git diff --check`. Les 33 assertions pgTAP
-  devront être exécutées manuellement après autorisation et application de la migration.
-- Vérifications à lancer pour R5 : `npm test`, `npm run lint`, `npm run typecheck`,
-  `npm run format:check`, `npm run build`, `git diff --check` et pgTAP exécuté manuellement
-  en ligne. Ne pas exécuter la migration distante sans nouvel accord explicite.
-- Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
-  `npm run build`, `npm run format:check` avaient réussi avant ces corrections SQL ;
-  `git diff --check` passe. Les tests pgTAP distants R1/R3 passent avec 29/29 et 4/4.
-  Aucun test applicatif n’a été relancé pour ces seuls changements SQL.
-- Vérifications R4 : `npm test` (66), `npm run lint`, `npm run typecheck`,
-  `npm run format:check`, `npm run build` et `git diff --check` réussis. Aucun changement
-  SQL ni migration en R4 ; les migrations distantes R1/R3 ne doivent pas être rejouées.
-- Terminé et vérifié en R5 — fondation locale : modèle `RecurringExpense`, références
-  facultatives des transactions, Dexie v5 conservatrice (transactions et opérations
-  d’outbox conservées et complétées avec les références nulles), bootstrap Supabase et
-  pull synchronisé en lecture seule. Tests de migration Dexie v4→v5, bootstrap et pull
-  inclus. Validation : 68 tests, lint, typecheck, format check, build et `git diff --check`
-  réussis le 2026-10-25. Le build garde l’avertissement Vite sur le bundle (~794 kB).
-- Terminé et vérifié en R5 — interface Forfaits, navigation et statistiques : création,
-  consultation, arrêt, édition d’une occurrence ou de la série, accès hors ligne en lecture,
-  confirmation de génération rétroactive ; génération au changement de mois après sync.
-  Répartition fixe/variable/non classée ajoutée au tableau de bord. `npm test` : 72 tests,
-  12 fichiers ; lint, typecheck, format check, build et `git diff --check` passent.
-  Le build réussit avec l’avertissement Vite non bloquant sur le chunk principal de 809 kB.
-  Laro a validé l’écran et le parcours R5 le 2026-10-25.
-- Migration R5 : exécutée par Laro sur le projet Supabase jetable le 2026-10-25 après
-  son autorisation explicite ; Supabase a confirmé « Success. No rows returned ».
-- Tests SQL R5 : après les casts `smallint`, le premier essai a isolé le défaut du trigger
-  de timestamps ; le correctif dédié a été appliqué au projet Supabase jetable après accord
-  explicite. Le test d’autorisation d’arrêt établit maintenant l’identité viewer. pgTAP
-  final : 33/33 assertions réussies, 0 échec, dans une transaction terminée par `ROLLBACK`.
-  Le transfert du script a été fait en UTF-8 pour préserver le message localisé.
-- Terminé et vérifié : assertion d’arrêt avec identité viewer corrigée dans
-  `supabase/tests/database/003_recurring_expenses.test.sql` ; pgTAP 33/33 vérifié. Le
-  format check et `git diff --check` passent.
-- Terminé et vérifié en R6 : `src/data/analytics.ts` calcule les dépenses nettes par
-  catégorie, la comparaison au mois précédent, le cumul quotidien, six mois de flux et les
-  indicateurs de catégories/parts/responsables. Tests ciblés : 5/5 ; typecheck et format
-  check passent.
-- Terminé et vérifié en R6 : volet Mois/Analyses dans Budgets ; quatre graphiques SVG,
-  valeurs consultables en texte, indicateurs de part fixe/variable/non classé, seuils et
-  responsables en espace partagé. Le composant est chargé à la demande. `npm test` : 77
-  tests/13 fichiers ; lint, typecheck, format check, build et `git diff --check` réussis.
-  Build : chunk Analyses séparé (16,08 kB/4,49 kB gzip) ; chunk d’entrée 811,24 kB
-  (avertissement Vite existant, non bloquant).
-- Fait mais pas vérifié manuellement : rendu responsive dans un navigateur ; Laro a demandé
-  précédemment de ne pas faire d’essai smartphone.
-- Prochaine action exacte : aucune tâche R0–R6 restante ; attendre les nouvelles consignes
-  de Laro. Aucun déploiement ni migration Supabase n’a été réalisé pour R6.
-- Vérifications R5 : `npm test` (72 tests/12 fichiers), `npm run lint`,
-  `npm run typecheck`, `npm run format:check`, `npm run build` et `git diff --check`
-  réussis le 2026-10-25 avant les dernières corrections SQL/test ; pgTAP final : 33/33,
-  0 échec, transaction annulée.
-- Décisions confirmées : P8 (montants entiers sûrs validés avec Zod) ; P9 (noms selon
-  les conventions du dépôt) ; aucune ancienne version n’a été déployée ; supprimer les
-  données Supabase et locales de test est autorisé ; aucun ajustement de solde initial,
-  aucune archive de transfert, aucune décision de report historique, aucune migration
-  de l’ancienne outbox ; première utilisation réelle : toutes les migrations devront
-  préserver les données conservables. Pour l’écran, réponse au formulaire antérieur
-  prioritaire : adaptation minimale en R1, parcours complet en R4. P7 confirmé le
-  2026-10-25 : bucket Storage privé et URLs signées pour les photos de profil.
-- 2026-10-25 : Laro a validé la fiche d’écran R5 : Forfaits via Plus sur mobile et la barre
-  latérale sur ordinateur ; propriétaire seul pour créer/modifier/arrêter, lecture hors
-  ligne ; modification d’une occurrence ou de la série ; confirmation avant génération
-  rétroactive ; génération des mois manqués en ligne à l’ouverture d’un mois.
-- 2026-10-25 : Laro a validé l’écran R5 et autorisé explicitement l’application de la
-  migration R5 sur le projet Supabase jetable pour exécuter les 33 tests pgTAP. La migration
-  a été appliquée ; cette autorisation ne vaut pas pour un autre projet.
-- 2026-10-25 : après nouvel accord explicite, la migration corrective des timestamps a été
-  appliquée au même projet Supabase jetable. Ne pas appliquer de migration à un autre projet
-  sans un nouvel accord.
-- Questions encore ouvertes : aucune pour R0–R6. La vérification visuelle smartphone reste
-  écartée à la demande de Laro.
-- Pièges connus : préserver les autres changements préexistants du worktree ; la
-  migration R5 est autorisée uniquement sur le projet Supabase jetable confirmé par Laro ;
-  vérifier le projet avant exécution ; R1 et R3 ont déjà été appliquées, ne pas les rejouer ;
-  workflow Cloudflare `deploy-pages.yml` doit se déclencher uniquement sur `main` ;
-  vérifié : son déclencheur push ne cible que `main`. Aucun push n’a été effectué.
+- Dernière mise à jour : 2026-10-25 12:49 (UTC+03:00).
+- Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
+  `main`.
+- Lot/tâche en cours : guide de test Cloudflare ; étapes 1 à 5 terminées ; validations
+  complètes en cours.
+- Terminé et vérifié : état Git relevé. Changements déjà présents avant cette tâche,
+  à préserver et ne pas commiter comme partie de cette tâche : `.env.example`,
+  `.github/workflows/ci.yml`, la modification préexistante de `src/components/workspaces/
+workspace-management.tsx`, les modifications préexistantes de `README.md` et
+  `vite.config.ts`, et le fichier non suivi `.github/workflows/deploy-pages.yml`.
+  Le présent travail a aussi actualisé la section Cloudflare de `README.md` et ramené
+  `base` à `/` dans `vite.config.ts`.
+- Terminé et vérifié : aucun `_redirects` ni `404.html` dans `public` ou `dist`.
+  Après `npm run build`, le manifeste généré indique `start_url: "/"` et `scope: "/"`;
+  l’enregistrement du service worker utilise `registerSW({ immediate: true })`, sans
+  domaine fixe. `vite.config.ts` utilise `base = '/'`, et le manifeste/service worker
+  générés ne contiennent ni domaine Cloudflare codé en dur, ni ancien chemin `/BudgetApp/`.
+- Terminé et vérifié : le build de production passe (2026-10-25), avec l’avertissement
+  Vite non bloquant sur le chunk principal de 811,57 kB. Le workflow local non suivi
+  `.github/workflows/deploy-pages.yml` a `push` limité à `main`, mais conserve aussi
+  `workflow_dispatch` : un lancement manuel peut sélectionner une autre branche.
+- Terminé : README décrit l’intégration Git Cloudflare, le projet `budgetapp`, les
+  variables Production/Preview, la production sur `main`, l’aperçu de branche, et les huit
+  migrations déclarées déjà appliquées au projet Supabase distant de test, dans l’ordre
+  des noms. Aucune migration Supabase n’a été exécutée durant cette tâche.
+- Terminé : Laro a autorisé la suppression du workflow local obsolète ; le fichier
+  `.github/workflows/deploy-pages.yml` a été supprimé. La CI GitHub n’a pas été modifiée.
+- Terminé : `docs/test-telephone.md` contient les onze scénarios a–k, leur règle, le
+  résultat attendu et une colonne Résultat laissée vide.
+- Vérifications finales : `npm test` réussi (77 tests, 13 fichiers), `npm run lint`,
+  `npm run typecheck`, `npm run build` et `git diff --check` réussis. Build PWA réussi ;
+  avertissement Vite non bloquant sur le chunk principal de 811,57 kB.
+- Formatage : `npx prettier --check PROGRESS.md README.md vite.config.ts
+  docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
+  `.github/workflows/ci.yml`, modification préexistante volontairement préservée.
+- Tests SQL : `supabase test db` non exécuté ; CLI Supabase et Docker ne sont pas installés.
+  Les tests SQL R1/R3/R5 précédemment validés restent documentés ci-dessous. Aucun SQL ni
+  migration distante n’a été exécuté pour cette tâche.
+- Prochaine action exacte : créer un commit avec les quatre fichiers déjà staged
+  (`PROGRESS.md`, `README.md`, `vite.config.ts`, `docs/test-telephone.md`), revérifier que
+  la branche est `reforme-budget`, puis pousser uniquement celle-ci.
+- Vérifications finales à lancer : `npm test`, `npm run lint`,
+  `npm run typecheck`, `npm run format:check`, `npm run build`, `git diff --check` et
+  `supabase test db` (tests SQL locaux, si Docker et la CLI Supabase sont disponibles).
+- Décisions confirmées : intégration Git Cloudflare Pages (projet `budgetapp`, dépôt
+  `Minx3740/BudgetApp`), production depuis `main`, build `npm run build`, sortie `dist`,
+  aperçus de branches ; `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` définies
+  dans les environnements Production et Preview. Push autorisé uniquement de
+  `reforme-budget`, après les vérifications finales. Aucune migration distante durant
+  cette tâche. Les migrations de test déjà appliquées ne doivent pas être rejouées.
+- Décision de Laro : suppression du workflow local obsolète `deploy-pages.yml` autorisée ;
+  Cloudflare Pages reste le seul mécanisme de déploiement. La CI GitHub reste en place.
+- Questions encore ouvertes : vérifier dans Cloudflare, onglet Deployments, que le build
+  de l’aperçu s’est terminé sans erreur après le push.
+- Pièges connus : le workflow est non suivi, cible l’ancien projet `cashflow-plus`, et
+  offre un déclenchement manuel en plus du push sur `main`. Sa suppression ne doit pas
+  toucher la CI ni l’intégration Git Cloudflare. Préserver les changements préexistants
+  listés ci-dessus. Le push
+  de `reforme-budget` produira l’aperçu attendu
+  `reforme-budget.budgetapp-epz.pages.dev`, sans modifier la production.
 
 ## État actuel
 

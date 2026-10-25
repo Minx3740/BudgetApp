@@ -67,6 +67,51 @@ service worker de production est activé dans le build ; en développement, il e
 également activé pour faciliter les essais. Les icônes PNG et ICO sont générées à
 partir de `public/budget-app-icon.svg` avec `npm run pwa:assets`.
 
+## Déploiement sur Cloudflare Pages
+
+Le projet Cloudflare Pages `budgetapp` est connecté directement au dépôt
+`Minx3740/BudgetApp`. La branche de production est `main`, la commande de build est
+`npm run build` et le répertoire publié est `dist`. Seule une mise à jour de `main`
+déploie la production à [budgetapp-epz.pages.dev](https://budgetapp-epz.pages.dev).
+
+### Aperçus de branches
+
+Cloudflare crée un aperçu pour les autres branches. Pour vérifier une modification,
+pousse la branche concernée ; par exemple, pousser `reforme-budget` déclenche un aperçu
+à [reforme-budget.budgetapp-epz.pages.dev](https://reforme-budget.budgetapp-epz.pages.dev).
+Cela ne modifie pas le site de production.
+
+### Variables d’environnement
+
+Dans les paramètres du projet Cloudflare Pages, définis les variables suivantes pour
+les deux environnements **Production** et **Preview** :
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+La clé publishable est exposée au navigateur par conception. N’utilise jamais une clé
+`service_role` dans une variable `VITE_*`. Les URL de retour utilisées pour la connexion
+et la confirmation par e-mail doivent également être autorisées dans Supabase, sous
+**Authentication → URL Configuration → Redirect URLs**.
+
+### Migrations déjà appliquées à la base Supabase distante
+
+Le suivi du projet indique que les migrations ci-dessous ont déjà été appliquées au
+projet Supabase distant utilisé pour les essais. Elles ne font pas partie du build
+Cloudflare et ne sont pas appliquées automatiquement par l’intégration Git. Pour un
+autre projet Supabase, examine d’abord son historique : les migrations s’appliquent
+manuellement, dans l’ordre des noms de fichiers, et ne doivent pas être rejouées sur
+une base qui les a déjà reçues.
+
+1. `20261023154500_init_workspaces.sql`
+2. `20261023160000_data_and_invitations.sql`
+3. `20261023170000_personal_workspace_defaults.sql`
+4. `20261024180000_sync_invariants.sql`
+5. `20261024200000_r1_budget_model.sql`
+6. `20261025000000_r3_private_avatars.sql`
+7. `20261025090000_r5_recurring_expenses.sql`
+8. `20261025095000_r5_recurring_expense_timestamps.sql`
+
 ## Base de données
 
 Les migrations et tests RLS sont dans `supabase/`. Pour démarrer la base locale et
@@ -82,14 +127,10 @@ Les migrations locales sont appliquées par `supabase start`. La première migra
 crée les profils et espaces ; la suivante ajoute les données métier et les invitations.
 
 Pour un projet Supabase hébergé, les migrations SQL peuvent aussi être appliquées
-dans le SQL Editor du tableau de bord, dans l'ordre chronologique. Ne les exécute
-que sur un projet neuf ou dont l'historique de migrations correspond.
-Applique les migrations M1 `20261023154500` et `20261023160000` avant la migration
-M2 `20261023170000` ; le trigger d'inscription M2 dépend des tables métier créées par
-la deuxième migration M1. Pour activer la synchronisation M6 sur le projet hébergé,
-applique aussi `20261024180000_sync_invariants.sql` après les migrations précédentes
-dans le SQL Editor. Cette migration ajoute l'horloge serveur et le timestamp des budgets,
-et empêche la résurrection d'une ligne supprimée.
+dans le SQL Editor du tableau de bord. Vérifie d'abord l'historique du projet : sur une
+base neuve, applique les fichiers de `supabase/migrations/` dans l'ordre de leurs noms ;
+ne rejoue jamais une migration déjà appliquée. La liste des migrations déjà appliquées
+au projet distant de test est donnée dans la section Cloudflare ci-dessus.
 
 À chaque inscription, l'application crée un espace personnel « Perso », trois
 comptes (espèces, mobile money, banque) et des catégories de revenus et dépenses.
