@@ -5,9 +5,9 @@
 - Dernière mise à jour : 2026-10-25 16:50 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R8 et R9 sont validés et poussés sur `reforme-budget`. Le déplacement
-  approuvé de « Répartition des dépenses » est implémenté, vérifié et committé ; pousser
-  uniquement cette branche.
+- Lot/tâche en cours : R8 et R9 sont validés ; le déplacement approuvé de « Répartition des
+  dépenses » est implémenté, vérifié, committé et poussé sur `reforme-budget`. Attendre le
+  retour de Laro sur le nouvel aperçu Cloudflare.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
   références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
@@ -49,7 +49,7 @@
   de 819,17 kB reste non bloquant.
 - R8 committé en quatre commits poussés : `d0ab404` (accueil), `1a4df25` (profil),
   `65abf39` (aide du budget et état vide) et `56506c4` (graphiques repliables). Le
-  déplacement approuvé est committé en `96b30b0`, push à faire.
+  déplacement approuvé est committé en `96b30b0` et poussé.
 - Aucun nouveau paquet, aucune migration créée ou appliquée. Laro a autorisé le déplacement
   de « Répartition des dépenses » vers Analyses après validation de R8/R9 ; elle figure
   maintenant comme carte repliable avec préférence sauvegardée.
@@ -59,8 +59,8 @@
   Transactions ; aucun déplacement vers Espace n’a été fait sans décision distincte.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : pousser `reforme-budget` et demander à Laro de vérifier le
-  déplacement dans l’aperçu. Ne pas fusionner dans `main`, ne pas appliquer de SQL.
+- Prochaine action exacte : attendre la vérification du déplacement sur l’aperçu par Laro.
+  Ne pas fusionner dans `main`, ne pas appliquer de SQL.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
@@ -265,14 +265,14 @@ le suivant.
 
 ### Tâches R8
 
-| Point                        | État    | Détail                                                                                                      |
-| ---------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.                |
-| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256².              |
-| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                             |
-| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant.              |
-| Répartition → Analyses       | Terminé | Accord de Laro ; carte repliable, sans doublons et avec préférence mémorisée.                               |
-| Vérification et livraison R8 | Terminé | 94 tests/15 fichiers, lint, typecheck et build OK ; quatre commits R8 et le déplacement approuvé committés. |
+| Point                        | État    | Détail                                                                                                       |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.                 |
+| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256².               |
+| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                              |
+| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant.               |
+| Répartition → Analyses       | Terminé | Accord de Laro ; carte repliable, sans doublons et avec préférence mémorisée ; poussée sur `reforme-budget`. |
+| Vérification et livraison R8 | Terminé | 94 tests/15 fichiers, lint, typecheck et build OK ; commits R8 et déplacement approuvé poussés.              |
 
 ### Tâches R9
 
