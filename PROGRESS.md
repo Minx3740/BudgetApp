@@ -2,22 +2,17 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 14:50 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 14:52 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R7 — points 1 à 3 implémentés ; validations terminées ; commit par
-  point, push de `reforme-budget`, puis attente de la validation de Laro.
-  Un commit indépendant par point. Aucun merge dans `main`; aucune migration distante sans
-  accord de Laro.
-- Fait mais pas encore vérifié : inspection initiale. Les filtres sont conservés dans l’état
-  React tant que l’espace ne change pas et le mois sélectionné n’est pas une clé de reset :
-  ils survivent donc déjà au changement de mois. En revanche, la recherche et les filtres
-  avancés sont tous deux filtrants immédiatement ; les filtres avancés ne sont pas dans un
-  panneau, les dates Du/Au sont présentes. Les catégories ont déjà `archived_at` en Dexie,
-  dans le modèle et le schéma SQL ; aucun nouveau champ ni migration ne semble requis.
-  Les formulaires catégorie sont rendus sous la liste, et les catégories archivées sont
-  mélangées à la liste active. Analyse de la palette, des graphiques, des puces d’ajout et
-  de la suppression de catégorie à terminer.
+- Lot/tâche en cours : R7 terminé, validé automatiquement et poussé sur `origin/reforme-budget`.
+  Les trois commits de point sont `5b31ace` (filtres), `c9886ae` (formulaires/archivage) et
+  `81f96ef` (palette). Attendre la validation de Laro. Aucun merge dans `main`; aucune
+  migration distante sans accord de Laro.
+- Inspection initiale vérifiée : les filtres Catégorie/Saisi par survivaient déjà au
+  changement de mois ; test de régression ajouté et réussi. Le champ `archived_at` existait
+  dans le modèle Dexie et la migration SQL `20261023160000_data_and_invitations.sql` ;
+  aucun schéma ni migration supplémentaire requis.
 - À signaler sans corriger sans accord : deux boutons « Ajouter » sont visibles sur
   Transactions (celui du layout global et celui de la carte Historique) ; l’onglet
   « Catégories » est encore dans l’écran Transactions alors que la section 10.5 de la
@@ -57,32 +52,29 @@
   reproductible dans ce formateur n’a été trouvé ; aucun commit de correction séparé n’est
   justifié. Il y a cinq définitions locales similaires du formateur, pas une fonction unique ;
   leur centralisation serait un refactoring distinct et n’est pas entreprise.
-- Prochaine action exacte : committer uniquement les fichiers R7 du point 3, pousser
-  `reforme-budget` après vérification de la branche, puis attendre la validation de Laro.
-- Vérifications à lancer : `npm test`, `npm run lint`, `npm run typecheck`,
-  `npm run format:check`, `npm run build`, `git diff --check`. Ne pas appliquer de SQL.
+- Prochaine action exacte : attendre la validation de Laro sur l’aperçu Cloudflare de
+  `reforme-budget`. Ne pas fusionner dans `main` et ne pas appliquer de migration.
+- Vérifications effectuées : `npm test` (81/81), `npm run lint`, `npm run typecheck`,
+  `npm run format:check` (seul `.github/workflows/ci.yml` préexistant échoue),
+  `npm run build`, `git diff --check`. Aucune commande SQL exécutée.
 - Décisions confirmées pour R7 : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
   contrôle de contraste clair/sombre ; première couleur non utilisée attribuée à la création ;
   couleur historique hors palette préservée ; noms toujours visibles et « Non classé » neutre.
-- Questions ouvertes : aucun schéma/migration nécessaire pour l’archivage si `archived_at`
-  existant est confirmé côté distant ; ne pas créer ni appliquer de migration sans besoin
-  démontré et accord explicite.
-- Pièges connus : préserver les modifications préexistantes de `.env.example`,
-  `.github/workflows/ci.yml`, `README.md`, `src/components/workspaces/workspace-management.tsx`
-  et `vite.config.ts`; avant chaque commit, ne stager que les fichiers R7 et les hunks R7.
+- Questions ouvertes : validation de Laro après revue de l’aperçu R7.
+- Pièges connus : préserver les modifications préexistantes non committées de
+  `.env.example`, `.github/workflows/ci.yml`, `README.md`,
+  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts`; ne pas fusionner
+  R7 dans `main`.
   La spécification de réforme est à la racine du dépôt (`reforme-budget-global.md`), pas
   dans `docs/`. La fonction `Intl.NumberFormat('fr-FR')` produit le séparateur U+202F
   (espace fine insécable) entre milliers ; ne pas remplacer avant de confirmer un défaut
   visible dans l’application.
-- Terminé et vérifié : état Git relevé. Changements déjà présents avant cette tâche,
-  à préserver et ne pas commiter comme partie de cette tâche : `.env.example`,
-  `.github/workflows/ci.yml`, la modification préexistante de `src/components/workspaces/
-workspace-management.tsx`, les modifications préexistantes de `README.md` et
-  `vite.config.ts`, et le fichier non suivi `.github/workflows/deploy-pages.yml`.
-  Le présent travail a aussi actualisé la section Cloudflare de `README.md` et ramené
-  `base` à `/` dans `vite.config.ts`.
+- Terminé et vérifié : état Git relevé. Les changements préexistants non committés de
+  `.env.example`, `.github/workflows/ci.yml`, `README.md`,
+  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts` sont préservés
+  et exclus des trois commits R7.
 - Terminé et vérifié : aucun `_redirects` ni `404.html` dans `public` ou `dist`.
   Après `npm run build`, le manifeste généré indique `start_url: "/"` et `scope: "/"`;
   l’enregistrement du service worker utilise `registerSW({ immediate: true })`, sans
