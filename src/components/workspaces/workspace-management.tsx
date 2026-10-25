@@ -75,8 +75,7 @@ export function InvitationAcceptance({
         <CardHeader>
           <CardTitle>Invitation à un espace partagé</CardTitle>
           <CardDescription>
-            En acceptant, tu rejoindras l’espace et ses données seront synchronisées sur cet
-            appareil.
+            En acceptant, tu auras accès aux données de l’espace partagé.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -177,7 +176,9 @@ export function WorkspaceManagement({
         userId,
         invitationRole,
       )
-      setNewInvitationLink(`${window.location.origin}/#invite=${encodeURIComponent(token)}`)
+      const applicationUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
+      applicationUrl.hash = `invite=${encodeURIComponent(token)}`
+      setNewInvitationLink(applicationUrl.toString())
       setNotice('Lien créé pour 7 jours et une seule utilisation. Copie-le maintenant.')
       onRefresh(workspace.id)
     } catch (failure) {
