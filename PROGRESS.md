@@ -5,9 +5,8 @@
 - Dernière mise à jour : 2026-10-25 18:32 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : intégration du logo cashFlow+ — liens de favicon, manifeste PWA,
-  ressources de marque dans l’interface et documentation ; build, tests et précache vérifiés.
-  Commits par point et push de `reforme-budget` à finaliser.
+- Lot/tâche en cours : intégration du logo cashFlow+ terminée, vérifiée et commitée en trois
+  points ; pousser uniquement `reforme-budget`.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
   références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
@@ -72,8 +71,10 @@
   favicon/icônes sont présents dans dist et dans le précache SW ; le manifeste final contient
   exactement les trois icônes attendues et les bonnes couleurs. Les deux SVG de marque sont
   émis dans dist/assets.
-- Prochaine action exacte : créer le commit du point 3, puis pousser uniquement
-  `reforme-budget`. Ne pas fusionner dans `main`.
+- Commits logo : `4518319` (favicon/index), `3d7bcfc` (manifest PWA), `692c9aa` (interface,
+  sources de marque et guide UI).
+- Prochaine action exacte : pousser uniquement `reforme-budget`, puis vérifier son suivi
+  distant. Ne pas fusionner dans `main`.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
