@@ -29,22 +29,13 @@ Windows 10, Node v22.14.0, projet dans `C:\Users\Laro\dev\budget-app`. Vite, Rea
 
 ## 1. Pourquoi cette réforme
 
-Situation actuelle :
+Le modèle A définit le budget mensuel comme de l'argent disponible pour le mois,
+indépendamment des seuils. Le disponible inclut le report accepté, le budget, les revenus
+et ajustements, puis soustrait les dépenses nettes. Il remplace l'ancienne distinction
+entre solde réel et reste du budget.
 
-- L'application ne dispose pas encore d'une enveloppe globale mensuelle indépendante.
-  Le « budget total » actuellement affiché est la somme des plafonds définis par catégorie.
-- Toutes les dépenses du mois sont soustraites de cette somme, y compris celles des catégories sans plafond. Le résultat est déroutant.
-- La carte « Solde total » indique « Argent disponible sur mes comptes » alors que l'application n'a pas de comptes.
-- Les mots « plafond » et « plafonner » sont utilisés dans l'interface.
-
-Après la réforme :
-
-- Un budget du mois fixé à la main, indépendant des catégories.
-- Des seuils par catégorie, qui sont de simples repères.
-- Un solde réel (l'argent possédé), distinct du reste du budget.
-- Un historique des revenus, des forfaits (dépenses fixes), des statistiques en barres et en courbes.
-- Un compte utilisateur avec photo, et deux niveaux de réglages (application, espace).
-- Une interface réorganisée : en-tête avec espace et avatar, sélecteur de mois, navigation par fréquence d'usage.
+La réforme conserve les seuils par catégorie comme de simples repères, l'historique des
+revenus, les forfaits, les analyses, les espaces partagés et une interface mobile-first.
 
 ## 2. Vocabulaire
 
@@ -53,28 +44,28 @@ Après la réforme :
 | Espace               | Ensemble de données (catégories, transactions, budgets, forfaits) qui appartient à un propriétaire et peut avoir des membres invités. L'espace « Perso » n'a qu'un membre. |
 | Propriétaire, membre | Le propriétaire a tous les droits sur l'espace. Un membre invité a des droits limités (section 6).                                                                         |
 | Mois                 | Clé texte `YYYY-MM`, déduite de la date locale de la transaction.                                                                                                          |
-| Budget du mois       | Montant que l'utilisateur s'autorise à dépenser dans le mois. Fixé à la main, par espace et par mois. C'est une décision, pas de l'argent possédé.                         |
+| Budget du mois       | Montant d'argent dont l'utilisateur dispose pour le mois. Fixé à la main, par espace et par mois ; il s'ajoute au report accepté, aux revenus et aux ajustements.          |
 | Dépenses nettes      | Somme des dépenses du mois moins les remboursements du mois.                                                                                                               |
-| Reste du budget      | Budget du mois moins dépenses nettes. Affiché en barre de progression.                                                                                                     |
-| Solde                | L'argent réellement possédé : report + revenus + ajustements - dépenses nettes. Chiffre principal de l'accueil.                                                            |
-| Report               | Montant positif du solde du mois précédent, ajouté au solde si l'utilisateur l'a accepté.                                                                                  |
-| Déficit              | Solde négatif d'un mois. Affiché en rouge, jamais reporté.                                                                                                                 |
+| Ressources           | Report accepté + budget du mois (0 s'il n'est pas défini) + revenus + ajustements.                                                                                         |
+| Disponible           | Ressources du mois moins dépenses nettes. Chiffre principal de l'accueil ; peut être négatif.                                                                              |
+| Report               | Partie positive du disponible du mois précédent, ajoutée aux ressources si l'utilisateur l'a acceptée.                                                                     |
+| Déficit              | Disponible négatif. Affiché en rouge, jamais reporté.                                                                                                                      |
 | Seuil                | Montant mensuel de repère pour une catégorie. Remplace le mot « plafond ».                                                                                                 |
 | Forfait              | Dépense fixe qui revient chaque mois (abonnement, forfait internet).                                                                                                       |
 | Responsable          | Le membre qui a réellement payé (`paid_by`). Différent de l'auteur de la saisie (`created_by`).                                                                            |
-| Ajustement           | Correction signée du solde, pour aligner le solde calculé sur l'argent réel.                                                                                               |
+| Ajustement           | Correction signée ajoutée aux ressources pour rapprocher le disponible de la situation observée.                                                                           |
 | Ar                   | Unité affichée à l'utilisateur. Le code ISO MGA reste interne.                                                                                                             |
 
 ## 3. Types de transactions et règles de calcul
 
 ### 3.1 Types
 
-| Type         | Montant stocké               | Effet                                                                                                                                          |
-| ------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `expense`    | entier > 0                   | Ajoute aux dépenses nettes. Catégorie facultative.                                                                                             |
-| `refund`     | entier > 0                   | Retire des dépenses nettes (remboursement reçu, achat annulé). Catégorie facultative.                                                          |
-| `income`     | entier > 0                   | Ajoute aux revenus.                                                                                                                            |
-| `adjustment` | entier signé, différent de 0 | Modifie le solde uniquement. Pas de catégorie. N'entre ni dans les dépenses, ni dans les revenus, ni dans le budget, ni dans les statistiques. |
+| Type         | Montant stocké               | Effet                                                                                                                                     |
+| ------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `expense`    | entier > 0                   | Ajoute aux dépenses nettes. Catégorie facultative.                                                                                        |
+| `refund`     | entier > 0                   | Retire des dépenses nettes (remboursement reçu, achat annulé). Catégorie facultative.                                                     |
+| `income`     | entier > 0                   | Ajoute aux ressources du mois et augmente le disponible.                                                                                  |
+| `adjustment` | entier signé, différent de 0 | Ajoute aux ressources du mois et modifie le disponible uniquement. Pas de catégorie ni d'effet sur les dépenses, revenus ou statistiques. |
 
 Il n'y a pas de comptes dans l'application, donc pas de transfert entre comptes. Argent envoyé à quelqu'un : `expense`. Virement entre deux espaces (par exemple de Perso vers un espace partagé) : saisir une `expense` dans l'un et un `income` dans l'autre. Aucune liaison automatique en v1.
 
@@ -85,34 +76,39 @@ depenses_nettes(M) = somme(expense de M) - somme(refund de M)
 revenus(M)         = somme(income de M)
 ajustements(M)     = somme(adjustment de M)      (signé)
 
-reste_budget(M)    = budget(M) - depenses_nettes(M)     (seulement si budget(M) existe)
-solde(M)           = report(M) + revenus(M) + ajustements(M) - depenses_nettes(M)
-report(M)          = decision(M) == oui ? max(0, solde(M-1)) : 0
+ressources(M)      = report(M) + budget(M) + revenus(M) + ajustements(M)
+disponible(M)      = ressources(M) - depenses_nettes(M)
+budget(M)          = 0 si le budget mensuel n'est pas défini
+report(M)          = decision(M) == oui ? max(0, disponible(M-1)) : 0
 usage_seuil(c, M)  = (expense de c dans M - refund de c dans M) / seuil(c, M)
 ```
+
+La valeur du budget absent est 0 dans les calculs, mais l'interface le distingue d'un
+budget défini à 0 et invite toujours à le créer. La barre d'usage montre
+`depenses_nettes(M) / ressources(M)` ; elle n'est pas affichée si `ressources(M) <= 0`.
 
 ### 3.3 Règles
 
 - **B1.** Une transaction supprimée (suppression logique) ne compte nulle part.
 - **B2.** Le mois d'une transaction est `YYYY-MM` de son champ `date`, une date locale sans fuseau. Interdit de le déduire d'un horodatage UTC : une dépense du 31 octobre à 23h30 à Antananarivo (UTC+3) reste en octobre.
 - **B3.** Budget absent et budget à 0 sont deux états différents. Absent : pas de ligne en base, l'interface affiche l'invitation à le créer. À 0 : le budget existe et vaut 0.
-- **B4.** Toute dépense du mois réduit le reste du budget exactement une fois, qu'elle ait une catégorie ou non, que la catégorie ait un seuil ou non. Le calcul part de l'ensemble des transactions du mois, jamais d'une somme par catégorie, pour exclure tout double comptage.
-- **B5.** Le reste du budget peut être négatif. Ne pas le borner à 0.
-- **B6.** Les revenus n'agissent ni sur le budget ni sur le reste du budget.
-- **B7.** Aucune valeur dérivée (reste, solde, pourcentages, statistiques) n'est stockée. Tout est calculé côté client à partir des données locales (Dexie), donc disponible hors ligne.
+- **B4.** Toute dépense nette réduit le disponible exactement une fois, qu'elle ait une catégorie ou non, que la catégorie ait un seuil ou non. Le calcul part de l'ensemble des transactions du mois, jamais d'une somme par catégorie, pour exclure tout double comptage.
+- **B5.** Le disponible peut être négatif. Il s'affiche en rouge avec « Déficit » et n'est jamais borné à 0.
+- **B6.** Les revenus s'ajoutent aux ressources et augmentent le disponible ; ils ne modifient pas le budget saisi. Les remboursements diminuent les dépenses nettes ; les ajustements signés s'ajoutent aux ressources.
+- **B7.** Aucune valeur dérivée (ressources, disponible, pourcentages, statistiques) n'est stockée. Tout est calculé côté client à partir des données locales (Dexie), donc disponible hors ligne.
 - **B8.** Montants entiers en ariary, aucune décimale, aucun flottant. En base : `bigint`. En TypeScript : `number` entier, validé par Zod (`z.number().int().safe()`).
 - **B9.** Le calcul vit dans des fonctions pures, sans accès à la base ni à l'interface, dans le dossier de la fonctionnalité budget (par exemple `src\features\budget\calc.ts`), pour être testées seules.
 
-## 4. Report du solde
+## 4. Report du disponible
 
-- **C1.** Le report est décidé par le propriétaire, mois par mois. Seule la décision (oui ou non) est stockée, jamais le montant. Le montant reporté est recalculé : `max(0, solde(M-1))`.
-- **C2.** À l'affichage d'un mois M, proposer le report quand les quatre conditions sont réunies : aucune décision n'existe pour M ; le mois M-1 contient au moins une transaction ; `solde(M-1) > 0` ; l'utilisateur est propriétaire. Un membre voit l'information sans les boutons.
+- **C1.** Le report est décidé par le propriétaire, mois par mois. Seule la décision (oui ou non) est stockée, jamais le montant. Le montant reporté est recalculé : `max(0, disponible(M-1))`.
+- **C2.** À l'affichage d'un mois M, proposer le report quand les quatre conditions sont réunies : aucune décision n'existe pour M ; le mois M-1 contient au moins une transaction ; `disponible(M-1) > 0` ; l'utilisateur est propriétaire. Un membre voit l'information sans les boutons.
 - **C3.** La proposition est une carte sur l'accueil, avec deux boutons (« Reporter » et « Ne pas reporter »). Pas de fenêtre bloquante.
 - **C4.** Tant qu'il n'y a pas de décision, le report vaut 0.
-- **C5.** Un solde négatif n'est jamais reporté. Il reste dans son mois, affiché en rouge avec le libellé « Déficit ». Le mois suivant repart de 0 avant ses propres revenus et dépenses.
-- **C6.** Chaîne : le solde de M-1 contient son propre report s'il a été accepté. Calculer de proche en proche vers l'arrière, en s'arrêtant à la première décision « non » ou absente. Borne de sécurité : 120 mois.
-- **C7.** Corriger une dépense d'un ancien mois change les soldes des mois suivants quand la chaîne de reports est acceptée. C'est voulu.
-- **C8.** Premier mois d'un espace : pas de report. Un solde de départ s'entre par un revenu (libellé « Solde initial ») ou par un ajustement positif.
+- **C5.** Un disponible négatif n'est jamais reporté. Il reste dans son mois, affiché en rouge avec le libellé « Déficit ». Le mois suivant repart d'un report de 0 avant son budget, ses revenus et ses dépenses.
+- **C6.** Chaîne : le disponible de M-1 inclut son propre report s'il a été accepté. Calculer de proche en proche vers l'arrière, en s'arrêtant à la première décision « non » ou absente. Borne de sécurité : 120 mois.
+- **C7.** Corriger une dépense d'un ancien mois change les disponibles des mois suivants quand la chaîne de reports est acceptée. C'est voulu.
+- **C8.** Premier mois d'un espace : pas de report. De l'argent de départ s'entre par un revenu ou par un ajustement positif.
 
 ## 5. Seuils par catégorie
 
@@ -258,8 +254,8 @@ Flèches précédent et suivant avec le libellé « Octobre 2026 ». Un seul ét
 
 **Accueil**, dans cet ordre :
 
-1. Solde, en grand, avec une pastille de l'espace (Perso, ou rôle dans un espace partagé). Déficit en rouge s'il y en a un.
-2. Budget du mois : barre de progression, « Reste X Ar sur Y Ar ». Sans budget : invitation à le créer.
+1. Disponible, en grand, avec une pastille de l'espace (Perso, ou rôle dans un espace partagé). Déficit en rouge s'il y en a un.
+2. Ligne « Budget X Ar · dépensé Y Ar » et barre `dépenses nettes / ressources` (pas de barre si les ressources sont ≤ 0). Sans budget défini : afficher tout de même le disponible calculé et l'invitation à créer le budget.
 3. Carte de report (seulement si les conditions de C2 sont réunies).
 4. Ce mois : revenus et dépenses côte à côte.
 5. Les trois dernières transactions.
@@ -267,7 +263,7 @@ Flèches précédent et suivant avec le libellé « Octobre 2026 ». Un seul ét
 
 **Transactions** : liste du mois, avec un sélecteur « Dépenses / Revenus / Tout ». L'historique des revenus est ce filtre, pas un écran séparé. Filtres par catégorie et par responsable dans un espace partagé.
 
-**Budgets, volet Mois** : deux sections distinctes, « Enveloppe globale du mois » (montant, modifier ; action explicite « Reprendre le montant du mois précédent ») et « Seuils par catégorie » (liste avec barre d'usage et état).
+**Budgets, volet Mois** : deux sections distinctes, « Budget du mois » (montant, modifier ; action explicite « Reprendre le budget du mois précédent », qui copie seulement le montant) et « Seuils par catégorie » (liste avec barre d'usage et état).
 
 **Budgets, volet Analyses** : voir section 11.
 
@@ -287,8 +283,8 @@ Panneau du bas (composant Drawer de shadcn). Ordre des champs : montant avec gra
 - Un état vide propose de créer (« Ajoute ta première transaction »), il ne renvoie pas vers une liste vide.
 - Supprimer les textes techniques (« calculées sur cet appareil »).
 - Remplacer « MGA » par « Ar ». Format : `800 000 Ar`, avec espace insécable entre les milliers. Une seule fonction de formatage pour toute l'application.
-- Remplacer « Argent disponible sur mes comptes » par « Argent disponible ». Remplacer « Reste à dépenser » par « Budget de [mois] ».
-- Le solde négatif utilise le libellé « Déficit » en plus de la couleur rouge.
+- Remplacer « Solde réel » et « Reste à dépenser » par « Disponible ».
+- Le disponible négatif utilise le libellé « Déficit » en plus de la couleur rouge.
 
 ### 10.9 Accessibilité et mobile
 
@@ -309,7 +305,7 @@ Graphiques :
 
 1. **Où va l'argent ?** Barres horizontales par catégorie, triées de la plus grande à la plus petite, avec un repère à la position du seuil.
 2. **Mieux ou pire que le mois dernier ?** Barres groupées par catégorie, mois affiché contre mois précédent.
-3. **Suis-je dans le budget ?** Courbe des dépenses nettes cumulées jour par jour, avec une ligne horizontale pour le budget du mois.
+3. **Suis-je dans le budget ?** Courbe des dépenses nettes cumulées jour par jour, avec une ligne horizontale pour les ressources du mois.
 4. **Sur la durée.** Barres revenus et dépenses sur les 6 derniers mois.
 
 Indicateurs en chiffres : part des dépenses fixes (forfaits) et variables, part « Non classé », seuils en alerte ou dépassés. Dans un espace partagé, barres des dépenses par responsable (`paid_by`).
@@ -331,7 +327,7 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 
 - [x] Inspecter les migrations SQL, règles RLS, modèles Zod, Dexie, repositories,
       bootstrap, synchronisation, calculs et écrans concernés.
-- [x] Conserver ce document à la racine du dépôt.
+- [x] Ranger ce document dans `docs/reforme-budget-global.md`.
 - [x] Mettre à jour `docs/cahier-des-charges.md` en v1.2.
 - [x] Créer `docs/guide-ui.md` et suivre les lots R0 à R6 dans `PROGRESS.md`.
 - [x] Faire valider le cahier v1.2 et le guide UI.
@@ -366,11 +362,11 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
   compte/transfert n'est requis pour saisir et consulter une dépense/revenu. Aucune
   migration Supabase distante sans accord explicite de Laro.
 
-### R2. Budget, solde et seuils à l'écran
+### R2. Budget, disponible et seuils à l'écran
 
 - [ ] Sélecteur de mois partagé.
-- [ ] Accueil : solde, barre du budget, carte de report, « Ce mois ».
-- [ ] Budgets, volet Mois : enveloppe globale et seuils.
+- [ ] Accueil : disponible, barre des ressources, carte de report, « Ce mois ».
+- [ ] Budgets, volet Mois : budget mensuel et seuils.
 - [ ] Renommer « plafond » en « seuil », corriger tous les textes de 10.8, format `Ar`.
 - [ ] États de chargement, vide, erreur, hors ligne.
 - Validation : parcours complet à la main sur téléphone, hors ligne puis en ligne.
@@ -404,7 +400,25 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 - [ ] Chargement à la demande du composant de graphiques.
 - Validation : chiffres des graphiques identiques à ceux des listes ; poids du premier chargement non alourdi.
 
-### R7. Filtres, catégories et couleurs de Transactions
+### R7. Règle du disponible — modèle A
+
+- Le budget mensuel est de l'argent dont l'utilisateur dispose pour ce mois, pas une limite
+  de dépenses. Le disponible est `report + budget + revenus + ajustements - dépenses nettes`.
+- Un budget absent vaut 0 dans le calcul mais reste distinct d'un budget à 0 dans l'interface,
+  qui invite à le créer.
+- La dépense nette est comptée une fois dans le disponible, indépendamment des seuils.
+  Les revenus augmentent les ressources sans modifier le budget saisi.
+- Le report accepté est `max(0, disponible du mois précédent)` ; un déficit n'est pas reporté.
+- L'accueil présente « Disponible », la ligne « Budget X Ar · dépensé Y Ar » et une barre
+  de dépenses nettes / ressources, masquée si les ressources sont ≤ 0.
+- Le graphique « Suis-je dans le budget ? » utilise les ressources du mois comme ligne
+  de référence.
+- Sous le champ du budget : « Montant dont tu disposes ce mois, en plus du report. »
+  Sous le champ d'un revenu : « Argent reçu en plus de ton budget du mois. »
+- Validation : tests du calcul, du report, des états absent/0 et du ratio de barre au vert ;
+  règles répercutées dans le cahier, le guide UI et le test téléphonique.
+
+### R9. Filtres, catégories et couleurs de Transactions
 
 Les décisions de Laro s'appliquent à l'écran Transactions, aux formulaires de catégories et
 aux visualisations qui utilisent ces catégories.
@@ -462,41 +476,43 @@ aux visualisations qui utilisent ces catégories.
   commun, dans un commit séparé.
 - La section 10.5 place Catégories dans Espace. Tout déplacement de l'onglet Catégories
   hors de Transactions nécessite une décision distincte ; ne pas le faire implicitement
-  dans R7.
+  dans R9.
 
 ## 14. Tests
 
 ### 14.1 Unitaires (Vitest, fonctions pures)
 
-1. Dépense dans une catégorie avec seuil : réduit le reste du budget et augmente l'usage du seuil, une seule fois.
-2. Dépense dans une catégorie sans seuil : réduit le reste du budget seulement.
-3. Dépense sans catégorie : réduit le reste du budget seulement.
-4. Revenu : aucun effet sur le reste du budget, augmente le solde.
-5. Remboursement : réduit les dépenses nettes et l'usage du seuil de sa catégorie.
-6. Ajustement positif et négatif : solde seulement.
-7. Budget absent et budget à 0 : deux états distincts.
-8. Somme des seuils supérieure au budget : aucun effet sur le calcul du reste.
-9. Frontière de mois : 31 à 23h30 (UTC+3) compté dans le bon mois ; le 1er du mois suivant dans le suivant.
-10. Transaction supprimée ignorée ; modification d'un montant répercutée.
-11. Report : oui, non, solde négatif, chaîne de trois mois, mois précédent sans transaction, décision absente.
-12. Statistiques : tri des catégories, part fixe et variable, part « Non classé ».
-13. Filtres de l'historique : choix Catégorie/Saisi par appliqués, retirés par pastille,
+1. Budget de 100 000 Ar sans transaction : disponible de 100 000 Ar.
+2. Revenu de 50 000 Ar en plus : disponible de 150 000 Ar, budget saisi toujours à 100 000 Ar.
+3. Dépense de 5 000 Ar avec seuil : disponible réduit une seule fois à 145 000 Ar et usage du seuil augmenté de 5 000 Ar.
+4. Remboursement de 2 000 Ar : disponible de 147 000 Ar ; ajustement de -1 000 Ar : disponible de 146 000 Ar.
+5. Budget absent : disponible = report + revenus + ajustements - dépenses nettes ; l'interface invite à définir le budget.
+6. Dépenses supérieures aux ressources : disponible négatif ; au mois suivant, même avec report accepté, le report vaut 0.
+7. Chaîne de trois mois avec report accepté : chaque report reprend le disponible positif du mois précédent.
+8. Barre d'usage : ratio dépenses nettes / ressources correct ; aucune barre si les ressources sont ≤ 0.
+9. Budget absent et budget à 0 : deux états distincts.
+10. Somme des seuils supérieure au budget : aucun effet sur le calcul du disponible.
+11. Frontière de mois : 31 à 23h30 (UTC+3) compté dans le bon mois ; le 1er du mois suivant dans le suivant.
+12. Transaction supprimée ignorée ; modification d'un montant répercutée.
+13. Report : oui, non, disponible négatif, chaîne de trois mois, mois précédent sans transaction, décision absente.
+14. Statistiques : tri des catégories, part fixe et variable, part « Non classé ».
+15. Filtres de l'historique : choix Catégorie/Saisi par appliqués, retirés par pastille,
     réinitialisés dans le panneau et conservés lors du changement de mois.
-14. Palette : première couleur disponible choisie, couleur réutilisée après épuisement et
+16. Palette : première couleur disponible choisie, couleur réutilisée après épuisement et
     couleur personnalisée hors palette laissée intacte.
 
 ### 14.2 Base de données (tests SQL ou d'intégration)
 
-13. Un membre ne peut écrire ni `monthly_budgets`, ni `month_carry_decisions`, ni `recurring_expenses`. Le propriétaire le peut. Un non-membre ne lit rien.
-14. Un membre ne modifie que ses propres transactions.
-15. `generate_recurring_for_month` appelée deux fois crée une seule ligne par forfait et par mois ; ne crée pas de mois futur ; refuse un non-membre ; ne régénère pas une occurrence supprimée.
-16. Une modification de forfait avec une mauvaise version est refusée.
+1. Un membre ne peut écrire ni `monthly_budgets`, ni `month_carry_decisions`, ni `recurring_expenses`. Le propriétaire le peut. Un non-membre ne lit rien.
+2. Un membre ne modifie que ses propres transactions.
+3. `generate_recurring_for_month` appelée deux fois crée une seule ligne par forfait et par mois ; ne crée pas de mois futur ; refuse un non-membre ; ne régénère pas une occurrence supprimée.
+4. Une modification de forfait avec une mauvaise version est refusée.
 
 ### 14.3 De bout en bout (Playwright)
 
-17. Hors ligne : définir le budget du mois, recharger, la valeur est là ; elle est synchronisée au retour du réseau.
-18. Ajouter une dépense depuis l'accueil sur écran de téléphone : le solde et le reste du budget changent.
-19. Changer de mois puis de page : le mois affiché est conservé.
+1. Hors ligne : définir le budget du mois, recharger, la valeur est là ; elle est synchronisée au retour du réseau.
+2. Ajouter une dépense depuis l'accueil sur écran de téléphone : le disponible et la barre de ressources changent.
+3. Changer de mois puis de page : le mois affiché est conservé.
 
 ## 15. Propositions à confirmer par Laro
 
@@ -519,10 +535,14 @@ Ces choix sont proposés par le rédacteur de ce document et n'ont pas encore é
 
 - Export CSV des données.
 - Projections de fin de mois, date d'épuisement du budget, détection d'anomalies.
-- Report d'un solde négatif, report du reste du budget (« rollover »).
+- Report d'un disponible négatif.
 - Comptes multiples (Mvola, espèces) et transferts entre comptes.
 - Notifications et rappels.
 - Forfaits créés ou modifiés hors ligne.
 - Liens signés pour les photos de profil.
 - Seuil d'alerte configurable.
 - Lien avec les SMS de mobile money (exclu par Laro pour l'instant).
+
+## Historique des décisions
+
+- 2026-10-25, modèle A : le budget est de l'argent disponible, les revenus s'ajoutent au disponible.

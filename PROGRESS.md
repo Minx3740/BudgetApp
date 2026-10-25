@@ -2,14 +2,18 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 14:55 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 15:17 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : reprise de R7 — nouveau modèle A du disponible, qui remplace les
-  consignes R7 antérieures. Prérequis : déplacer la spécification dans `docs/` et mettre à
-  jour les références dans un commit séparé, avant le code R7. Aucun merge dans `main`;
-  aucune migration sans accord de Laro.
-- Inspection initiale vérifiée : les filtres Catégorie/Saisi par survivaient déjà au
+- Lot/tâche en cours : R7 — nouveau modèle A du disponible. Implémentation, documentation
+  et vérifications terminées ; commit et push de `reforme-budget` à effectuer, puis arrêt
+  jusqu'à ce que Laro écrive « continue ». Les nouveaux lots R8/R9 ne sont pas commencés ;
+  certains écrans Transactions du futur R9 ont déjà été implémentés dans l'ancienne séquence.
+  Aucun merge dans `main`; aucune migration sans accord de Laro.
+- Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
+  `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
+  références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
+- État hérité (futur R9) : les filtres Catégorie/Saisi par survivaient déjà au
   changement de mois ; test de régression ajouté et réussi. Le champ `archived_at` existait
   dans le modèle Dexie et la migration SQL `20261023160000_data_and_invitations.sql` ;
   aucun schéma ni migration supplémentaire requis.
@@ -17,52 +21,44 @@
   Transactions (celui du layout global et celui de la carte Historique) ; l’onglet
   « Catégories » est encore dans l’écran Transactions alors que la section 10.5 de la
   réforme le place sous Espace.
-- Point 1 terminé : filtres Catégorie/Saisi par dans le panneau ; recherche et sélecteur
+- R9 préexistant, à revalider : filtres Catégorie/Saisi par dans le panneau ; recherche et sélecteur
   Tout/Dépenses/Revenus restent visibles ; badge de filtres actifs, Réinitialiser/Appliquer,
   pastilles retirables ; champs Du/Au retirés. Les filtres sont conservés au changement de
   mois. Tests dédiés : 8/8 ; typecheck et lint passent.
-- Point 2 terminé : formulaire d’ajout/modification et confirmation d’archivage dans un
+- R9 préexistant, à revalider : formulaire d’ajout/modification et confirmation d’archivage dans un
   `<dialog>` modal (feuille basse sur mobile, Dialog centré sur grand écran) ; ajout en haut,
   message après sauvegarde ; catégories actives séparées des archivées repliées, restauration ;
   suppression soft proposée seulement si aucune transaction ne référence la catégorie, avec
   vérification transactionnelle au moment de supprimer. `archived_at` existe déjà dans le
   modèle Dexie et la migration `20261023160000_data_and_invitations.sql` : aucune migration
   supplémentaire n’est nécessaire. Typecheck, lint et Prettier passent.
-- Point 3 terminé : palette de 12 jetons CSS, valeurs de thème clair/sombre documentées
+- R9 préexistant, à revalider : palette de 12 jetons CSS, valeurs de thème clair/sombre documentées
   avec rapports de contraste calculés au-dessus de 3:1 sur les surfaces carte ; première
   couleur inutilisée affectée automatiquement, première réutilisée après épuisement ;
   couleurs historiques hors palette préservées. Pastille par ligne, choix par puces dans
   le panneau d’ajout, barres du graphique « Où va l’argent ? » et de seuil colorées ;
   « Non classé » gris neutre. Tests d’attribution dédiés : 3/3 ; tests filtrage/analyses/
   couleurs ciblés : 16/16 ; typecheck et lint passent.
-- Vérification complète R7 : `npm test` 81/81 sur 14 fichiers ; `npm run lint`,
-  `npm run typecheck`, `npm run build` et `git diff --check` passent. Build réussi avec
-  avertissement non bloquant de chunk principal (819,74 kB). Prettier passe sur tous les
-  fichiers R7 ; `npm run format:check` global ne passe que parce que le fichier
-  `.github/workflows/ci.yml`, préexistant et hors périmètre, ne respecte pas Prettier ;
-  il n’a pas été modifié dans ce lot.
-- SQL/migrations : aucune migration requise ; aucune migration créée ou appliquée.
-- Vérifications demandées sans correction : les deux boutons « Ajouter » sur Transactions
-  sont présents (CTA du layout global et bouton Historique) ; laissés inchangés faute
-  d’autorisation de correction. « Catégories » reste un onglet de Transactions ; non déplacé,
-  car le point R7 ne valide pas explicitement un changement de navigation et la section
-  10.5 le place sous Espace.
-- Formatage des montants : la sortie native de `Intl.NumberFormat('fr-FR')` pour 1 000
-  utilise U+202F (espace fine insécable), ce qui peut sembler étroit à l’écran. Aucun défaut
-  reproductible dans ce formateur n’a été trouvé ; aucun commit de correction séparé n’est
-  justifié. Il y a cinq définitions locales similaires du formateur, pas une fonction unique ;
-  leur centralisation serait un refactoring distinct et n’est pas entreprise.
-- Prochaine action exacte : attendre la validation de Laro sur l’aperçu Cloudflare de
-  `reforme-budget`. Ne pas fusionner dans `main` et ne pas appliquer de migration.
-- Vérifications effectuées : `npm test` (81/81), `npm run lint`, `npm run typecheck`,
-  `npm run format:check` (seul `.github/workflows/ci.yml` préexistant échoue),
-  `npm run build`, `git diff --check`. Aucune commande SQL exécutée.
-- Décisions confirmées pour R7 : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
+- R7 modèle A terminé : fonctions pures calculent ressources, disponible et report
+  positif en chaîne ; la carte d'accueil, la barre d'usage, le graphique journalier et les
+  textes des champs Budget/Revenu reflètent la règle. Tests ciblés : 12/12.
+- Tests R7 : `npm test` 86/86 sur 14 fichiers ; `npm run lint`, `npm run typecheck`,
+  `npm run build` et `git diff --check` passent. Prettier a été passé sur les fichiers
+  modifiés ; build avec avertissement Vite non bloquant sur le chunk principal (818,99 kB).
+- SQL/migrations : aucune migration requise, créée ou appliquée ; aucune commande SQL.
+- Tâches anciennement appelées R7 (Transactions) déjà présentes dans le code ; dans cette
+  séquence elles relèvent de R9 et restent à revalider après « continue ». Le bouton Ajouter
+  doublé et l'emplacement de Catégories restent signalés sans correction non autorisée.
+- Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
+  défaut commun reproductible n'a été corrigé.
+- Prochaine action exacte : commit R7, push uniquement `reforme-budget`, puis arrêt en
+  attente du message « continue ». Ne pas fusionner dans `main` et ne pas appliquer de SQL.
+- Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
   contrôle de contraste clair/sombre ; première couleur non utilisée attribuée à la création ;
   couleur historique hors palette préservée ; noms toujours visibles et « Non classé » neutre.
-- Questions ouvertes : validation de Laro après revue de l’aperçu R7.
+- Questions ouvertes : revue de l'aperçu R7 par Laro ; attendre « continue » avant R8/R9.
 - Pièges connus : préserver les modifications préexistantes non committées de
   `.env.example`, `.github/workflows/ci.yml`, `README.md`,
   `src/components/workspaces/workspace-management.tsx` et `vite.config.ts`; ne pas fusionner
@@ -73,8 +69,9 @@
   visible dans l’application.
 - Terminé et vérifié : état Git relevé. Les changements préexistants non committés de
   `.env.example`, `.github/workflows/ci.yml`, `README.md`,
-  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts` sont préservés
-  et exclus des trois commits R7.
+  `src/components/workspaces/workspace-management.tsx` et `vite.config.ts` sont préservés.
+  Ils ne doivent pas être inclus dans les commits de cette séquence, à
+  l'exception de la ligne modifiée dans README pour le vocabulaire du disponible.
 - Terminé et vérifié : aucun `_redirects` ni `404.html` dans `public` ou `dist`.
   Après `npm run build`, le manifeste généré indique `start_url: "/"` et `scope: "/"`;
   l’enregistrement du service worker utilise `registerSW({ immediate: true })`, sans
@@ -95,7 +92,7 @@
   revenu, dépenses avec/sans seuil, remboursement/ajustement, déficit, date du 31,
   génération/modification de forfait, affichage mobile, hors ligne/synchronisation et
   droits d’un membre invité. Résultats rapportés par Laro, non reproduits indépendamment.
-- Vérifications finales : `npm test` réussi (77 tests, 13 fichiers), `npm run lint`,
+- Vérifications antérieures à R7 modèle A : `npm test` réussi (77 tests, 13 fichiers), `npm run lint`,
   `npm run typecheck`, `npm run build` et `git diff --check` réussis. Build PWA réussi ;
   avertissement Vite non bloquant sur le chunk principal de 811,57 kB.
 - Formatage : `npx prettier --check PROGRESS.md README.md vite.config.ts
@@ -106,7 +103,7 @@ docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
   migration distante n’a été exécuté pour cette tâche.
 - Commit et push effectués : `f781f3e` (`docs: prepare Cloudflare Pages branch preview`)
   sur `origin/reforme-budget`. La branche suit son upstream et est synchronisée.
-- Prochaine action exacte : choisir la prochaine priorité de développement (par exemple
+- Prochaine action historique avant la demande actuelle : choisir la prochaine priorité de développement (par exemple
   poursuivre les finitions M9 ou traiter les dettes reportées M10/M6) ; les essais
   téléphoniques de l’aperçu sont rapportés OK par Laro.
 - Vérifications finales à lancer : `npm test`, `npm run lint`,
@@ -139,7 +136,8 @@ docs/test-telephone.md` passe. `npm run format:check` échoue uniquement sur
 - Dernier jalon historique validé : M8 (2026-10-24).
 - Prochaine action historique : poursuivre M9 ; le test de conflit réel M6 entre
   appareils reste également à faire.
-- Réforme budget : R0–R4 terminés et validés ; R5 en cours.
+- Réforme budget : R0–R6 terminés et validés ; R7 modèle A en attente de push et revue ;
+  R8 et R9 attendent « continue ».
 
 ## Jalons
 
@@ -172,7 +170,9 @@ le suivant.
 | R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
 | R5  | Validé par Laro ; migration, interface et tests SQL terminés (33/33)                                   | 2026-10-25 |
 | R6  | Validé par Laro ; implémentation et contrôles terminés                                                 | 2026-10-25 |
-| R7  | En cours — retours sur filtres, formulaires de catégories et couleurs de Transactions                  | 2026-10-25 |
+| R7  | Modèle A du disponible implémenté et validé automatiquement ; push puis revue de Laro en attente       | 2026-10-25 |
+| R8  | En attente du message « continue » après validation de R7                                              |            |
+| R9  | En attente du message « continue » après validation de R7 ; ancien code Transactions déjà présent      |            |
 
 ### État des lieux vérifié pour R0
 

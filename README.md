@@ -51,7 +51,7 @@ changements distants avec des curseurs par espace/table. Il se relance à l'ouve
 retour du réseau, au retour au premier plan et périodiquement. La déconnexion efface la base
 locale.
 
-L'accueil affiche aussi le reste à dépenser du mois, la moyenne quotidienne, les dernières
+L'accueil affiche aussi le disponible du mois, la moyenne quotidienne, les dernières
 transactions et les catégories les plus consommées. La section Budgets permet de créer et
 modifier des plafonds mensuels par catégorie ; dépenses et progression sont calculées à partir
 des données locales et restent consultables hors-ligne.

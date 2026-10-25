@@ -13,7 +13,7 @@ interface BudgetAnalyticsViewProps {
   month: string
   categories: Category[]
   budgets: Budget[]
-  monthlyBudgetAmount: number | null
+  monthlyResources: number | null
   transactions: CashflowTransaction[]
   isSharedWorkspace: boolean
   profiles: Pick<Profile, 'id' | 'display_name'>[]
@@ -305,21 +305,13 @@ function CategoryComparisonChart({
 
 function DailyCumulativeChart({
   month,
-  monthlyBudgetAmount,
+  monthlyResources,
   transactions,
-}: Pick<BudgetAnalyticsViewProps, 'month' | 'monthlyBudgetAmount' | 'transactions'>) {
+}: Pick<BudgetAnalyticsViewProps, 'month' | 'monthlyResources' | 'transactions'>) {
   const values = calculateDailyExpenseCumulative(month, transactions)
   const plot = { left: 72, top: 14, width: chartWidth - 84, height: 178 }
-  const minimum = Math.min(
-    0,
-    monthlyBudgetAmount ?? 0,
-    ...values.map((item) => item.cumulativeAmount),
-  )
-  const maximum = Math.max(
-    0,
-    monthlyBudgetAmount ?? 0,
-    ...values.map((item) => item.cumulativeAmount),
-  )
+  const minimum = Math.min(0, monthlyResources ?? 0, ...values.map((item) => item.cumulativeAmount))
+  const maximum = Math.max(0, monthlyResources ?? 0, ...values.map((item) => item.cumulativeAmount))
   const range = maximum - minimum || 1
   const y = (amount: number) => plot.top + ((maximum - amount) / range) * plot.height
   const points = values
@@ -335,9 +327,9 @@ function DailyCumulativeChart({
         <CardTitle>Suis-je dans le budget ?</CardTitle>
         <CardDescription>
           Dépenses nettes cumulées par jour en {formatMonthLabel(month)}.
-          {monthlyBudgetAmount === null
-            ? ' Aucune enveloppe globale n’est définie.'
-            : ` L’enveloppe est de ${formatMoney(monthlyBudgetAmount)}.`}
+          {monthlyResources === null
+            ? ' Les ressources du mois ne sont pas disponibles.'
+            : ` Les ressources du mois sont de ${formatMoney(monthlyResources)}.`}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -366,15 +358,15 @@ function DailyCumulativeChart({
               </g>
             )
           })}
-          {monthlyBudgetAmount !== null && (
+          {monthlyResources !== null && (
             <line
               stroke={chartColors.expense}
               strokeDasharray="5 4"
               strokeWidth="2"
               x1={plot.left}
               x2={plot.left + plot.width}
-              y1={y(monthlyBudgetAmount)}
-              y2={y(monthlyBudgetAmount)}
+              y1={y(monthlyResources)}
+              y2={y(monthlyResources)}
             />
           )}
           <polyline
@@ -409,7 +401,7 @@ function DailyCumulativeChart({
         </svg>
         <p className="mt-2 text-xs text-muted-foreground">
           Ligne pleine : dépenses nettes cumulées.
-          {monthlyBudgetAmount !== null ? ' Ligne pointillée : enveloppe mensuelle.' : ''}
+          {monthlyResources !== null ? ' Ligne pointillée : ressources du mois.' : ''}
         </p>
         {accessibleList(
           values.map((item) => `Jour ${item.day} : ${formatMoney(item.cumulativeAmount)} cumulés`),
@@ -525,7 +517,7 @@ export function BudgetAnalyticsView({
   month,
   categories,
   budgets,
-  monthlyBudgetAmount,
+  monthlyResources,
   transactions,
   isSharedWorkspace,
   profiles,
@@ -658,7 +650,7 @@ export function BudgetAnalyticsView({
         />
         <DailyCumulativeChart
           month={month}
-          monthlyBudgetAmount={monthlyBudgetAmount}
+          monthlyResources={monthlyResources}
           transactions={transactions}
         />
         <SixMonthCashflowChart month={month} transactions={transactions} />

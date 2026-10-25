@@ -23,33 +23,33 @@ Résultat :OK
 
 ## 3. Revenu (règle B6)
 
-Faire : ajoute un revenu de 200 000 Ar.
-Attendu : le solde monte de 200 000 Ar. Le budget du mois et son reste ne bougent pas.
-Résultat : OK
+Faire : note le disponible et le budget du mois, puis ajoute un revenu de 200 000 Ar.
+Attendu : le disponible monte de 200 000 Ar. Le budget saisi ne change pas.
+Résultat : À refaire (modèle A)
 
 ## 4. Dépense dans une catégorie sans seuil (règle B4)
 
 Faire : ajoute une dépense de 5 000 Ar dans une catégorie sans seuil.
-Attendu : le reste du budget baisse de 5 000 Ar, une seule fois. Le solde baisse aussi de 5 000 Ar. La dépense apparaît une seule fois dans la liste.
-Résultat : OK
+Attendu : le disponible baisse de 5 000 Ar, une seule fois. La dépense apparaît une seule fois dans la liste.
+Résultat : À refaire (modèle A)
 
 ## 5. Dépense dans une catégorie avec seuil (règle B4)
 
 Faire : ajoute une dépense de 3 000 Ar dans une catégorie qui a un seuil.
-Attendu : le reste du budget baisse de 3 000 Ar, une seule fois (pas 6 000). La barre du seuil de cette catégorie avance du même montant.
-Résultat : OK
+Attendu : le disponible baisse de 3 000 Ar, une seule fois (pas 6 000). L'usage du seuil de cette catégorie augmente de 3 000 Ar.
+Résultat : À refaire (modèle A)
 
 ## 6. Remboursement, puis ajustement négatif (section 3.1)
 
 Faire : ajoute un remboursement de 2 000 Ar dans une catégorie. Note les chiffres. Ajoute ensuite un ajustement de moins 1 000 Ar.
-Attendu : le remboursement fait monter le reste du budget et le solde de 2 000 Ar. L'ajustement fait baisser le solde seulement, de 1 000 Ar. Les dépenses, les revenus, le budget et les statistiques ne changent pas avec l'ajustement.
-Résultat : OK
+Attendu : le remboursement fait monter le disponible de 2 000 Ar. L'ajustement négatif fait ensuite baisser le disponible de 1 000 Ar. Les dépenses nettes, les revenus, le budget saisi et les statistiques ne changent pas avec l'ajustement.
+Résultat : À refaire (modèle A)
 
 ## 7. Déficit (règle C5)
 
-Faire : ajoute une dépense plus grande que ton solde.
-Attendu : le solde négatif s'affiche en rouge avec le mot « Déficit ». Passe au mois suivant : le déficit n'est pas reporté, le solde de ce mois repart de 0.
-Résultat : OK
+Faire : ajoute des dépenses nettes supérieures aux ressources du mois.
+Attendu : le disponible négatif s'affiche en rouge avec le mot « Déficit ». Passe au mois suivant et accepte le report s'il est proposé : aucun montant négatif n'est reporté. Le disponible suivant est calculé avec le budget, les revenus, les ajustements et dépenses de ce nouveau mois.
+Résultat : À refaire (modèle A)
 
 ## 8. Dépense du 31 (règle B2)
 

@@ -4,14 +4,14 @@ import { shiftMonth } from './calculations'
 export interface MonthLedger {
   month: string
   budgetAmount: number | null
+  resources: number
   expenses: number
   refunds: number
   netExpenses: number
   income: number
   adjustments: number
   carryIn: number
-  balance: number
-  remainingBudget: number | null
+  available: number
 }
 
 export interface ExpenseComposition {
@@ -95,7 +95,18 @@ function totalsForMonth(month: string, transactions: CashflowTransaction[]) {
     }
   }
 
-  return { expenses, refunds, income, adjustments, netExpenses: expenses - refunds }
+  return {
+    expenses,
+    refunds,
+    income,
+    adjustments,
+    netExpenses: addSafe(expenses, -refunds),
+  }
+}
+
+export function resourceUsagePercentage(netExpenses: number, resources: number): number | null {
+  if (resources <= 0) return null
+  return Math.max(0, Math.min((netExpenses / resources) * 100, 100))
 }
 
 export function calculateMonthLedger(
@@ -112,49 +123,46 @@ export function calculateMonthLedger(
       .filter((decision) => decision.deleted_at === null)
       .map((decision) => [decision.month, decision.accepted]),
   )
-  const transactionCountByMonth = new Map<string, number>()
-  for (const transaction of transactions) {
-    if (transaction.deleted_at !== null) continue
-    const transactionMonth = `${transaction.occurred_on.slice(0, 7)}-01`
-    transactionCountByMonth.set(
-      transactionMonth,
-      (transactionCountByMonth.get(transactionMonth) ?? 0) + 1,
-    )
-  }
+  const budgetByMonth = new Map(
+    monthlyBudgets
+      .filter((item) => item.deleted_at === null)
+      .map((item) => [item.month, item.budget_amount]),
+  )
 
-  const getBalance = (monthKey: string, depth: number): number => {
+  const getAvailable = (monthKey: string, depth: number): number => {
     if (depth >= 120) {
       throw new RangeError('Carry calculation exceeds the 120-month safety limit.')
     }
     let carryIn = 0
-    if (
-      decisionByMonth.get(monthKey) === true &&
-      (transactionCountByMonth.get(shiftMonth(monthKey, -1)) ?? 0) > 0
-    ) {
-      carryIn = Math.max(0, getBalance(shiftMonth(monthKey, -1), depth + 1))
+    if (decisionByMonth.get(monthKey) === true) {
+      carryIn = Math.max(0, getAvailable(shiftMonth(monthKey, -1), depth + 1))
     }
     const totals = totalsForMonth(monthKey, transactions)
     const netExpenses = addSafe(totals.expenses, -totals.refunds)
-    return addSafe(addSafe(addSafe(carryIn, totals.income), totals.adjustments), -netExpenses)
+    const resources = addSafe(
+      addSafe(addSafe(carryIn, budgetByMonth.get(monthKey) ?? 0), totals.income),
+      totals.adjustments,
+    )
+    return addSafe(resources, -netExpenses)
   }
 
   const previousMonth = shiftMonth(month, -1)
   const carryIn =
-    decisionByMonth.get(month) === true && (transactionCountByMonth.get(previousMonth) ?? 0) > 0
-      ? Math.max(0, getBalance(previousMonth, 0))
-      : 0
+    decisionByMonth.get(month) === true ? Math.max(0, getAvailable(previousMonth, 0)) : 0
   const netExpenses = addSafe(currentTotals.expenses, -currentTotals.refunds)
-  const balance = addSafe(
-    addSafe(addSafe(carryIn, currentTotals.income), currentTotals.adjustments),
-    -netExpenses,
+  const budgetAmount = budget?.budget_amount ?? 0
+  const resources = addSafe(
+    addSafe(addSafe(carryIn, budgetAmount), currentTotals.income),
+    currentTotals.adjustments,
   )
+  const available = addSafe(resources, -netExpenses)
   return {
     month,
     budgetAmount: budget?.budget_amount ?? null,
+    resources,
     ...currentTotals,
     netExpenses,
     carryIn,
-    balance,
-    remainingBudget: budget ? addSafe(budget.budget_amount, -netExpenses) : null,
+    available,
   }
 }

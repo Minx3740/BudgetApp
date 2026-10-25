@@ -1290,6 +1290,9 @@ export function LocalDataView({
               value={transactionDraft.amount}
             />
           </label>
+          {transactionDraft.kind === 'income' && (
+            <p className="text-sm text-stone-600">Argent reçu en plus de ton budget du mois.</p>
+          )}
 
           {transactionDraft.kind !== 'adjustment' && (
             <fieldset className="grid gap-2">

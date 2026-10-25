@@ -10,13 +10,15 @@ Il ne signifie pas que tous les écrans respectent déjà ces règles.
 ## 1. Principes
 
 - Concevoir d’abord pour un téléphone Android ; adapter ensuite aux écrans larges.
-- Une action principale clairement identifiable par écran.
-- Montrer en premier le solde réel et l’état de l’enveloppe mensuelle ; séparer les
-  repères par catégorie des montants globaux.
+- Un chiffre principal et une action principale clairement identifiables par écran.
+- Montrer en premier le disponible ; séparer les repères par catégorie des montants
+  globaux.
+- Garder les explications à la demande : petit bouton « ? », cartes repliables ou panneaux.
 - Réduire les éléments permanents en haut de l’écran. Les actions fréquentes sont
   accessibles à un geste ; les réglages et fonctions rares sont regroupés.
 - Employer des libellés simples et explicites. Éviter les termes financiers non
-  expliqués et les détails techniques de stockage ou de synchronisation.
+  expliqués et tout texte technique visible, notamment « sur cet appareil » ou
+  « synchronisation ».
 - Utiliser des cartes pour regrouper les informations connexes, pas pour transformer
   chaque valeur en panneau indépendant.
 - Les références visuelles partagées par Laro servent d’inspiration pour la hiérarchie,
@@ -81,7 +83,7 @@ Les états de budget ne dépendent jamais de la seule couleur :
 - **Normal** : moins de 80 % du seuil utilisé ; libellé de progression explicite.
 - **À surveiller** : de 80 % à 100 % inclus ; libellé « À surveiller ».
 - **Dépassé** : plus de 100 % ; texte « Seuil dépassé » et indicateur visuel distinct.
-- **Déficit** : solde négatif ; afficher le mot « Déficit » en plus de la couleur.
+- **Déficit** : disponible négatif ; afficher le mot « Déficit » en plus de la couleur.
 - **Hors ligne / en attente / erreur** : texte ou icône avec nom accessible, jamais une
   pastille colorée sans explication.
 
@@ -161,8 +163,9 @@ utilisateur est une fonctionnalité distincte à implémenter au lot prévu.
 
 ## 7. Écrans de la réforme
 
-- **Accueil** : solde réel en premier, enveloppe et reste du mois ensuite, report si
-  requis, résumé revenus/dépenses, transactions récentes, catégories principales.
+- **Accueil** : disponible en premier, ligne « Budget X Ar · dépensé Y Ar » et barre
+  dépenses nettes / ressources ensuite, report si requis, résumé revenus/dépenses,
+  transactions récentes, catégories principales.
 - **Budgets / Mois** : deux groupes visuellement indépendants : enveloppe globale du
   mois, puis seuils par catégorie. Ne jamais suggérer que la somme des seuils constitue
   l’enveloppe.

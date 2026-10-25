@@ -10,7 +10,11 @@ import {
   useTransactions,
 } from '@/data/hooks'
 import { calculateMonthlyBudgetSummary, shiftMonth } from '@/data/calculations'
-import { calculateExpenseComposition, calculateMonthLedger } from '@/data/reform-calculations'
+import {
+  calculateExpenseComposition,
+  calculateMonthLedger,
+  resourceUsagePercentage,
+} from '@/data/reform-calculations'
 import {
   budgetsRepository,
   monthCarryDecisionsRepository,
@@ -80,11 +84,6 @@ function formatMonth(month: string): string {
     timeZone: 'UTC',
   }).format(new Date(`${month}T00:00:00.000Z`))
   return `${label.charAt(0).toLocaleUpperCase('fr-FR')}${label.slice(1)}`
-}
-
-function progressPercentage(spent: number, budget: number): number {
-  if (budget === 0) return spent > 0 ? 100 : 0
-  return Math.round(Math.max(0, Math.min((spent / budget) * 100, 100)))
 }
 
 function expenseShare(amount: number, total: number): string {
@@ -210,7 +209,7 @@ export function BudgetDashboard({
   const shouldOfferCarry =
     currentCarryDecision === undefined &&
     previousMonthHasTransactions &&
-    (previousLedger?.balance ?? 0) > 0
+    (previousLedger?.available ?? 0) > 0
   const editingCategory = categories.find(
     (category) => category.id === categoryId && category.kind === 'expense',
   )
@@ -221,6 +220,9 @@ export function BudgetDashboard({
   const consumedCategories = summary.categories
     .filter((item) => item.spentAmount > 0)
     .slice(0, mode === 'home' ? 3 : 10)
+  const resourceUsage = currentLedger
+    ? resourceUsagePercentage(currentLedger.netExpenses, currentLedger.resources)
+    : null
 
   function changeBudgetTab(tab: BudgetTab) {
     setActiveBudgetTab(tab)
@@ -359,7 +361,11 @@ export function BudgetDashboard({
         month,
         accepted,
       })
-      setNotice(accepted ? 'Report accepté sur cet appareil.' : 'Report refusé sur cet appareil.')
+      setNotice(
+        accepted
+          ? 'Le disponible précédent sera reporté.'
+          : 'Le disponible précédent ne sera pas reporté.',
+      )
     } catch (failure) {
       setFormError(`Impossible d’enregistrer la décision de report. ${budgetErrorMessage(failure)}`)
     }
@@ -447,92 +453,70 @@ export function BudgetDashboard({
       <section aria-label={`Budget de ${formatMonth(month)}`} className="mt-4 space-y-4">
         {ledger.error && (
           <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-            Impossible de calculer le solde du mois. {ledger.error}
+            Impossible de calculer le disponible du mois. {ledger.error}
           </p>
         )}
         {currentLedger && (
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
               <CardHeader>
-                <CardTitle>Solde réel · {formatMonth(month)}</CardTitle>
-                <CardDescription>
-                  Estimation après dépenses nettes, revenus, ajustements et report accepté.
-                </CardDescription>
+                <CardTitle>Disponible · {formatMonth(month)}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p
                   className={`text-3xl font-bold tracking-tight ${
-                    currentLedger.balance < 0 ? 'text-red-700' : 'text-emerald-950'
+                    currentLedger.available < 0 ? 'text-red-700' : 'text-emerald-950'
                   }`}
                 >
-                  {formatMoney(currentLedger.balance)}
+                  {formatMoney(currentLedger.available)}
                 </p>
-                {currentLedger.balance < 0 && (
+                {currentLedger.available < 0 && (
                   <p className="mt-1 text-sm font-semibold text-red-700">Déficit</p>
                 )}
                 {currentCarryDecision?.accepted && (
                   <p className="mt-2 text-sm text-stone-600">
-                    Report accepté : {formatMoney(currentLedger.carryIn)}
+                    Report compris : {formatMoney(currentLedger.carryIn)}
                   </p>
                 )}
                 {currentCarryDecision && !currentCarryDecision.accepted && (
-                  <p className="mt-2 text-sm text-stone-600">Report non accepté pour ce mois.</p>
+                  <p className="mt-2 text-sm text-stone-600">Aucun montant reporté ce mois.</p>
                 )}
 
-                <div className="mt-6 border-t border-stone-200 pt-5">
-                  <h2 className="font-semibold">Enveloppe du mois</h2>
-                  {currentLedger.budgetAmount === null ? (
-                    <div className="mt-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-950">
-                      <p className="font-semibold">Aucune enveloppe définie pour ce mois.</p>
-                      <p className="mt-1">
-                        Elle est indépendante des seuils et doit être définie manuellement.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="mt-2 text-sm text-stone-600">
-                        Reste {formatMoney(currentLedger.remainingBudget ?? 0)} sur{' '}
-                        {formatMoney(currentLedger.budgetAmount)}
-                      </p>
-                      <div
-                        aria-label={`Progression de l’enveloppe de ${formatMonth(month)}`}
-                        aria-valuemax={100}
-                        aria-valuemin={0}
-                        aria-valuenow={progressPercentage(
-                          currentLedger.netExpenses,
-                          currentLedger.budgetAmount,
-                        )}
-                        className="mt-3 h-3 overflow-hidden rounded-full bg-stone-100"
-                        role="progressbar"
-                      >
-                        <div
-                          className={`h-full rounded-full ${
-                            (currentLedger.remainingBudget ?? 0) < 0
-                              ? 'bg-red-600'
-                              : currentLedger.budgetAmount > 0 &&
-                                  currentLedger.netExpenses / currentLedger.budgetAmount >= 0.8
-                                ? 'bg-amber-500'
-                                : 'bg-emerald-700'
-                          }`}
-                          style={{
-                            width: `${progressPercentage(
-                              currentLedger.netExpenses,
-                              currentLedger.budgetAmount,
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                      <p className="mt-2 text-sm text-stone-600">
-                        Dépenses nettes : {formatMoney(currentLedger.netExpenses)}
-                      </p>
-                    </>
-                  )}
-                  <Button className="mt-4 min-h-11" onClick={onOpenBudgets} variant="outline">
-                    {currentLedger.budgetAmount === null
-                      ? 'Définir mon enveloppe'
-                      : 'Gérer l’enveloppe et les seuils'}
-                  </Button>
-                </div>
+                <p className="mt-4 text-sm text-stone-600">
+                  Budget {formatMoney(currentLedger.budgetAmount ?? 0)} · dépensé{' '}
+                  {formatMoney(currentLedger.netExpenses)}
+                </p>
+                {resourceUsage !== null && (
+                  <div
+                    aria-label={`Dépenses nettes sur ressources : ${Math.round(resourceUsage)} %`}
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={Math.round(resourceUsage)}
+                    className="mt-3 h-3 overflow-hidden rounded-full bg-stone-100"
+                    role="progressbar"
+                  >
+                    <div
+                      className={`h-full ${
+                        currentLedger.available < 0
+                          ? 'bg-red-600'
+                          : resourceUsage >= 80
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-700'
+                      }`}
+                      style={{ width: `${resourceUsage}%` }}
+                    />
+                  </div>
+                )}
+                {currentLedger.budgetAmount === null && (
+                  <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-950">
+                    Aucun budget n’est défini pour ce mois.
+                  </p>
+                )}
+                <Button className="mt-4 min-h-11" onClick={onOpenBudgets} variant="outline">
+                  {currentLedger.budgetAmount === null
+                    ? 'Définir mon budget'
+                    : 'Gérer le budget et les seuils'}
+                </Button>
               </CardContent>
             </Card>
 
@@ -540,10 +524,10 @@ export function BudgetDashboard({
               {shouldOfferCarry && previousLedger && (
                 <Card className="rounded-2xl border-0 bg-amber-50 shadow-sm ring-amber-200">
                   <CardHeader>
-                    <CardTitle>Reporter le solde précédent ?</CardTitle>
+                    <CardTitle>Reporter le disponible précédent ?</CardTitle>
                     <CardDescription className="text-stone-700">
-                      Le mois précédent se termine avec un solde positif de{' '}
-                      {formatMoney(previousLedger.balance)}. Ce choix ne change pas l’enveloppe du
+                      Le mois précédent se termine avec un disponible positif de{' '}
+                      {formatMoney(previousLedger.available)}. Ce choix ne change pas le budget du
                       mois.
                     </CardDescription>
                   </CardHeader>
@@ -573,7 +557,7 @@ export function BudgetDashboard({
               <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                 <CardHeader>
                   <CardTitle>Ce mois</CardTitle>
-                  <CardDescription>{formatMonth(month)} · données sur cet appareil</CardDescription>
+                  <CardDescription>{formatMonth(month)}</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
                   <div className="rounded-xl bg-stone-50 p-3">
@@ -662,7 +646,7 @@ export function BudgetDashboard({
             categories={categories}
             isSharedWorkspace={isSharedWorkspace}
             month={month}
-            monthlyBudgetAmount={monthlyBudget?.budget_amount ?? null}
+            monthlyResources={currentLedger?.resources ?? null}
             profiles={profiles}
             transactions={transactions}
           />
@@ -692,16 +676,16 @@ export function BudgetDashboard({
       <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
         <CardHeader>
           <div>
-            <CardTitle>Enveloppe globale · {formatMonth(month)}</CardTitle>
+            <CardTitle>Budget global · {formatMonth(month)}</CardTitle>
             <CardDescription>
-              Montant manuel pour l’espace et le mois, sans catégorie. Il n’est pas calculé à partir
-              des seuils.
+              Montant dont tu disposes pour l’espace et le mois, indépendant des seuils par
+              catégorie.
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-stone-50 p-4">
-            <p className="text-sm text-stone-600">Enveloppe définie</p>
+            <p className="text-sm text-stone-600">Budget défini</p>
             <p className="mt-1 text-xl font-bold">
               {!currentLedger
                 ? 'Indisponible'
@@ -718,22 +702,16 @@ export function BudgetDashboard({
           </div>
           <div
             className={`rounded-xl p-4 ${
-              currentLedger?.remainingBudget !== null &&
-              currentLedger?.remainingBudget !== undefined &&
-              currentLedger.remainingBudget < 0
+              currentLedger?.available !== undefined && currentLedger.available < 0
                 ? 'bg-red-50 text-red-900'
                 : currentLedger
                   ? 'bg-emerald-50 text-emerald-950'
                   : 'bg-stone-50 text-stone-700'
             }`}
           >
-            <p className="text-sm">Reste à dépenser</p>
+            <p className="text-sm">Disponible</p>
             <p className="mt-1 text-xl font-bold">
-              {!currentLedger
-                ? 'Indisponible'
-                : currentLedger.remainingBudget === null
-                  ? '—'
-                  : formatMoney(currentLedger.remainingBudget)}
+              {!currentLedger ? 'Indisponible' : formatMoney(currentLedger.available)}
             </p>
           </div>
         </CardContent>
@@ -744,7 +722,7 @@ export function BudgetDashboard({
               onClick={() => startEditingMonthlyBudget()}
               variant="outline"
             >
-              {monthlyBudget ? 'Modifier l’enveloppe' : 'Définir l’enveloppe'}
+              {monthlyBudget ? 'Modifier le budget' : 'Définir le budget'}
             </Button>
             {previousMonthlyBudget && (
               <Button
@@ -752,7 +730,7 @@ export function BudgetDashboard({
                 onClick={() => startEditingMonthlyBudget(previousMonthlyBudget.budget_amount)}
                 variant="outline"
               >
-                Reprendre le montant du mois précédent
+                Reprendre le budget du mois précédent
               </Button>
             )}
           </CardContent>
@@ -765,7 +743,7 @@ export function BudgetDashboard({
             >
               <div>
                 <label className="mb-1.5 block text-sm font-medium" htmlFor="monthly-budget-amount">
-                  Enveloppe de {formatMonth(month)} (Ar)
+                  Budget de {formatMonth(month)} (Ar)
                 </label>
                 <input
                   className="min-h-12 w-full rounded-xl border border-stone-300 px-3"
@@ -778,6 +756,9 @@ export function BudgetDashboard({
                   type="number"
                   value={monthlyBudgetAmount}
                 />
+                <p className="mt-1 text-xs leading-5 text-stone-500">
+                  Montant dont tu disposes ce mois, en plus du report.
+                </p>
               </div>
               <Button className="min-h-12 self-end" type="submit">
                 Enregistrer
@@ -791,9 +772,6 @@ export function BudgetDashboard({
                 Annuler
               </Button>
             </form>
-            <p className="mt-2 text-xs leading-5 text-stone-500">
-              Les dépenses sans catégorie et sans seuil sont également déduites de cette enveloppe.
-            </p>
           </CardContent>
         )}
       </Card>
