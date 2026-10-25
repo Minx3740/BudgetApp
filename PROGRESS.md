@@ -2,13 +2,13 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 14:52 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 14:55 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R7 terminé, validé automatiquement et poussé sur `origin/reforme-budget`.
-  Les trois commits de point sont `5b31ace` (filtres), `c9886ae` (formulaires/archivage) et
-  `81f96ef` (palette). Attendre la validation de Laro. Aucun merge dans `main`; aucune
-  migration distante sans accord de Laro.
+- Lot/tâche en cours : reprise de R7 — nouveau modèle A du disponible, qui remplace les
+  consignes R7 antérieures. Prérequis : déplacer la spécification dans `docs/` et mettre à
+  jour les références dans un commit séparé, avant le code R7. Aucun merge dans `main`;
+  aucune migration sans accord de Laro.
 - Inspection initiale vérifiée : les filtres Catégorie/Saisi par survivaient déjà au
   changement de mois ; test de régression ajouté et réussi. Le champ `archived_at` existait
   dans le modèle Dexie et la migration SQL `20261023160000_data_and_invitations.sql` ;
@@ -67,8 +67,8 @@
   `.env.example`, `.github/workflows/ci.yml`, `README.md`,
   `src/components/workspaces/workspace-management.tsx` et `vite.config.ts`; ne pas fusionner
   R7 dans `main`.
-  La spécification de réforme est à la racine du dépôt (`reforme-budget-global.md`), pas
-  dans `docs/`. La fonction `Intl.NumberFormat('fr-FR')` produit le séparateur U+202F
+  La spécification de réforme a été déplacée dans `docs/reforme-budget-global.md`.
+  La fonction `Intl.NumberFormat('fr-FR')` produit le séparateur U+202F
   (espace fine insécable) entre milliers ; ne pas remplacer avant de confirmer un défaut
   visible dans l’application.
 - Terminé et vérifié : état Git relevé. Les changements préexistants non committés de
@@ -176,7 +176,7 @@ le suivant.
 
 ### État des lieux vérifié pour R0
 
-- La réforme complète est à la racine du dépôt : `reforme-budget-global.md`.
+- La réforme complète est dans `docs/reforme-budget-global.md`.
 - Le cahier des charges v1.2 est validé et enregistré dans `docs/cahier-des-charges.md`.
 - Le guide UI est créé dans `docs/guide-ui.md`, à partir des variables et composants
   visuels existants.

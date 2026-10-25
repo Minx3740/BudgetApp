@@ -2,7 +2,7 @@
 
 Version 1.2 — validée par Laro (24 octobre 2026).
 
-Cette version intègre la réforme décrite dans `reforme-budget-global.md`. Elle définit
+Cette version intègre la réforme décrite dans `docs\reforme-budget-global.md`. Elle définit
 la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
 implémentées.
 

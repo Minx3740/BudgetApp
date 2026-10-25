@@ -1,6 +1,6 @@
 # Réforme du budget de cashFlow+
 
-Version 1.0, rédigée le 24 octobre 2026. À ranger dans `docs\reforme-budget-global.md`.
+Version 1.0, rédigée le 24 octobre 2026.
 
 ## 0. À lire d'abord
 
