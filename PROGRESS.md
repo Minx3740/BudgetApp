@@ -5,8 +5,8 @@
 - Dernière mise à jour : 2026-10-25 16:32 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R8 et R9 sont implémentés et vérifiés ; il reste à committer le test
-  d’archivage/restauration et cette reprise, puis à pousser uniquement `reforme-budget`.
+- Lot/tâche en cours : R8 et R9 sont implémentés, vérifiés et committés ; il reste à pousser
+  uniquement `reforme-budget`.
   Ne pas fusionner dans `main` et ne pas appliquer de migration.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
@@ -57,9 +57,8 @@
   Transactions ; aucun déplacement vers Espace n’a été fait sans décision distincte.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : committer le test d’archivage/restauration et cette reprise,
-  puis pousser uniquement `reforme-budget`. Ne pas fusionner dans `main`, ne pas appliquer
-  de SQL.
+- Prochaine action exacte : pousser `reforme-budget` et vérifier le résultat. Ne pas fusionner
+  dans `main`, ne pas appliquer de SQL.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
