@@ -67,6 +67,36 @@ describe('repositories locaux', () => {
     expect(await db.outbox.count()).toBe(0)
   })
 
+  it('archive et restaure une catégorie sans modifier son historique', async () => {
+    const category = await categoriesRepository.create({ ...categoryInput, id: categoryId })
+    const transaction = await transactionsRepository.create({
+      ...transactionInput,
+      id: transactionId,
+    })
+    const archivedAt = '2026-10-25T12:00:00.000Z'
+
+    const archived = await categoriesRepository.update(category.id, workspaceId, {
+      archived_at: archivedAt,
+    })
+
+    expect(archived.archived_at).toBe(archivedAt)
+    expect(await categoriesRepository.list(workspaceId)).toContainEqual(archived)
+    expect(await db.transactions.get(transaction.id)).toMatchObject({
+      category_id: category.id,
+      deleted_at: null,
+    })
+
+    const restored = await categoriesRepository.update(category.id, workspaceId, {
+      archived_at: null,
+    })
+
+    expect(restored.archived_at).toBeNull()
+    expect(await db.transactions.get(transaction.id)).toMatchObject({
+      category_id: category.id,
+      deleted_at: null,
+    })
+  })
+
   it('met à jour et supprime logiquement une ligne', async () => {
     const category = await categoriesRepository.create({ ...categoryInput, id: categoryId })
 

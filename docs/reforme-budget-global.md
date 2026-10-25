@@ -523,6 +523,8 @@ aux visualisations qui utilisent ces catégories.
     réinitialisés dans le panneau et conservés lors du changement de mois.
 16. Palette : première couleur disponible choisie, couleur réutilisée après épuisement et
     couleur personnalisée hors palette laissée intacte.
+17. Catégorie archivée puis restaurée : l’archivage reste réversible et ses transactions
+    historiques conservent leur référence à la catégorie.
 
 ### 14.2 Base de données (tests SQL ou d'intégration)
 

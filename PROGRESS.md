@@ -2,60 +2,64 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 15:50 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 16:32 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : R8 — implémentation et contrôles terminés ; les commits point par
-  point et le push de `reforme-budget` restent à faire. Après livraison de R8, traiter R9
-  sans fusionner dans `main` et sans appliquer de migration.
+- Lot/tâche en cours : R8 et R9 sont implémentés et vérifiés ; il reste à committer le test
+  d’archivage/restauration et cette reprise, puis à pousser uniquement `reforme-budget`.
+  Ne pas fusionner dans `main` et ne pas appliquer de migration.
 - Prérequis terminé dans un commit séparé : la spécification a été déplacée vers
   `docs/reforme-budget-global.md` (`b78005f`). Aucune copie préalable n'existait ; les
   références suivies dans PROGRESS et le cahier ont été mises à jour, et Prettier a été passé.
-- État hérité (futur R9) : les filtres Catégorie/Saisi par survivaient déjà au
-  changement de mois ; test de régression ajouté et réussi. Le champ `archived_at` existait
-  dans le modèle Dexie et la migration SQL `20261023160000_data_and_invitations.sql` ;
-  aucun schéma ni migration supplémentaire requis.
-- À signaler sans corriger sans accord : deux boutons « Ajouter » sont visibles sur
-  Transactions (celui du layout global et celui de la carte Historique) ; l’onglet
-  « Catégories » est encore dans l’écran Transactions alors que la section 10.5 de la
-  réforme le place sous Espace.
-- R9 préexistant, à revalider : filtres Catégorie/Saisi par dans le panneau ; recherche et sélecteur
-  Tout/Dépenses/Revenus restent visibles ; badge de filtres actifs, Réinitialiser/Appliquer,
-  pastilles retirables ; champs Du/Au retirés. Les filtres sont conservés au changement de
-  mois. Tests dédiés : 8/8 ; typecheck et lint passent.
-- R9 préexistant, à revalider : formulaire d’ajout/modification et confirmation d’archivage dans un
+- R9 vérifié : les filtres Catégorie/Saisi par survivent au changement de mois ; les tests
+  ciblés passent. `archived_at` existe dans le modèle Dexie et la migration SQL
+  `20261023160000_data_and_invitations.sql` ; aucun schéma ni migration supplémentaire
+  n’est requis.
+- À signaler sans corriger sans accord : sur grand écran, « Ajouter » du bandeau global et
+  celui de la carte Historique sont visibles en même temps. La fonction locale du montant
+  utilise `Intl.NumberFormat('fr-FR')` et produit un espace fine insécable entre milliers ;
+  aucun défaut reproduit dans ce formateur. L’onglet Catégories reste dans Transactions ;
+  je ne l’ai pas déplacé sans décision distincte, comme le précise la section 13.4.
+- R9 vérifié : recherche et sélecteur Tout/Dépenses/Revenus restent visibles ; bouton Filtres
+  avec badge, panneau Réinitialiser/Appliquer et pastilles retirables ; « Du/Au » supprimé.
+  Les filtres Catégorie/Saisi par survivent au changement de mois.
+- R9 vérifié : formulaire d’ajout/modification et confirmation d’archivage dans un
   `<dialog>` modal (feuille basse sur mobile, Dialog centré sur grand écran) ; ajout en haut,
   message après sauvegarde ; catégories actives séparées des archivées repliées, restauration ;
   suppression soft proposée seulement si aucune transaction ne référence la catégorie, avec
   vérification transactionnelle au moment de supprimer. `archived_at` existe déjà dans le
   modèle Dexie et la migration `20261023160000_data_and_invitations.sql` : aucune migration
-  supplémentaire n’est nécessaire. Typecheck, lint et Prettier passent.
-- R9 préexistant, à revalider : palette de 12 jetons CSS, valeurs de thème clair/sombre documentées
+  supplémentaire n’est nécessaire ; un test confirme la conservation et la restauration de
+  l’historique. Typecheck, lint et Prettier passent.
+- R9 vérifié : palette de 12 jetons CSS, valeurs de thème clair/sombre documentées
   avec rapports de contraste calculés au-dessus de 3:1 sur les surfaces carte ; première
   couleur inutilisée affectée automatiquement, première réutilisée après épuisement ;
   couleurs historiques hors palette préservées. Pastille par ligne, choix par puces dans
   le panneau d’ajout, barres du graphique « Où va l’argent ? » et de seuil colorées ;
-  « Non classé » gris neutre. Tests d’attribution dédiés : 3/3 ; tests filtrage/analyses/
-  couleurs ciblés : 16/16 ; typecheck et lint passent.
+  « Non classé » gris neutre. Tests d’attribution dédiés : 3/3 ; tests filtrage/archivage/
+  couleurs ciblés : 20/20 ; typecheck et lint passent.
 - R7 modèle A terminé et poussé : fonctions pures calculent ressources, disponible et report
   positif en chaîne ; la carte d'accueil, la barre d'usage, le graphique journalier et les
   textes des champs Budget/Revenu reflètent la règle. Tests ciblés : 12/12.
 - R8 implémenté : accueil réorganisé et textes techniques retirés ; nom affiché modifiable
   en ligne ; recadrage photo interactif au canevas (déplacement, zoom, 256 × 256 WebP) ;
   aide des seuils en popover ; graphiques repliables et état mémorisé avec repli tolérant.
-- Contrôles R8 : 92 tests/15 fichiers, lint, typecheck et build passent ; Prettier ciblé
-  passe. L’avertissement Vite sur le chunk principal de 820,54 kB reste non bloquant.
+- Contrôles finaux : 93 tests/15 fichiers, lint, typecheck et build passent ; tests R9
+  ciblés : 20/20. Prettier ciblé passe. L’avertissement Vite sur le chunk principal de
+  820,79 kB reste non bloquant.
+- R8 committé en quatre commits : `d0ab404` (accueil), `1a4df25` (profil), `65abf39`
+  (aide du budget et état vide) et `56506c4` (graphiques repliables). Push encore à faire.
 - Aucun nouveau paquet, aucune migration créée ou appliquée. Le déplacement de
   « Répartition des dépenses » vers Analyses n’a pas été effectué ; à proposer à Laro.
 - SQL/migrations : aucune migration requise, créée ou appliquée ; aucune commande SQL.
-- Tâches anciennement appelées R7 (Transactions) déjà présentes dans le code ; dans cette
-  séquence elles relèvent de R9 et restent à revalider après « continue ». Le bouton Ajouter
-  doublé et l'emplacement de Catégories restent signalés sans correction non autorisée.
+- Le bouton « Ajouter » du bandeau global et celui de la carte Historique restent tous deux
+  visibles sur grand écran ; aucun n’a été retiré sans accord. Catégories reste un onglet de
+  Transactions ; aucun déplacement vers Espace n’a été fait sans décision distincte.
 - Formatage des montants : le séparateur `Intl.NumberFormat('fr-FR')` est U+202F ; aucun
   défaut commun reproductible n'a été corrigé.
-- Prochaine action exacte : faire les quatre commits R8 séparés, pousser uniquement
-  `reforme-budget`, puis revalider R9 (filtres, catégories et couleurs), ses tests, lint,
-  typecheck et build. Ne pas fusionner dans `main`, ne pas appliquer de SQL.
+- Prochaine action exacte : committer le test d’archivage/restauration et cette reprise,
+  puis pousser uniquement `reforme-budget`. Ne pas fusionner dans `main`, ne pas appliquer
+  de SQL.
 - Décisions confirmées pour R9 (travail ultérieur) : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
   (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
   seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
@@ -260,22 +264,22 @@ le suivant.
 
 ### Tâches R8
 
-| Point                        | État    | Détail                                                                                         |
-| ---------------------------- | ------- | ---------------------------------------------------------------------------------------------- |
-| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.   |
-| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256². |
-| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                |
-| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant. |
-| Vérification et livraison R8 | Terminé | 92 tests/15 fichiers, lint, typecheck et build OK ; commits point par point et push à faire.   |
+| Point                        | État    | Détail                                                                                            |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| 1. Accueil et libellés       | Terminé | Hiérarchie demandée, transactions colorées, compteur/doublon et libellés techniques retirés.      |
+| 2. Profil                    | Terminé | Nom modifiable en ligne avec mise à jour locale ; photo déplacée/zoomée au canevas, WebP 256².    |
+| 3. Volet Budgets · Mois      | Terminé | Textes d’aide permanents retirés ; popover extérieur/Echap ; état vide compact.                   |
+| 4. Analyses repliables       | Terminé | Résumé par graphique ; premier seul ouvert par défaut sur téléphone ; stockage local tolérant.    |
+| Vérification et livraison R8 | Terminé | 93 tests/15 fichiers, lint, typecheck et build OK ; quatre commits point par point, push à faire. |
 
-### Tâches R9 préexistantes à revalider
+### Tâches R9
 
 | Point                                      | État    | Détail                                                                                                                                                                                                                                                                                                     |
 | ------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Filtres Transactions                    | Terminé | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK.                                          |
 | 2. Formulaires et archivage des catégories | Terminé | `<dialog>` bas sur téléphone/centré sur grand écran ; ajout visible en haut ; confirmation après sauvegarde/archivage ; « Archivées » replié avec restauration ; suppression uniquement sans référence de transaction ; `archived_at` existe déjà, aucune migration requise. Typecheck, lint et format OK. |
 | 3. Palette de catégories                   | Terminé | 12 jetons CSS ; ratios clair/sombre vérifiés ; attribution automatique et fallback après épuisement ; legacy préservée ; pastilles, puces d’ajout, analyse et seuils ; `Non classé` neutre ; tests ciblés 3/3.                                                                                             |
-| Vérifications et livraison R9              | À faire | Revalider les points déjà implémentés et tester les filtres, l’attribution des couleurs et les parcours accessibles ; rapporter les anomalies non autorisées avant correction.                                                                                                                             |
+| Vérifications et livraison R9              | Terminé | Filtres/mois, archivage/restauration et couleurs validés ; tests ciblés 20/20, contrôles complets au vert. Push à faire.                                                                                                                                                                                   |
 
 ## Décisions prises
 
