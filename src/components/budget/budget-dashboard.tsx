@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState, type FormEvent } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -139,6 +139,8 @@ export function BudgetDashboard({
   const [monthlyBudgetAmount, setMonthlyBudgetAmount] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [isThresholdHelpOpen, setIsThresholdHelpOpen] = useState(false)
+  const thresholdHelpRef = useRef<HTMLDivElement>(null)
   const budgets = useBudgets(workspaceId)
   const monthlyBudgets = useMonthlyBudgets(workspaceId)
   const carryDecisions = useMonthCarryDecisions(workspaceId)
@@ -237,6 +239,27 @@ export function BudgetDashboard({
     ? resourceUsagePercentage(currentLedger.netExpenses, currentLedger.resources)
     : null
 
+  useEffect(() => {
+    if (!isThresholdHelpOpen) return
+    function closeHelp(event: PointerEvent | KeyboardEvent) {
+      if (event instanceof KeyboardEvent && event.key === 'Escape') {
+        setIsThresholdHelpOpen(false)
+      } else if (
+        event instanceof PointerEvent &&
+        event.target instanceof Node &&
+        !thresholdHelpRef.current?.contains(event.target)
+      ) {
+        setIsThresholdHelpOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', closeHelp)
+    document.addEventListener('keydown', closeHelp)
+    return () => {
+      document.removeEventListener('pointerdown', closeHelp)
+      document.removeEventListener('keydown', closeHelp)
+    }
+  }, [isThresholdHelpOpen])
+
   function changeBudgetTab(tab: BudgetTab) {
     setActiveBudgetTab(tab)
     onTabChange?.(tab)
@@ -305,7 +328,7 @@ export function BudgetDashboard({
       }
       setIsEditing(false)
       setEditingBudgetId(null)
-      setNotice('Seuil enregistré sur cet appareil.')
+      setNotice('Seuil enregistré.')
     } catch (failure) {
       setFormError(`Impossible d’enregistrer ce seuil. ${budgetErrorMessage(failure)}`)
     }
@@ -349,7 +372,7 @@ export function BudgetDashboard({
         })
       }
       setIsEditingMonthlyBudget(false)
-      setNotice('Enveloppe mensuelle enregistrée sur cet appareil.')
+      setNotice('Budget mensuel enregistré.')
     } catch (failure) {
       setFormError(
         `Impossible d’enregistrer l’enveloppe. ${budgetErrorMessage(failure, 'enveloppe')}`,
@@ -638,9 +661,6 @@ export function BudgetDashboard({
               <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
                 <CardHeader>
                   <CardTitle>Catégories les plus consommées</CardTitle>
-                  <CardDescription>
-                    Les seuils n’influencent pas l’enveloppe globale.
-                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {consumedCategories.length === 0 ? (
@@ -688,10 +708,6 @@ export function BudgetDashboard({
         <div className="mb-6">
           <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
-          <p className="mt-3 max-w-2xl leading-7 text-stone-600">
-            L’enveloppe globale est distincte des seuils par catégorie. Les données restent
-            disponibles hors ligne et se synchronisent lorsque la connexion revient.
-          </p>
         </div>
         <BudgetViewToggle activeTab={activeBudgetTab} onTabChange={changeBudgetTab} />
         <Suspense
@@ -720,10 +736,6 @@ export function BudgetDashboard({
       <div className="mb-6">
         <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
-        <p className="mt-3 max-w-2xl leading-7 text-stone-600">
-          L’enveloppe globale est distincte des seuils par catégorie. Les données restent
-          disponibles hors ligne et se synchronisent lorsque la connexion revient.
-        </p>
       </div>
 
       <BudgetViewToggle activeTab={activeBudgetTab} onTabChange={changeBudgetTab} />
@@ -735,13 +747,7 @@ export function BudgetDashboard({
       )}
       <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
         <CardHeader>
-          <div>
-            <CardTitle>Budget global · {formatMonth(month)}</CardTitle>
-            <CardDescription>
-              Montant dont tu disposes pour l’espace et le mois, indépendant des seuils par
-              catégorie.
-            </CardDescription>
-          </div>
+          <CardTitle>Budget global · {formatMonth(month)}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-stone-50 p-4">
@@ -888,8 +894,32 @@ export function BudgetDashboard({
       </Card>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Seuils par catégorie</h2>
-        {canManageBudget && (activeBudgetCategories.length > 0 || isEditing) && (
+        <div className="flex items-center gap-2" ref={thresholdHelpRef}>
+          <h2 className="text-xl font-semibold">Seuils par catégorie</h2>
+          <div className="relative">
+            <Button
+              aria-controls="threshold-help"
+              aria-expanded={isThresholdHelpOpen}
+              aria-label="À propos des seuils"
+              className="size-11 min-h-11 rounded-full p-0"
+              onClick={() => setIsThresholdHelpOpen((open) => !open)}
+              type="button"
+              variant="outline"
+            >
+              ?
+            </Button>
+            {isThresholdHelpOpen && (
+              <div
+                className="absolute left-0 top-10 z-20 w-64 rounded-xl border bg-popover p-3 text-sm text-popover-foreground shadow-lg"
+                id="threshold-help"
+                role="status"
+              >
+                Un seuil suit les dépenses d’une catégorie. Il ne change pas le disponible du mois.
+              </div>
+            )}
+          </div>
+        </div>
+        {canManageBudget && (
           <Button
             className="min-h-12"
             disabled={availableCategoryIds.length === 0}
@@ -902,67 +932,9 @@ export function BudgetDashboard({
       </div>
 
       {activeBudgetCategories.length === 0 && !isEditing && (
-        <Card className="mt-4 rounded-2xl border-0 bg-emerald-50 shadow-sm ring-emerald-100">
-          <CardHeader>
-            <CardTitle>Bien démarrer ce mois</CardTitle>
-            <CardDescription className="text-stone-700">
-              L’enveloppe globale est définie manuellement. Les seuils sont facultatifs et ne
-              modifient pas son montant.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ol className="grid gap-3 text-sm text-stone-700 sm:grid-cols-3">
-              <li>
-                <span className="mb-1 block font-semibold text-stone-950">1. Fixe l’enveloppe</span>
-                Choisis le montant total que tu souhaites dépenser pendant ce mois.
-              </li>
-              <li>
-                <span className="mb-1 block font-semibold text-stone-950">
-                  2. Ajoute des seuils
-                </span>
-                Si tu le souhaites, suis séparément une catégorie comme alimentation.
-              </li>
-              <li>
-                <span className="mb-1 block font-semibold text-stone-950">
-                  3. Enregistre tes achats
-                </span>
-                Toutes les dépenses réduisent l’enveloppe, avec ou sans catégorie.
-              </li>
-            </ol>
-            <p className="mt-4 text-sm leading-6 text-stone-700">
-              La somme des seuils peut être différente de l’enveloppe. Il n’y a pas de double
-              comptage.
-            </p>
-            {canManageBudget ? (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {currentLedger?.budgetAmount === null && (
-                  <Button
-                    className="min-h-12"
-                    onClick={() => startEditingMonthlyBudget()}
-                    type="button"
-                  >
-                    Définir l’enveloppe du mois
-                  </Button>
-                )}
-                {expenseCategories.length > 0 && (
-                  <Button
-                    className="min-h-12"
-                    disabled={availableCategoryIds.length === 0}
-                    onClick={startNewBudget}
-                    type="button"
-                    variant="outline"
-                  >
-                    <Plus aria-hidden="true" size={18} />
-                    Ajouter un seuil
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <p className="mt-4 text-sm font-medium text-stone-700">
-                Tu peux consulter cet espace ; seul son propriétaire peut modifier l’enveloppe et
-                les seuils.
-              </p>
-            )}
+        <Card className="mt-4 rounded-2xl border-0 bg-muted shadow-sm">
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            Aucun seuil défini pour ce mois. Les seuils sont facultatifs.
           </CardContent>
         </Card>
       )}
