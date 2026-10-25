@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { Suspense, lazy, useMemo, useState, type FormEvent } from 'react'
 import { Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,9 +16,14 @@ import {
   monthCarryDecisionsRepository,
   monthlyBudgetsRepository,
 } from '@/data/repositories'
-import type { Budget } from '@/data/models'
+import type { Budget, Profile } from '@/data/models'
+
+const LazyBudgetAnalyticsView = lazy(() =>
+  import('./budget-analytics-view').then((module) => ({ default: module.BudgetAnalyticsView })),
+)
 
 type BudgetDashboardMode = 'home' | 'manage'
+type BudgetTab = 'month' | 'analytics'
 
 interface BudgetDashboardProps {
   workspaceId: string | undefined
@@ -26,6 +31,40 @@ interface BudgetDashboardProps {
   canManageBudget: boolean
   mode: BudgetDashboardMode
   onOpenBudgets?: () => void
+  onOpenAnalyses?: () => void
+  isSharedWorkspace?: boolean
+  profiles?: Pick<Profile, 'id' | 'display_name'>[]
+  initialTab?: BudgetTab
+  onTabChange?: (tab: BudgetTab) => void
+}
+
+function BudgetViewToggle({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: BudgetTab
+  onTabChange: (tab: BudgetTab) => void
+}) {
+  return (
+    <div aria-label="Volets des budgets" className="mb-5 flex gap-2" role="group">
+      <Button
+        aria-pressed={activeTab === 'month'}
+        className="min-h-11"
+        onClick={() => onTabChange('month')}
+        variant={activeTab === 'month' ? 'default' : 'outline'}
+      >
+        Mois
+      </Button>
+      <Button
+        aria-pressed={activeTab === 'analytics'}
+        className="min-h-11"
+        onClick={() => onTabChange('analytics')}
+        variant={activeTab === 'analytics' ? 'default' : 'outline'}
+      >
+        Analyses
+      </Button>
+    </div>
+  )
 }
 
 function formatMoney(amount: number): string {
@@ -86,7 +125,13 @@ export function BudgetDashboard({
   canManageBudget,
   mode,
   onOpenBudgets,
+  onOpenAnalyses,
+  isSharedWorkspace = false,
+  profiles = [],
+  initialTab = 'month',
+  onTabChange,
 }: BudgetDashboardProps) {
+  const [activeBudgetTab, setActiveBudgetTab] = useState<BudgetTab>(initialTab)
   const [isEditing, setIsEditing] = useState(false)
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState('')
@@ -176,6 +221,11 @@ export function BudgetDashboard({
   const consumedCategories = summary.categories
     .filter((item) => item.spentAmount > 0)
     .slice(0, mode === 'home' ? 3 : 10)
+
+  function changeBudgetTab(tab: BudgetTab) {
+    setActiveBudgetTab(tab)
+    onTabChange?.(tab)
+  }
   function startNewBudget() {
     setEditingBudgetId(null)
     setCategoryId(defaultCategoryId(availableCategoryIds, budgets, month))
@@ -562,6 +612,9 @@ export function BudgetDashboard({
                       </div>
                     ))
                   )}
+                  <Button className="min-h-11 w-full" onClick={onOpenAnalyses} variant="outline">
+                    Voir les analyses
+                  </Button>
                 </CardContent>
               </Card>
             </div>
@@ -581,6 +634,39 @@ export function BudgetDashboard({
     )
   }
 
+  if (activeBudgetTab === 'analytics') {
+    return (
+      <section aria-label="Budgets mensuels" className="max-w-4xl">
+        <div className="mb-6">
+          <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
+          <p className="mt-3 max-w-2xl leading-7 text-stone-600">
+            L’enveloppe globale est distincte des seuils par catégorie. Les données restent
+            disponibles hors ligne et se synchronisent lorsque la connexion revient.
+          </p>
+        </div>
+        <BudgetViewToggle activeTab={activeBudgetTab} onTabChange={changeBudgetTab} />
+        <Suspense
+          fallback={
+            <p aria-live="polite" className="py-6 text-sm text-muted-foreground">
+              Chargement des analyses…
+            </p>
+          }
+        >
+          <LazyBudgetAnalyticsView
+            budgets={budgets}
+            categories={categories}
+            isSharedWorkspace={isSharedWorkspace}
+            month={month}
+            monthlyBudgetAmount={monthlyBudget?.budget_amount ?? null}
+            profiles={profiles}
+            transactions={transactions}
+          />
+        </Suspense>
+      </section>
+    )
+  }
+
   return (
     <section aria-label="Budgets mensuels" className="max-w-4xl">
       <div className="mb-6">
@@ -591,6 +677,8 @@ export function BudgetDashboard({
           disponibles hors ligne et se synchronisent lorsque la connexion revient.
         </p>
       </div>
+
+      <BudgetViewToggle activeTab={activeBudgetTab} onTabChange={changeBudgetTab} />
 
       {ledger.error && (
         <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">

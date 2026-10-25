@@ -469,6 +469,7 @@ function AuthForm({
 
 function SignedInView({ client, session }: { client: SupabaseClient; session: Session }) {
   const [activeSection, setActiveSection] = useState<AppSection>('home')
+  const [selectedBudgetTab, setSelectedBudgetTab] = useState<'month' | 'analytics'>('month')
   const [selectedMonth, setSelectedMonth] = useState(selectedMonthFromLocation)
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
     () => window.localStorage.getItem(`cashFlow.activeWorkspace.${session.user.id}`) ?? '',
@@ -1250,10 +1251,16 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 
               <BudgetDashboard
                 canManageBudget={canManageWorkspace}
+                isSharedWorkspace={activeWorkspace?.type === 'shared'}
                 key={`${activeWorkspace?.id}:${selectedMonth}`}
                 month={selectedMonth}
                 mode="home"
                 onOpenBudgets={() => setActiveSection('budgets')}
+                onOpenAnalyses={() => {
+                  setSelectedBudgetTab('analytics')
+                  setActiveSection('budgets')
+                }}
+                profiles={profiles}
                 workspaceId={activeWorkspace?.id}
               />
             </>
@@ -1273,9 +1280,13 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
           ) : activeSection === 'budgets' ? (
             <BudgetDashboard
               canManageBudget={canManageWorkspace}
+              isSharedWorkspace={activeWorkspace?.type === 'shared'}
               key={`${activeWorkspace?.id}:${selectedMonth}`}
               month={selectedMonth}
               mode="manage"
+              initialTab={selectedBudgetTab}
+              onTabChange={setSelectedBudgetTab}
+              profiles={profiles}
               workspaceId={activeWorkspace?.id}
             />
           ) : activeSection === 'recurring-expenses' ? (

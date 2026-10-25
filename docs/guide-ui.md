@@ -132,7 +132,8 @@ utilisateur est une fonctionnalité distincte à implémenter au lot prévu.
 - **Budgets / Mois** : deux groupes visuellement indépendants : enveloppe globale du
   mois, puis seuils par catégorie. Ne jamais suggérer que la somme des seuils constitue
   l’enveloppe.
-- **Budgets / Analyses** : graphiques avec valeurs lisibles et équivalents textuels.
+- **Budgets / Analyses** : quatre graphiques en barres ou en courbes, chargés à la
+  demande ; chaque graphique propose ses valeurs en texte et n’utilise pas de camembert.
 - **Transactions** : filtres Dépenses/Revenus/Tout, dates locales, responsable visible
   dans les espaces partagés, catégorie « Non classé » lorsque pertinente.
 - **Ajout rapide** : panneau inférieur, montant immédiatement accessible, dépense
