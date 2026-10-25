@@ -2,7 +2,7 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 08:02 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 08:08 (UTC+03:00).
 - Branche : `reforme-budget` (ne pas travailler ni pousser sur `main`).
 - Lot/tâche en cours : R4 — transactions. R3 a été validé par Laro le 2026-10-25 ;
   l’essai sur smartphone/hors ligne est explicitement écarté à sa demande.
@@ -50,9 +50,13 @@
 - Terminé et vérifié : historique filtrable par type ; remboursements classés avec les
   dépenses et ajustements visibles seulement dans Tout ; responsable et auteur distingués.
   Test ciblé : 7/7 ; lint et typecheck passent.
-- Prochaine action exacte : vérifier les tests de calcul existants dans
-  `src/data/reform-calculations.test.ts` et `src/data/budget-calculations.test.ts` ;
-  ajouter un cas ciblé si un effet R4 n’est pas couvert.
+- Terminé et vérifié : règles d’agrégat R4 couvertes, y compris dépenses/remboursements
+  sans catégorie, revenus exclus du budget et ajustements limités au solde. Tests ciblés
+  des calculs : 13/13. Suite complète : 66 tests ; lint, typecheck, format check et
+  `git diff --check` passent.
+- Tâche R4 en cours : validation finale complète.
+- Prochaine action exacte : exécuter `npm run build`, consigner son résultat, puis vérifier
+  le statut Git sans inclure les modifications préexistantes non liées.
 - Vérifications finales R1 : `npm run typecheck`, `npm run lint`, `npm test`,
   `npm run build`, `npm run format:check` avaient réussi avant ces corrections SQL ;
   `git diff --check` passe. Les tests pgTAP distants R1/R3 passent avec 29/29 et 4/4.
@@ -175,8 +179,8 @@ le suivant.
 | ------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Formulaire complet et attribution du responsable | Terminée et vérifiée | Responsable distinct de l’auteur en espace partagé ; catégories facultatives pour dépenses/remboursements, requises pour revenus. |
 | Filtres de l’historique et attribution visible   | Terminée et vérifiée | Filtres Dépenses/Revenus/Tout ; remboursement avec dépenses ; ajustement seulement dans Tout ; responsable séparé de l’auteur.    |
-| Vérification des agrégats R4                     | En cours             | Vérifier la couverture des règles 3.1/3.2 pour les calculs par mois, budget et catégorie.                                         |
-| Validation R4                                    | À faire              | Tests, lint, typecheck, format check et build ; essai mobile écarté à la demande de Laro.                                         |
+| Vérification des agrégats R4                     | Terminée et vérifiée | 13 tests de calcul passent ; dépenses/remboursements sans catégorie comptés une fois ; revenus et ajustements exclus du budget.   |
+| Validation R4                                    | En cours             | 66 tests, lint, typecheck, format check et diff check OK ; build restant ; essai mobile écarté à la demande de Laro.              |
 
 ## Décisions prises
 

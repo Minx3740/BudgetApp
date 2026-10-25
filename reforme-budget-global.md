@@ -388,7 +388,7 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 
 - [x] Panneau d'ajout complet (types, responsable).
 - [x] Filtre Dépenses / Revenus / Tout, historique des revenus.
-- [ ] Remboursement et ajustement de solde.
+- [x] Remboursement et ajustement de solde.
 - Validation : chaque type modifie les chiffres comme décrit en 3.1.
 
 ### R5. Forfaits

@@ -185,6 +185,43 @@ describe('calcul du budget mensuel local', () => {
     })
   })
 
+  it('compte les dépenses et remboursements sans catégorie une fois dans le budget global', () => {
+    const summary = calculateMonthlyBudgetSummary(
+      month,
+      [budget(foodCategoryId, month, 10_000)],
+      categories,
+      [
+        transaction('20000000-0000-4000-8000-000000000031', 'expense', 2_000, '2026-10-02', null),
+        transaction('20000000-0000-4000-8000-000000000032', 'refund', 500, '2026-10-03', null),
+        transaction(
+          '20000000-0000-4000-8000-000000000033',
+          'income',
+          10_000,
+          '2026-10-04',
+          incomeCategoryId,
+        ),
+        transaction(
+          '20000000-0000-4000-8000-000000000034',
+          'adjustment',
+          3_000,
+          '2026-10-05',
+          null,
+        ),
+      ],
+      new Date(2026, 9, 15),
+    )
+
+    expect(summary).toMatchObject({
+      totalBudgeted: 10_000,
+      totalSpent: 1_500,
+      remaining: 8_500,
+    })
+    expect(summary.categories.find((item) => item.categoryId === foodCategoryId)).toMatchObject({
+      spentAmount: 0,
+      remainingAmount: 10_000,
+    })
+  })
+
   it('ignore les budgets supprimés et ne divise pas par zéro pour un mois terminé', () => {
     const summary = calculateMonthlyBudgetSummary(
       '2026-09-01',
