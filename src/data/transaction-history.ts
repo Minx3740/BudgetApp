@@ -7,8 +7,6 @@ export type TransactionTypeFilter = 'all' | 'expenses' | 'income'
 export interface TransactionHistoryFilters {
   transactionType: TransactionTypeFilter
   search: string
-  startDate: string
-  endDate: string
   categoryId: string
   memberId: string
 }
@@ -16,8 +14,6 @@ export interface TransactionHistoryFilters {
 const defaultTransactionHistoryFilters: TransactionHistoryFilters = {
   transactionType: 'all',
   search: '',
-  startDate: '',
-  endDate: '',
   categoryId: '',
   memberId: '',
 }
@@ -47,11 +43,16 @@ export function hasTransactionHistoryFilters(filters: TransactionHistoryFilters)
   return (
     filters.transactionType !== 'all' ||
     filters.search !== '' ||
-    filters.startDate !== '' ||
-    filters.endDate !== '' ||
     filters.categoryId !== '' ||
     filters.memberId !== ''
   )
+}
+
+export function countAdvancedTransactionHistoryFilters(
+  filters: Pick<TransactionHistoryFilters, 'categoryId' | 'memberId'>,
+  includeMember: boolean,
+): number {
+  return Number(filters.categoryId !== '') + Number(includeMember && filters.memberId !== '')
 }
 
 export function filterAndSortTransactions(
@@ -74,8 +75,6 @@ export function filterAndSortTransactions(
       }
       if (filters.transactionType === 'income' && transaction.kind !== 'income') return false
       if (month && !transaction.occurred_on.startsWith(`${month.slice(0, 7)}-`)) return false
-      if (filters.startDate && transaction.occurred_on < filters.startDate) return false
-      if (filters.endDate && transaction.occurred_on > filters.endDate) return false
       if (filters.categoryId && transaction.category_id !== filters.categoryId) return false
       if (filters.memberId && transaction.created_by !== filters.memberId) return false
 

@@ -2,11 +2,50 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 14:15 (UTC+03:00).
+- Dernière mise à jour : 2026-10-25 14:33 (UTC+03:00).
 - Branche courante : `reforme-budget` ; `main` n’a pas été modifiée. Ne jamais pousser sur
   `main`.
-- Lot/tâche en cours : validation manuelle de l’aperçu Cloudflare ; Laro a terminé les
-  essais sur téléphone et rapporte les 12 scénarios OK.
+- Lot/tâche en cours : R7 — point 1 (filtres de Transactions) implémenté et vérifié ;
+  point 2 (catégories), point 3 (palette), vérifications finales et livraison à faire.
+  Un commit indépendant par point. Aucun merge dans `main`; aucune migration distante sans
+  accord de Laro.
+- Fait mais pas encore vérifié : inspection initiale. Les filtres sont conservés dans l’état
+  React tant que l’espace ne change pas et le mois sélectionné n’est pas une clé de reset :
+  ils survivent donc déjà au changement de mois. En revanche, la recherche et les filtres
+  avancés sont tous deux filtrants immédiatement ; les filtres avancés ne sont pas dans un
+  panneau, les dates Du/Au sont présentes. Les catégories ont déjà `archived_at` en Dexie,
+  dans le modèle et le schéma SQL ; aucun nouveau champ ni migration ne semble requis.
+  Les formulaires catégorie sont rendus sous la liste, et les catégories archivées sont
+  mélangées à la liste active. Analyse de la palette, des graphiques, des puces d’ajout et
+  de la suppression de catégorie à terminer.
+- À signaler sans corriger sans accord : deux boutons « Ajouter » sont visibles sur
+  Transactions (celui du layout global et celui de la carte Historique) ; l’onglet
+  « Catégories » est encore dans l’écran Transactions alors que la section 10.5 de la
+  réforme le place sous Espace.
+- Point 1 terminé : filtres Catégorie/Saisi par dans le panneau ; recherche et sélecteur
+  Tout/Dépenses/Revenus restent visibles ; badge de filtres actifs, Réinitialiser/Appliquer,
+  pastilles retirables ; champs Du/Au retirés. Les filtres sont conservés au changement de
+  mois. Tests dédiés : 8/8 ; typecheck et lint passent.
+- Prochaine action exacte : terminer le formulaire Drawer/Dialog et l’archivage/restauration
+  des catégories, après confirmer que `archived_at` est déjà couvert par le schéma local et
+  les migrations existantes.
+- Vérifications à lancer : `npm test`, `npm run lint`, `npm run typecheck`,
+  `npm run format:check`, `npm run build`, `git diff --check`. Ne pas appliquer de SQL.
+- Décisions confirmées pour R7 : filtre « Du/Au » retiré ; seuls Catégorie et Saisi par
+  (espace partagé seulement) dans le panneau ; catégories archivées/restaurables, suppression
+  seulement si aucune transaction ; palette fixe de 10–12 couleurs avec jetons CSS et
+  contrôle de contraste clair/sombre ; première couleur non utilisée attribuée à la création ;
+  couleur historique hors palette préservée ; noms toujours visibles et « Non classé » neutre.
+- Questions ouvertes : aucun schéma/migration nécessaire pour l’archivage si `archived_at`
+  existant est confirmé côté distant ; ne pas créer ni appliquer de migration sans besoin
+  démontré et accord explicite.
+- Pièges connus : préserver les modifications préexistantes de `.env.example`,
+  `.github/workflows/ci.yml`, `README.md`, `src/components/workspaces/workspace-management.tsx`
+  et `vite.config.ts`; avant chaque commit, ne stager que les fichiers R7 et les hunks R7.
+  La spécification de réforme est à la racine du dépôt (`reforme-budget-global.md`), pas
+  dans `docs/`. La fonction `Intl.NumberFormat('fr-FR')` produit le séparateur U+202F
+  (espace fine insécable) entre milliers ; ne pas remplacer avant de confirmer un défaut
+  visible dans l’application.
 - Terminé et vérifié : état Git relevé. Changements déjà présents avant cette tâche,
   à préserver et ne pas commiter comme partie de cette tâche : `.env.example`,
   `.github/workflows/ci.yml`, la modification préexistante de `src/components/workspaces/
@@ -111,6 +150,7 @@ le suivant.
 | R4  | Validé par Laro après aperçu local ; 66 tests, lint, typecheck, build et format check OK               | 2026-10-25 |
 | R5  | Validé par Laro ; migration, interface et tests SQL terminés (33/33)                                   | 2026-10-25 |
 | R6  | Validé par Laro ; implémentation et contrôles terminés                                                 | 2026-10-25 |
+| R7  | En cours — retours sur filtres, formulaires de catégories et couleurs de Transactions                  | 2026-10-25 |
 
 ### État des lieux vérifié pour R0
 
@@ -190,6 +230,15 @@ le suivant.
 | Agrégations et tests unitaires         | Terminé  | Quatre séries et indicateurs purs ; 5 tests ciblés, typecheck et format vérifiés.                     |
 | Volet Analyses accessible et paresseux | Terminé  | Quatre graphiques SVG, valeurs consultables en texte ; code séparé dans un chunk chargé à la demande. |
 | Validation R6                          | Terminée | Validée par Laro le 2026-10-25 ; 77 tests, lint, typecheck, format, build et diff check OK.           |
+
+### Tâches R7
+
+| Point                                      | État       | Détail                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Filtres Transactions                    | Terminé    | Retirer Du/Au ; recherche toujours visible ; bouton Filtres avec badge ; panneau responsive Réinitialiser/Appliquer ; pastilles amovibles ; Tout/Dépenses/Revenus à l’extérieur ; filtres conservés au changement de mois ; 8 tests ciblés, typecheck et lint OK. |
+| 2. Formulaires et archivage des catégories | En attente | Drawer téléphone / Dialog grand écran ; ajout visible en haut ; confirmation après sauvegarde ; « Archivées » replié avec restauration ; suppression seulement sans transactions ; vérifier qu’aucune migration n’est requise.                                    |
+| 3. Palette de catégories                   | En attente | 10–12 jetons de couleur contrastés en clair/sombre ; choix dans palette, attribution automatique ; pastilles transaction et ajout, barres d’analyse et seuils ; « Non classé » neutre ; couleurs personnalisées existantes préservées ; tests d’attribution.      |
+| Vérifications et livraison R7              | En attente | Lint, typecheck, tests, build, format et diff check ; commit par point ; pousser uniquement `reforme-budget`, puis attendre la validation de Laro.                                                                                                                |
 
 ## Décisions prises
 

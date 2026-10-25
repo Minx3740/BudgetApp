@@ -404,6 +404,66 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 - [ ] Chargement à la demande du composant de graphiques.
 - Validation : chiffres des graphiques identiques à ceux des listes ; poids du premier chargement non alourdi.
 
+### R7. Filtres, catégories et couleurs de Transactions
+
+Les décisions de Laro s'appliquent à l'écran Transactions, aux formulaires de catégories et
+aux visualisations qui utilisent ces catégories.
+
+#### 13.1 Filtres de transactions
+
+- Le sélecteur de mois borne l'historique ; retirer les champs de date « Du » et « Au ».
+- La recherche reste visible. À côté, un bouton « Filtres » ouvre un panneau adapté à
+  l'écran : Drawer inférieur sur téléphone, Dialog ou panneau latéral sur grand écran.
+- Le panneau contient seulement « Catégorie » et « Saisi par » ; ce dernier filtre n'est
+  disponible que dans un espace partagé. Les choix sont préparés dans le panneau et ne
+  s'appliquent qu'avec « Appliquer ». « Réinitialiser » vide les filtres avancés.
+- Le nombre de filtres avancés actifs est indiqué sur le bouton. Les filtres appliqués
+  apparaissent en pastilles retirables sous la recherche.
+- « Tout / Dépenses / Revenus » reste visible en dehors du panneau.
+- Les filtres appliqués survivent au changement de mois tant que l'espace actif ne change
+  pas. La sélection du mois continue à restreindre les résultats au mois choisi.
+
+#### 13.2 Gestion des catégories
+
+- Ajouter, modifier et archiver une catégorie se fait dans un panneau : Drawer sur téléphone,
+  Dialog sur grand écran. Le formulaire ne doit jamais apparaître après le dernier élément
+  d'une liste défilante.
+- Le bouton « Ajouter une catégorie » reste visible en haut de l'onglet Catégories.
+- Après une sauvegarde réussie, fermer le panneau et afficher une confirmation ; en cas
+  d'erreur, conserver le panneau ouvert et montrer l'erreur.
+- Archiver conserve la catégorie et tout son historique, mais la retire des choix de
+  nouvelles transactions. Une liste « Archivées », repliée par défaut, permet de restaurer
+  une catégorie.
+- La suppression n'est proposée que si aucune transaction ne référence la catégorie.
+- Réutiliser `archived_at` si le schéma l'a déjà. Si un nouveau champ s'avère nécessaire,
+  rédiger une migration et la soumettre à Laro ; ne jamais l'appliquer sans son accord.
+
+#### 13.3 Palette de couleurs
+
+- Palette fixe de 10 à 12 couleurs, définies comme jetons CSS dans `docs/guide-ui.md` et
+  vérifiées pour le contraste sur les cartes en thème clair et sombre.
+- À la création, sélectionner automatiquement la première couleur de palette non utilisée
+  par une autre catégorie. Si toutes les couleurs sont utilisées, réutiliser la première.
+- La modification propose les couleurs de la palette. Une catégorie existante dont la
+  couleur enregistrée est hors palette conserve cette valeur tant qu'une nouvelle couleur
+  n'est pas explicitement choisie.
+- Réutiliser la couleur de catégorie pour la pastille de chaque ligne de transaction, les
+  puces de catégorie du panneau d'ajout, les barres « Où va l'argent ? » et les barres de
+  progression des seuils.
+- « Non classé » utilise un gris neutre. Le nom de catégorie reste affiché ; la couleur
+  n'est jamais l'unique porteuse d'information.
+
+#### 13.4 Vérifications demandées
+
+- Vérifier les filtres appliqués après un changement de mois.
+- Vérifier les deux boutons « Ajouter » visibles sur Transactions ; ne pas les supprimer
+  sans décision de Laro.
+- Vérifier le format des montants ; ne corriger qu'un défaut reproduit dans le formateur
+  commun, dans un commit séparé.
+- La section 10.5 place Catégories dans Espace. Tout déplacement de l'onglet Catégories
+  hors de Transactions nécessite une décision distincte ; ne pas le faire implicitement
+  dans R7.
+
 ## 14. Tests
 
 ### 14.1 Unitaires (Vitest, fonctions pures)
@@ -420,6 +480,10 @@ Chaque lot est validé par Laro avant le suivant. À la fin de chaque lot : test
 10. Transaction supprimée ignorée ; modification d'un montant répercutée.
 11. Report : oui, non, solde négatif, chaîne de trois mois, mois précédent sans transaction, décision absente.
 12. Statistiques : tri des catégories, part fixe et variable, part « Non classé ».
+13. Filtres de l'historique : choix Catégorie/Saisi par appliqués, retirés par pastille,
+    réinitialisés dans le panneau et conservés lors du changement de mois.
+14. Palette : première couleur disponible choisie, couleur réutilisée après épuisement et
+    couleur personnalisée hors palette laissée intacte.
 
 ### 14.2 Base de données (tests SQL ou d'intégration)
 

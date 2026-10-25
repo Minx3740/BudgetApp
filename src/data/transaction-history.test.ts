@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Transaction } from './models'
 import {
   createEmptyTransactionHistoryFilters,
+  countAdvancedTransactionHistoryFilters,
   filterAndSortTransactions,
   hasTransactionHistoryFilters,
   paginateTransactions,
@@ -52,13 +53,11 @@ describe('transaction history', () => {
     expect(hasTransactionHistoryFilters({ ...filters, transactionType: 'expenses' })).toBe(true)
   })
 
-  it('filters by date, category, member, and accent-insensitive text', () => {
+  it('filters by category, member, and accent-insensitive text', () => {
     const transactions = [createTransaction(1), createTransaction(2), createTransaction(4999)]
     const filters = {
       ...createEmptyTransactionHistoryFilters(),
       search: 'aeroport',
-      startDate: '2026-10-20',
-      endDate: '2026-10-20',
       categoryId,
       memberId,
     }
@@ -135,6 +134,42 @@ describe('transaction history', () => {
         '2026-10-01',
       ),
     ).toEqual([octoberTransaction])
+  })
+
+  it('retains category and member filters while the selected month changes', () => {
+    const octoberTransaction = createTransaction(1)
+    const novemberTransaction = {
+      ...octoberTransaction,
+      id: '00000000-0000-4000-8000-000000009999',
+      occurred_on: '2026-11-01',
+    }
+    const wrongCategory = {
+      ...novemberTransaction,
+      id: '00000000-0000-4000-8000-000000009998',
+      category_id: '4b8bf47b-63d6-4d72-817c-9ef3f7e65fb2',
+    }
+    const filters = { ...createEmptyTransactionHistoryFilters(), categoryId, memberId }
+
+    expect(
+      filterAndSortTransactions(
+        [octoberTransaction, novemberTransaction, wrongCategory],
+        filters,
+        new Map(),
+        new Map(),
+        '2026-10-01',
+      ),
+    ).toEqual([octoberTransaction])
+    expect(
+      filterAndSortTransactions(
+        [octoberTransaction, novemberTransaction, wrongCategory],
+        filters,
+        new Map(),
+        new Map(),
+        '2026-11-01',
+      ),
+    ).toEqual([novemberTransaction])
+    expect(countAdvancedTransactionHistoryFilters(filters, true)).toBe(2)
+    expect(countAdvancedTransactionHistoryFilters(filters, false)).toBe(1)
   })
 
   it('keeps a 5,000-transaction history bounded to 50 visible rows per page', () => {
