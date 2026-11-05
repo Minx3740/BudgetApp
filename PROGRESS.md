@@ -2,7 +2,16 @@
 
 ## Reprise
 
-- Dernière mise à jour : 2026-10-25 19:20 (UTC+03:00).
+- Dernière mise à jour : 2026-11-05.
+- Reprise hors ligne après panne réseau au démarrage : l’identité locale minimale
+  (id, e-mail, nom affiché — sans jeton) permet d’ouvrir les données Dexie si le
+  renouvellement de session Supabase échoue sur le réseau. La déconnexion explicite
+  efface cette identité. Après déploiement, ouvrir une fois l’application en ligne
+  pendant que l’utilisateur est connecté pour la mettre en cache. Tests : 101/101
+  sur 16 fichiers ; typecheck, ESLint et Prettier ciblés, build et `git diff --check`
+  réussis.
+  Essai réel sur téléphone et déploiement restent à faire ; avertissement Vite non
+  bloquant sur le bundle principal d’environ 821 kB.
 - Branche courante : `reforme-budget`. Objectif de la tâche : préparer et demander sa
   fusion dans `main`; aucune fusion n'a encore été faite.
 - Tâche en cours : promotion en production après l'implémentation des lots R0–R9 et du
