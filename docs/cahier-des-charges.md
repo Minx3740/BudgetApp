@@ -1,6 +1,6 @@
 # Cahier des charges — cashFlow+
 
-Version 1.2 — validée par Laro (24 octobre 2026).
+Version 1.3 — mise à jour V2-0 (6 novembre 2026).
 
 Cette version intègre la réforme décrite dans `docs\reforme-budget-global.md`. Elle définit
 la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
@@ -233,17 +233,22 @@ R1.
 Le rôle `viewer` reste en lecture seule. Les droits sont appliqués par RLS et par les
 fonctions serveur, pas uniquement dans l’interface.
 
-Chaque transaction contient `created_by`, attribué automatiquement et immuable, ainsi
-que `paid_by`, égal par défaut à `created_by` et modifiable par un utilisateur autorisé.
-`paid_by` doit être membre de l’espace. Une dépense générée par un forfait a son
-créateur comme auteur et responsable.
+Chaque transaction contient `created_by`, fixé à l’utilisateur connecté à l’insertion
+et immuable côté base, ainsi que `updated_by` et `updated_at`, renseignés par des triggers
+serveur à chaque insertion ou modification. Les lignes historiques reçoivent leur
+`created_by` comme valeur initiale de `updated_by`, seul auteur connu avant l’activation
+de la traçabilité. `paid_by` est égal par défaut à `created_by` et modifiable par un
+utilisateur autorisé. `paid_by` doit être membre de l’espace. Une dépense générée par un
+forfait a son créateur comme auteur et responsable.
 
-### Écart avec la RLS actuelle
-
-Les politiques actuelles autorisent les rôles `owner` et `member` à mettre à jour
-n’importe quelle transaction de leur espace. Elles ne limitent pas la modification
-aux transactions dont `created_by` correspond au membre. La migration devra resserrer
-ces politiques et être couverte par des tests RLS.
+La lecture est ouverte aux membres de l’espace. Un membre ne peut créer que ses propres
+transactions et ne modifier ou supprimer logiquement que celles dont il est l’auteur ;
+le propriétaire peut créer et modifier les transactions de l’espace. Les triggers refusent
+de modifier `id`, `workspace_id` ou `created_by`, y compris au propriétaire. Dexie applique
+les mêmes droits à partir de l’appartenance locale avant d’écrire. Les écritures restent
+optimistes hors ligne ; si le serveur refuse une écriture pour droits insuffisants, la
+ligne locale est restaurée, l’opération d’outbox est marquée en échec et le refus est
+signalé à l’utilisateur.
 
 ---
 
@@ -356,6 +361,9 @@ Le projet utilise actuellement `workspaces` et `workspace_id`, non `spaces` et
 - Toute écriture locale ajoute sa mutation à l’outbox dans une transaction locale.
 - Le push est séquentiel, idempotent et retenté après une interruption. Les suppressions
   logiques ne peuvent pas être ressuscitées par une modification ultérieure.
+- Un refus serveur pour droits insuffisants n’est pas renvoyé automatiquement : la
+  valeur locale antérieure est restaurée, l’opération reste marquée en échec et le
+  détail est visible ; une reprise éventuelle est explicite.
 - Le pull est paginé, par espace et table, à partir d’un curseur d’heure serveur avec
   chevauchement.
 - La synchronisation s’exécute au démarrage, au retour réseau, au retour au premier

@@ -82,7 +82,7 @@ describe('migration destructive de Dexie vers R1', () => {
     expect(await upgraded.syncMetadata.count()).toBe(0)
   })
 
-  it('ajoute les forfaits à Dexie v5 sans vider les données R4', async () => {
+  it('ajoute les forfaits et la traçabilité à Dexie sans vider les données', async () => {
     const name = `r5-upgrade-${crypto.randomUUID()}`
     const legacy = new Dexie(name)
     legacy.version(4).stores({
@@ -136,11 +136,20 @@ describe('migration destructive de Dexie vers R1', () => {
     expect(upgraded.tables.map((table) => table.name)).toContain('recurringExpenses')
     expect(await upgraded.transactions.count()).toBe(1)
     expect(await upgraded.transactions.toArray()).toMatchObject([
-      { note: 'Donnée existante', recurring_id: null, recurring_month: null },
+      {
+        note: 'Donnée existante',
+        recurring_id: null,
+        recurring_month: null,
+        updated_by: transaction.created_by,
+      },
     ])
     expect(await upgraded.outbox.get(operation.op_id)).toMatchObject({
       status: 'pending',
-      payload: { recurring_id: null, recurring_month: null },
+      payload: {
+        recurring_id: null,
+        recurring_month: null,
+        updated_by: transaction.created_by,
+      },
     })
   })
 })

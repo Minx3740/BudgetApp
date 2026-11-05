@@ -25,6 +25,7 @@ function transaction(
     occurred_on: '2026-10-15',
     note: null,
     created_by: userId,
+    updated_by: userId,
     paid_by: userId,
     created_at: timestamp,
     updated_at: timestamp,

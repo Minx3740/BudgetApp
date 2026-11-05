@@ -2,14 +2,22 @@ import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { bootstrapLocalData } from './bootstrap'
 import { BudgetDatabase, type OutboxOperation } from './database'
-import { createRepository } from './repositories'
+import { createRepository, createTransactionsRepository } from './repositories'
 import { createSyncEngine, retryFailedSyncOperations, SyncFailure, type SyncGateway } from './sync'
-import type { Category, Membership, RecurringExpense, SyncTable } from './models'
+import type {
+  Category,
+  EditableTable,
+  Membership,
+  RecurringExpense,
+  SyncTable,
+  Transaction,
+} from './models'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
 const userId = '00000000-0000-4000-8000-000000000002'
 const categoryId = '00000000-0000-4000-8000-000000000003'
 const secondCategoryId = '00000000-0000-4000-8000-000000000004'
+const transactionId = '00000000-0000-4000-8000-000000000007'
 const epoch = '2026-10-24T10:00:00.000Z'
 
 function makeCategory(id: string, overrides: Partial<Category> = {}): Category {
@@ -75,6 +83,7 @@ class FakeSyncGateway implements SyncGateway {
   pushes: OutboxOperation[] = []
   changedQueries: { table: SyncTable; after: string; through: string }[] = []
   remoteCategories = new Map<string, Category>()
+  remoteTransactions = new Map<string, Transaction>()
   remoteRecurringExpenses = new Map<string, RecurringExpense>()
   failNextPush: SyncFailure | null = null
   failOnPushNumber: number | null = null
@@ -94,6 +103,12 @@ class FakeSyncGateway implements SyncGateway {
     return this.serverTime
   }
 
+  async fetchCurrentRow(table: EditableTable, rowId: string): Promise<unknown | null> {
+    if (table === 'categories') return this.remoteCategories.get(rowId) ?? null
+    if (table === 'transactions') return this.remoteTransactions.get(rowId) ?? null
+    return null
+  }
+
   async push(operation: OutboxOperation): Promise<unknown> {
     this.pushes.push(operation)
     if (this.failOnPushNumber === this.pushes.length) {
@@ -104,6 +119,11 @@ class FakeSyncGateway implements SyncGateway {
       const error = this.failNextPush
       this.failNextPush = null
       throw error
+    }
+    if (operation.table === 'transactions') {
+      const row = operation.payload as Transaction
+      this.remoteTransactions.set(row.id, row)
+      return row
     }
     if (operation.table !== 'categories') {
       return operation.payload
@@ -136,6 +156,14 @@ class FakeSyncGateway implements SyncGateway {
     this.changedQueries.push({ table, after, through })
     if (table === 'recurringExpenses') {
       return [...this.remoteRecurringExpenses.values()].filter(
+        (row) =>
+          row.workspace_id === workspaceId &&
+          Date.parse(row.updated_at) > Date.parse(after) &&
+          Date.parse(row.updated_at) <= Date.parse(through),
+      )
+    }
+    if (table === 'transactions') {
+      return [...this.remoteTransactions.values()].filter(
         (row) =>
           row.workspace_id === workspaceId &&
           Date.parse(row.updated_at) > Date.parse(after) &&
@@ -364,16 +392,19 @@ describe('moteur de synchronisation', () => {
     await createRepository('categories', database.categories, database).create(
       categoryInput(categoryId),
     )
-    await createRepository('transactions', database.transactions, database).create({
-      workspace_id: workspaceId,
-      category_id: categoryId,
-      kind: 'expense',
-      amount: 1_200,
-      occurred_on: '2026-10-24',
-      note: null,
-      created_by: userId,
-      paid_by: userId,
-    })
+    await createTransactionsRepository(database).create(
+      {
+        workspace_id: workspaceId,
+        category_id: categoryId,
+        kind: 'expense',
+        amount: 1_200,
+        occurred_on: '2026-10-24',
+        note: null,
+        created_by: userId,
+        paid_by: userId,
+      },
+      userId,
+    )
     await createRepository('budgets', database.budgets, database).create({
       workspace_id: workspaceId,
       category_id: categoryId,
@@ -434,6 +465,120 @@ describe('moteur de synchronisation', () => {
 
     expect(await database.outbox.count()).toBe(0)
     expect(gateway.remoteCategories.size).toBe(2)
+  })
+
+  it('annule localement un refus de droits, marque l’opération et ne la renvoie pas en boucle', async () => {
+    const previous = {
+      id: transactionId,
+      workspace_id: workspaceId,
+      category_id: categoryId,
+      kind: 'expense' as const,
+      amount: 1_200,
+      occurred_on: '2026-10-24',
+      note: null,
+      created_by: userId,
+      updated_by: userId,
+      paid_by: userId,
+      recurring_id: null,
+      recurring_month: null,
+      created_at: epoch,
+      updated_at: epoch,
+      deleted_at: null,
+    }
+    const rejected = { ...previous, amount: 2_000, updated_at: '2026-10-24T10:01:00.000Z' }
+    await database.transactions.put(rejected)
+    await database.outbox.put({
+      op_id: '00000000-0000-4000-8000-000000000008',
+      table: 'transactions',
+      action: 'upsert',
+      payload: rejected,
+      previousPayload: previous,
+      created_at: '2026-10-24T10:01:00.000Z',
+      attempts: 0,
+      status: 'pending',
+    })
+    await database.outbox.put({
+      op_id: '00000000-0000-4000-8000-000000000009',
+      table: 'transactions',
+      action: 'upsert',
+      payload: { ...rejected, note: 'Modification suivante' },
+      previousPayload: rejected,
+      created_at: '2026-10-24T10:02:00.000Z',
+      attempts: 0,
+      status: 'pending',
+    })
+    gateway.remoteTransactions.set(transactionId, previous)
+    gateway.failNextPush = new SyncFailure('Accès refusé par le serveur.', 'forbidden', '42501')
+    const engine = createSyncEngine(userId, gateway, database)
+
+    await expect(engine.synchronize(new AbortController().signal)).resolves.toMatchObject({
+      pushed: 0,
+    })
+    expect(await database.transactions.get(transactionId)).toEqual(previous)
+    expect(await database.outbox.toArray()).toMatchObject([
+      { status: 'failed', last_error: 'Accès refusé par le serveur.' },
+    ])
+    expect(gateway.pushes).toHaveLength(1)
+
+    await expect(engine.synchronize(new AbortController().signal)).resolves.toBeDefined()
+    expect(gateway.pushes).toHaveLength(1)
+    expect(await database.transactions.get(transactionId)).toEqual(previous)
+
+    const remoteUpdate = {
+      ...previous,
+      amount: 3_000,
+      updated_at: '2026-10-24T10:03:00.000Z',
+    }
+    gateway.serverTime = remoteUpdate.updated_at
+    gateway.remoteTransactions.set(transactionId, remoteUpdate)
+    await engine.synchronize(new AbortController().signal)
+
+    expect(await database.transactions.get(transactionId)).toEqual(remoteUpdate)
+    expect(await database.outbox.count()).toBe(0)
+  })
+
+  it('restaure une opération antérieure à la sauvegarde des instantanés', async () => {
+    const previous = {
+      id: transactionId,
+      workspace_id: workspaceId,
+      category_id: categoryId,
+      kind: 'expense' as const,
+      amount: 1_200,
+      occurred_on: '2026-10-24',
+      note: null,
+      created_by: userId,
+      updated_by: userId,
+      paid_by: userId,
+      recurring_id: null,
+      recurring_month: null,
+      created_at: epoch,
+      updated_at: epoch,
+      deleted_at: null,
+    }
+    const rejected = { ...previous, amount: 2_000 }
+    await database.transactions.put(rejected)
+    await database.outbox.put({
+      op_id: '00000000-0000-4000-8000-000000000010',
+      table: 'transactions',
+      action: 'upsert',
+      payload: rejected,
+      created_at: '2026-10-24T10:01:00.000Z',
+      attempts: 0,
+      status: 'pending',
+    })
+    gateway.remoteTransactions.set(transactionId, previous)
+    gateway.failNextPush = new SyncFailure('Accès refusé par le serveur.', 'forbidden', '42501')
+
+    await createSyncEngine(userId, gateway, database).synchronize(new AbortController().signal)
+
+    expect(await database.transactions.get(transactionId)).toEqual(previous)
+    expect(await database.outbox.toArray()).toMatchObject([
+      {
+        status: 'failed',
+        last_error: 'Accès refusé par le serveur.',
+        previousPayload: previous,
+      },
+    ])
   })
 
   it('conserve les opérations locales quand la session a expiré', async () => {

@@ -21,6 +21,7 @@ export type OutboxOperation = {
     table: K
     action: 'upsert' | 'delete'
     payload: EditableRows[K]
+    previousPayload?: EditableRows[K] | null
     created_at: string
     attempts: number
     status: 'pending' | 'processing' | 'failed'
@@ -192,6 +193,45 @@ export class BudgetDatabase extends Dexie {
               if (operation.table !== 'transactions' || !operation.payload) return
               operation.payload.recurring_id ??= null
               operation.payload.recurring_month ??= null
+            },
+          )
+      })
+    this.version(6)
+      .stores({
+        profiles: 'id, updated_at',
+        workspaces: 'id, owner_id, type, updated_at',
+        memberships: '[workspace_id+user_id], workspace_id, user_id',
+        invitations: 'id, workspace_id, expires_at, updated_at',
+        accounts: null,
+        categories: 'id, workspace_id, kind, updated_at, deleted_at',
+        transactions:
+          'id, workspace_id, occurred_on, category_id, paid_by, created_by, recurring_id, recurring_month, updated_at, deleted_at',
+        budgets: 'id, workspace_id, category_id, month, &[workspace_id+category_id+month]',
+        monthlyBudgets: 'id, workspace_id, month, updated_at, deleted_at, &[workspace_id+month]',
+        monthCarryDecisions:
+          'id, workspace_id, month, updated_at, deleted_at, &[workspace_id+month]',
+        recurringExpenses: 'id, workspace_id, series_id, start_month, end_month, updated_at',
+        outbox: 'op_id, status, created_at, [status+created_at]',
+        syncCursors: 'id, workspace_id, table',
+        syncMetadata: 'key',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table('transactions')
+          .toCollection()
+          .modify((row: { created_by: string; updated_by?: string }) => {
+            row.updated_by ??= row.created_by
+          })
+        await transaction
+          .table('outbox')
+          .toCollection()
+          .modify(
+            (operation: {
+              table?: string
+              payload?: { created_by?: string; updated_by?: string }
+            }) => {
+              if (operation.table !== 'transactions' || !operation.payload?.created_by) return
+              operation.payload.updated_by ??= operation.payload.created_by
             },
           )
       })

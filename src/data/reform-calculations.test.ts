@@ -35,6 +35,7 @@ function transaction(
     occurred_on,
     note: null,
     created_by: userId,
+    updated_by: userId,
     paid_by: userId,
     recurring_id: null,
     recurring_month: null,

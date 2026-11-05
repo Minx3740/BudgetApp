@@ -21,6 +21,7 @@ import {
   TRANSACTION_HISTORY_PAGE_SIZE,
   type TransactionHistoryFilters,
 } from '@/data/transaction-history'
+import { canEditTransaction } from '@/data/transaction-permissions'
 
 type DataTab = 'transactions' | 'categories'
 type TransactionKind = Transaction['kind']
@@ -148,6 +149,13 @@ export function LocalDataView({
   const [draftAdvancedFilters, setDraftAdvancedFilters] = useState({ categoryId: '', memberId: '' })
   const categories = useCategories(workspaceId)
   const transactions = useTransactions(workspaceId)
+  const currentRole = memberships.find(
+    (membership) => membership.workspace_id === workspaceId && membership.user_id === userId,
+  )?.role
+
+  function canEditTransactionRecord(transaction: Transaction): boolean {
+    return canEdit && canEditTransaction(userId, currentRole, transaction)
+  }
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -521,7 +529,7 @@ export function LocalDataView({
   }
 
   function editTransaction(transaction: Transaction) {
-    if (!canEdit) return
+    if (!canEditTransactionRecord(transaction)) return
     setError(null)
     setTransactionError(null)
     setNotice(null)
@@ -572,6 +580,11 @@ export function LocalDataView({
 
     try {
       if (editingTransactionId) {
+        const transaction = transactions.find((row) => row.id === editingTransactionId)
+        if (!transaction || !canEditTransactionRecord(transaction)) {
+          setTransactionError('Tu ne peux modifier que tes propres transactions.')
+          return
+        }
         const changes = {
           category_id: input.category_id,
           kind: input.kind,
@@ -580,10 +593,10 @@ export function LocalDataView({
           note: input.note,
           paid_by: input.paid_by,
         }
-        await transactionsRepository.update(editingTransactionId, workspaceId, changes)
+        await transactionsRepository.update(editingTransactionId, workspaceId, changes, userId)
         setNotice('Transaction mise à jour.')
       } else {
-        await transactionsRepository.create(input)
+        await transactionsRepository.create(input, userId)
         setNotice('Transaction enregistrée.')
       }
       setEditingTransactionId(null)
@@ -595,11 +608,15 @@ export function LocalDataView({
   }
 
   async function deleteTransaction(transaction: Transaction) {
-    if (!canEdit || !workspaceId || !window.confirm('Supprimer cette transaction ?')) return
+    if (!canEditTransactionRecord(transaction)) {
+      setError('Tu ne peux supprimer que tes propres transactions.')
+      return
+    }
+    if (!workspaceId || !window.confirm('Supprimer cette transaction ?')) return
     setError(null)
     setNotice(null)
     try {
-      await transactionsRepository.softDelete(transaction.id, workspaceId)
+      await transactionsRepository.softDelete(transaction.id, workspaceId, userId)
       setNotice('Transaction supprimée.')
     } catch (failure) {
       setError(`Impossible de supprimer cette transaction. ${errorMessage(failure)}`)
@@ -852,7 +869,7 @@ export function LocalDataView({
                           {amountPrefix}
                           {formatMoney(transaction.amount)}
                         </span>
-                        {canEdit && (
+                        {canEditTransactionRecord(transaction) && (
                           <>
                             <Button
                               aria-label={`Modifier ${transactionLabel(transaction.kind).toLowerCase()}`}

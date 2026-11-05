@@ -1184,6 +1184,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               key={`${activeWorkspace?.id}:${selectedMonth}`}
               month={selectedMonth}
               onRefresh={() => setBootstrapAttempt((attempt) => attempt + 1)}
+              userId={user.id}
               workspaceId={activeWorkspace?.id}
             />
           ) : activeSection === 'spaces' ? (

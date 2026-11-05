@@ -1,8 +1,40 @@
 # PROGRESS
 
-## Reprise
+## État actuel — branche v2, lot V2-0
 
-- Dernière mise à jour : 2026-11-05.
+- Dernière mise à jour : 2026-11-06. Branche locale `v2`, créée depuis `main`
+  (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
+- Lot V2-0, étape A : audit terminé en lecture seule. Étape B : corrections implémentées,
+  en attente de l’application et de la vérification de la migration sur Supabase TEST.
+- Ajout de `transactions.updated_by`, rempli par trigger serveur avec l’utilisateur
+  authentifié ; les lignes existantes sont initialisées avec `created_by` sans toucher
+  à leur `updated_at`. Les transactions Dexie sont migrées sans effacer les données.
+- Droits : l’interface et le repository Dexie limitent un membre à ses propres
+  transactions; le propriétaire garde l’accès complet. La synchro restaure l’état local
+  antérieur après un refus serveur, marque l’opération d’outbox en échec et ne la renvoie
+  pas automatiquement à chaque cycle. Les actions directes sur `recurring_expenses`
+  restent sans grant d’écriture; policies owner-only ajoutées en défense, RPC existantes
+  conservent leurs contrôles owner.
+- Tests RLS à rejouer sur TEST : `supabase/tests/v2_0_transaction_rls.sql`. Remplacer les
+  cinq UUID d’exemple par les IDs de fixture du projet TEST; le script vérifie les cas
+  membre/propriétaire et se termine par `ROLLBACK`. La migration
+  `supabase/migrations/20261106005355_v2_0_transaction_audit.sql` n’a pas été appliquée.
+- Vérifications locales : lint, typecheck et build réussis; Vitest 108/108 (17 fichiers);
+  Prettier ciblé sur tous les fichiers modifiés réussi. `format:check` global échoue sur
+  34 fichiers préexistants non formatés; aucun fichier modifié du lot n’est dans la liste
+  d’échec. Le build conserve l’avertissement Vite sur le chunk principal (~825 kB).
+- Migration/SQL distant non exécutés : aucun accès au projet Supabase TEST n’est configuré
+  ici. Dans le SQL Editor du projet TEST uniquement, appliquer d’abord le fichier de
+  migration ci-dessus, puis exécuter le script RLS après remplacement des UUID. Ne jamais
+  appliquer ce lot à la production avant validation de Laro.
+- Prochaine étape : attendre le résultat de la vérification SQL sur TEST et l’accord de
+  Laro avant le lot V2-1. Aucun déploiement ni push vers `main` effectué.
+- À confirmer avant V2-2 : l’exclusion des transactions de forfait et des ajustements
+  s’applique-t-elle également aux seuils catégoriels existants ?
+
+## Historique précédant la branche v2
+
+- Note historique, dernière mise à jour : 2026-11-05.
 - La correction hors ligne `8d02db4` est fusionnée dans `main` et poussée
   (`324c949`) ; le push déclenche le déploiement Cloudflare de production, dont le
   résultat reste à vérifier.
@@ -15,7 +47,7 @@
   réussis.
   Essai réel sur téléphone et vérification du déploiement restent à faire ; avertissement
   Vite non bloquant sur le bundle principal d’environ 821 kB.
-- Branche courante : `main`. La correction hors ligne a été promue depuis
+- À la date de cette note, la branche courante était `main`. La correction hors ligne a été promue depuis
   `reforme-budget`.
 - Tâche en cours : promotion en production après l'implémentation des lots R0–R9 et du
   logo cashFlow+. Les cinq changements locaux préexistants ont été examinés et committés

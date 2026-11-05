@@ -23,6 +23,7 @@ function createTransaction(index: number): Transaction {
     occurred_on: date.toISOString().slice(0, 10),
     note: index === 4999 ? 'Taxi aéroport' : null,
     created_by: memberId,
+    updated_by: memberId,
     paid_by: memberId,
     recurring_id: null,
     recurring_month: null,

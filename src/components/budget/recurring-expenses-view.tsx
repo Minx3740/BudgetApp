@@ -18,6 +18,7 @@ import { transactionsRepository } from '@/data/repositories'
 interface RecurringExpensesViewProps {
   client: SupabaseClient
   workspaceId: string | undefined
+  userId: string
   month: string
   canManage: boolean
   isOnline: boolean
@@ -97,6 +98,7 @@ function isInPeriod(expense: RecurringExpense, month: string): boolean {
 export function RecurringExpensesView({
   client,
   workspaceId,
+  userId,
   month,
   canManage,
   isOnline,
@@ -228,12 +230,17 @@ export function RecurringExpensesView({
           throw new Error(`Aucune dépense générée à modifier pour ${monthLabel(month)}.`)
         }
         const day = String(parsedDraft.day_of_month).padStart(2, '0')
-        await transactionsRepository.update(occurrence.id, expense.workspace_id, {
-          amount: parsedDraft.amount,
-          category_id: parsedDraft.category_id,
-          occurred_on: `${month.slice(0, 7)}-${day}`,
-          note: parsedDraft.label,
-        })
+        await transactionsRepository.update(
+          occurrence.id,
+          expense.workspace_id,
+          {
+            amount: parsedDraft.amount,
+            category_id: parsedDraft.category_id,
+            occurred_on: `${month.slice(0, 7)}-${day}`,
+            note: parsedDraft.label,
+          },
+          userId,
+        )
         setNotice(
           isOnline
             ? `La dépense de ${monthLabel(month)} a été modifiée.`

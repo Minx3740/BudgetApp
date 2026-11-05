@@ -61,6 +61,7 @@ function transaction(
     occurred_on: occurredOn,
     note: null,
     created_by: ownerId,
+    updated_by: ownerId,
     paid_by: options.paid_by ?? ownerId,
     recurring_id: options.recurring_id ?? null,
     recurring_month: null,

@@ -126,6 +126,7 @@ export const cashflowTransactionSchema = z
     occurred_on: dateSchema,
     note: z.string().nullable(),
     created_by: uuidSchema,
+    updated_by: uuidSchema,
     paid_by: uuidSchema,
     recurring_id: uuidSchema.nullable().default(null),
     recurring_month: monthSchema.nullable().default(null),
