@@ -63,7 +63,12 @@ chaque modification et son entrée d'outbox dans une transaction locale. Après 
 une première copie paginée est importée, puis le moteur M6 pousse l'outbox et récupère les
 changements distants avec des curseurs par espace/table. Il se relance à l'ouverture, au
 retour du réseau, au retour au premier plan et périodiquement. La déconnexion efface la base
-locale.
+locale. L'identité minimale du compte est conservée localement pour rouvrir les données déjà
+chargées si le renouvellement de session Supabase échoue faute de réseau. À la reconnexion,
+les appels serveur et la synchronisation reprennent ; une nouvelle connexion ou la première
+initialisation nécessite toujours Internet. Après la mise à jour qui introduit cette reprise
+hors ligne, ouvre une fois l'application en ligne pendant que tu es connecté pour enregistrer
+cette identité locale.
 
 L'accueil affiche aussi le disponible du mois, la moyenne quotidienne, les dernières
 transactions et les catégories les plus consommées. La section Budgets permet de créer et

@@ -14,7 +14,7 @@ import {
   WifiOff,
   type LucideIcon,
 } from 'lucide-react'
-import type { Session, SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import iconLogoUrl from '../design/icone.svg?no-inline'
 import completeLogoUrl from '../design/logo-complet.svg?no-inline'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,13 @@ import {
 import { monthKeyForDate, shiftMonth } from './data/calculations'
 import { generateRecurringForMonth } from './data/recurring-expenses'
 import { createSupabaseSyncEngine, retryFailedSyncOperations } from './data/sync'
+import {
+  clearOfflineIdentity,
+  offlineIdentityForNetworkFailure,
+  readOfflineIdentity,
+  saveOfflineIdentity,
+  type OfflineIdentity,
+} from './data/offline-identity'
 import { supabase } from './lib/supabase'
 
 type AuthMode = 'sign-in' | 'sign-up' | 'forgot-password' | 'update-password'
@@ -463,12 +470,12 @@ function AuthForm({
   )
 }
 
-function SignedInView({ client, session }: { client: SupabaseClient; session: Session }) {
+function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineIdentity }) {
   const [activeSection, setActiveSection] = useState<AppSection>('home')
   const [selectedBudgetTab, setSelectedBudgetTab] = useState<'month' | 'analytics'>('month')
   const [selectedMonth, setSelectedMonth] = useState(selectedMonthFromLocation)
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
-    () => window.localStorage.getItem(`cashFlow.activeWorkspace.${session.user.id}`) ?? '',
+    () => window.localStorage.getItem(`cashFlow.activeWorkspace.${user.id}`) ?? '',
   )
   const [error, setError] = useState<string | null>(null)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
@@ -502,9 +509,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     )?.id ?? availableWorkspaces.find((workspace) => workspace.id !== activeWorkspace?.id)?.id
   const memberships = useMemberships(activeWorkspace?.id)
   const profiles = useProfiles()
-  const currentProfile = profiles.find((profile) => profile.id === session.user.id)
+  const currentProfile = profiles.find((profile) => profile.id === user.id)
   const invitations = useInvitations(activeWorkspace?.id)
-  const activeMembership = memberships.find((membership) => membership.user_id === session.user.id)
+  const activeMembership = memberships.find((membership) => membership.user_id === user.id)
   const canEditWorkspace =
     activeWorkspace?.type === 'personal' ||
     activeMembership?.role === 'owner' ||
@@ -512,13 +519,13 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   const canManageWorkspace =
     activeWorkspace?.type === 'personal' || activeMembership?.role === 'owner'
   const syncSummary = useSyncSummary()
-  const metadataDisplayName = session.user.user_metadata['display_name']
+  const metadataDisplayName = user.user_metadata['display_name']
   const displayName =
     currentProfile?.display_name.trim() ||
     (typeof metadataDisplayName === 'string' && metadataDisplayName.trim()) ||
-    session.user.email ||
+    user.email ||
     'utilisateur'
-  const bootstrapKey = `${session.user.id}:${bootstrapAttempt}`
+  const bootstrapKey = `${user.id}:${bootstrapAttempt}`
   const isBootstrapping = bootstrapResult?.key !== bootstrapKey
   const bootstrapError = bootstrapResult?.key === bootstrapKey ? bootstrapResult.error : null
   const visibleSyncError = syncError ?? syncSummary.lastError
@@ -616,7 +623,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     const abortController = new AbortController()
     bootstrapAbortController.current = abortController
 
-    void bootstrapFromSupabase(client, session.user.id, abortController.signal)
+    void bootstrapFromSupabase(client, user.id, abortController.signal)
       .then(() => {
         if (isMounted) {
           setBootstrapResult({ key: bootstrapKey, error: null })
@@ -648,7 +655,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
         bootstrapAbortController.current = null
       }
     }
-  }, [bootstrapAttempt, bootstrapKey, client, isOnline, session.user.id])
+  }, [bootstrapAttempt, bootstrapKey, client, isOnline, user.id])
 
   useEffect(() => {
     if (!isOnline || isBootstrapping || bootstrapError) {
@@ -659,7 +666,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     let isRunning = false
     const abortController = new AbortController()
     syncAbortController.current = abortController
-    const syncEngine = createSupabaseSyncEngine(client, session.user.id)
+    const syncEngine = createSupabaseSyncEngine(client, user.id)
     let generatedMonthKey: string | null = null
 
     function synchronize() {
@@ -736,7 +743,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
     isBootstrapping,
     isOnline,
     selectedMonth,
-    session.user.id,
+    user.id,
     syncAttempt,
   ])
 
@@ -753,7 +760,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   }
 
   async function requestPasswordReset() {
-    const email = session.user.email
+    const email = user.email
     setSettingsMessage(null)
     if (!isOnline) {
       setSettingsMessage({
@@ -802,6 +809,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
       bootstrapAbortController.current?.abort()
       syncAbortController.current?.abort()
       await clearLocalData()
+      clearOfflineIdentity(window.localStorage)
       const { error: signOutError } = await client.auth.signOut()
       if (signOutError) {
         setError(authErrorMessage(signOutError.message))
@@ -823,7 +831,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
   function selectWorkspace(workspaceId: string) {
     setSelectedWorkspaceId(workspaceId)
     setIsQuickEntryOpen(false)
-    window.localStorage.setItem(`cashFlow.activeWorkspace.${session.user.id}`, workspaceId)
+    window.localStorage.setItem(`cashFlow.activeWorkspace.${user.id}`, workspaceId)
   }
 
   function changeMonth(month: string) {
@@ -991,7 +999,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               <div className="absolute right-0 top-14 z-40 w-64 rounded-2xl border border-stone-200 bg-white p-2 shadow-lg">
                 <div className="border-b border-stone-100 px-3 py-2">
                   <p className="truncate text-sm font-semibold">{displayName}</p>
-                  <p className="truncate text-xs text-stone-500">{session.user.email}</p>
+                  <p className="truncate text-xs text-stone-500">{user.email}</p>
                 </div>
                 <button
                   className="mt-1 min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800"
@@ -1153,7 +1161,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
               memberships={memberships}
               onQuickEntryOpenChange={setIsQuickEntryOpen}
               profiles={profiles}
-              userId={session.user.id}
+              userId={user.id}
               workspaceId={activeWorkspace?.id}
             />
           ) : activeSection === 'budgets' ? (
@@ -1190,7 +1198,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 setBootstrapAttempt((attempt) => attempt + 1)
               }}
               profiles={profiles}
-              userId={session.user.id}
+              userId={user.id}
               workspace={activeWorkspace}
             />
           ) : activeSection === 'workspace-settings' ? (
@@ -1204,7 +1212,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 if (workspaceId) selectWorkspace(workspaceId)
                 setBootstrapAttempt((attempt) => attempt + 1)
               }}
-              userId={session.user.id}
+              userId={user.id}
               workspace={activeWorkspace}
             />
           ) : activeSection === 'profile' ? (
@@ -1233,7 +1241,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                     />
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{displayName}</p>
-                      <p className="truncate text-sm text-stone-600">{session.user.email}</p>
+                      <p className="truncate text-sm text-stone-600">{user.email}</p>
                     </div>
                   </div>
                   <dl className="grid gap-3 border-t border-stone-100 pt-4 text-sm sm:grid-cols-2">
@@ -1271,9 +1279,9 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 client={client}
                 displayName={displayName}
                 isOnline={isOnline}
-                key={`${currentProfile?.id ?? session.user.id}:${currentProfile?.display_name ?? displayName}:${currentProfile?.updated_at ?? ''}`}
+                key={`${currentProfile?.id ?? user.id}:${currentProfile?.display_name ?? displayName}:${currentProfile?.updated_at ?? ''}`}
                 profile={currentProfile}
-                userId={session.user.id}
+                userId={user.id}
               />
               <ProfileAvatar
                 avatarPath={currentProfile?.avatar_path ?? null}
@@ -1282,7 +1290,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                 initials={initials}
                 isOnline={isOnline}
                 onUpdated={() => setBootstrapAttempt((attempt) => attempt + 1)}
-                userId={session.user.id}
+                userId={user.id}
               />
             </section>
           ) : activeSection === 'plus' ? (
@@ -1397,7 +1405,7 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
                   <CardContent>
                     <Button
                       className="min-h-11"
-                      disabled={!isOnline || !session.user.email || isSendingPasswordReset}
+                      disabled={!isOnline || !user.email || isSendingPasswordReset}
                       onClick={() => void requestPasswordReset()}
                     >
                       {isSendingPasswordReset ? 'Envoi…' : 'Envoyer le lien de modification'}
@@ -1534,10 +1542,11 @@ function SignedInView({ client, session }: { client: SupabaseClient; session: Se
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null)
+  const [offlineIdentity] = useState(() => readOfflineIdentity(window.localStorage))
+  const [user, setUser] = useState<OfflineIdentity | null>(offlineIdentity)
   const [authLinkError] = useState(getAuthLinkError)
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(offlineIdentity === null)
   const [sessionError, setSessionError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -1549,42 +1558,88 @@ export default function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (isMounted) {
-        setSession(nextSession)
-        if (event === 'PASSWORD_RECOVERY') {
-          setIsPasswordRecovery(true)
-        } else if (event === 'SIGNED_OUT') {
-          setIsPasswordRecovery(false)
+      if (!isMounted) return
+
+      if (nextSession) {
+        const identity: OfflineIdentity = {
+          id: nextSession.user.id,
+          email: nextSession.user.email ?? null,
+          user_metadata: {
+            display_name: nextSession.user.user_metadata['display_name'],
+          },
         }
-        setIsLoading(false)
+        saveOfflineIdentity(identity, window.localStorage)
+        setUser(identity)
         setSessionError(null)
+      } else if (event === 'SIGNED_OUT') {
+        clearOfflineIdentity(window.localStorage)
+        setUser(null)
+        setIsPasswordRecovery(false)
       }
+      if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true)
+      setIsLoading(false)
     })
 
     void supabase.auth
       .getSession()
       .then(({ data, error }) => {
-        if (isMounted) {
-          setSession(data.session)
-          setSessionError(error ? authErrorMessage(error.message) : null)
-          setIsLoading(false)
-          if (authLinkError && window.location.hash) {
-            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        if (!isMounted) return
+
+        if (data.session) {
+          const identity: OfflineIdentity = {
+            id: data.session.user.id,
+            email: data.session.user.email ?? null,
+            user_metadata: {
+              display_name: data.session.user.user_metadata['display_name'],
+            },
           }
+          saveOfflineIdentity(identity, window.localStorage)
+          setUser(identity)
+          setSessionError(null)
+        } else if (error) {
+          const cachedIdentity = offlineIdentityForNetworkFailure(error, offlineIdentity)
+          if (cachedIdentity) {
+            setUser(cachedIdentity)
+            setSessionError(null)
+          } else {
+            clearOfflineIdentity(window.localStorage)
+            setUser(null)
+            setSessionError(authErrorMessage(error.message))
+          }
+        } else {
+          clearOfflineIdentity(window.localStorage)
+          setUser(null)
+          setSessionError(null)
+        }
+        setIsLoading(false)
+        if (authLinkError && window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
         }
       })
-      .catch(() => {
-        if (isMounted) {
-          setSessionError('La session ne peut pas être vérifiée. Recharge la page puis réessaie.')
-          setIsLoading(false)
+      .catch((failure: unknown) => {
+        if (!isMounted) return
+
+        const cachedIdentity = offlineIdentityForNetworkFailure(failure, offlineIdentity)
+        if (cachedIdentity) {
+          setUser(cachedIdentity)
+          setSessionError(null)
+        } else {
+          clearOfflineIdentity(window.localStorage)
+          setUser(null)
+          setSessionError(
+            failure instanceof Error
+              ? `La session ne peut pas être vérifiée. ${failure.message}`
+              : 'La session ne peut pas être vérifiée. Recharge la page puis réessaie.',
+          )
         }
+        setIsLoading(false)
       })
 
     return () => {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [authLinkError])
+  }, [authLinkError, offlineIdentity])
 
   if (!supabase) {
     return (
@@ -1611,7 +1666,7 @@ export default function App() {
     )
   }
 
-  if (sessionError && !session) {
+  if (sessionError && !user) {
     return (
       <main className="flex min-h-svh items-center justify-center bg-stone-50 px-5 py-10">
         <p className="max-w-md rounded-xl bg-red-50 px-5 py-4 text-sm text-red-800" role="alert">
@@ -1621,7 +1676,7 @@ export default function App() {
     )
   }
 
-  if (isPasswordRecovery && session) {
+  if (isPasswordRecovery && user) {
     return (
       <AuthForm
         client={supabase}
@@ -1631,8 +1686,8 @@ export default function App() {
     )
   }
 
-  return session ? (
-    <SignedInView client={supabase} session={session} />
+  return user ? (
+    <SignedInView client={supabase} user={user} />
   ) : (
     <AuthForm client={supabase} initialError={authLinkError} />
   )
