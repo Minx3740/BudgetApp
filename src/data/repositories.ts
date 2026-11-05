@@ -87,6 +87,9 @@ export function createRepository<K extends EditableTable>(
   if (tableName === 'transactions' && !writeGuard) {
     throw new Error('Transactions require an authorizing repository.')
   }
+  if (tableName === 'budgets' && !writeGuard) {
+    throw new Error('Budgets require an authorizing repository.')
+  }
 
   const schema = editableRowSchemas[tableName]
 
@@ -111,7 +114,7 @@ export function createRepository<K extends EditableTable>(
       return row
     },
 
-    async update(id, workspaceId, changes, actorUserId) {
+    async update(id: string, workspaceId: string, changes: UpdateInput<K>, actorUserId?: string) {
       return database.transaction('rw', table, database.memberships, database.outbox, async () => {
         const existing = await table.get(id)
         if (!existing || existing.workspace_id !== workspaceId || existing.deleted_at !== null) {
@@ -195,7 +198,60 @@ export function createTransactionsRepository(database: BudgetDatabase = db) {
 
 export const transactionsRepository = createTransactionsRepository()
 
-export const budgetsRepository = createRepository('budgets', db.budgets)
+export function createBudgetsRepository(database: BudgetDatabase = db) {
+  const repository = createRepository(
+    'budgets',
+    database.budgets,
+    database,
+    async (budget, actorUserId) => {
+      if (!actorUserId) {
+        throw new Error('Un utilisateur est requis pour modifier un seuil.')
+      }
+      const membership = await database.memberships.get([budget.workspace_id, actorUserId])
+      if (membership?.role !== 'owner') {
+        throw new Error('Seul le propriétaire peut modifier les seuils de cet espace.')
+      }
+      const existingRows = await database.budgets
+        .where('workspace_id')
+        .equals(budget.workspace_id)
+        .toArray()
+      if (
+        existingRows.some(
+          (existing) =>
+            existing.id !== budget.id &&
+            existing.period === budget.period &&
+            existing.category_id === budget.category_id &&
+            existing.month === budget.month,
+        )
+      ) {
+        throw new Error('Un seuil existe déjà pour cette période et cette portée.')
+      }
+    },
+  )
+
+  return {
+    ...repository,
+    async update(
+      id: string,
+      workspaceId: string,
+      changes: UpdateInput<'budgets'>,
+      actorUserId?: string,
+    ) {
+      const current = await database.budgets.get(id)
+      if (
+        current &&
+        ((changes.period !== undefined && changes.period !== current.period) ||
+          (changes.category_id !== undefined && changes.category_id !== current.category_id) ||
+          (changes.month !== undefined && changes.month !== current.month))
+      ) {
+        throw new Error('La période et la portée d’un seuil ne peuvent pas être modifiées.')
+      }
+      return repository.update(id, workspaceId, changes, actorUserId)
+    },
+  }
+}
+
+export const budgetsRepository = createBudgetsRepository()
 export const monthlyBudgetsRepository = createRepository('monthlyBudgets', db.monthlyBudgets)
 export const monthCarryDecisionsRepository = createRepository(
   'monthCarryDecisions',

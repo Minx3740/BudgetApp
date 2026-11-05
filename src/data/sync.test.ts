@@ -2,7 +2,11 @@ import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { bootstrapLocalData } from './bootstrap'
 import { BudgetDatabase, type OutboxOperation } from './database'
-import { createRepository, createTransactionsRepository } from './repositories'
+import {
+  createBudgetsRepository,
+  createRepository,
+  createTransactionsRepository,
+} from './repositories'
 import { createSyncEngine, retryFailedSyncOperations, SyncFailure, type SyncGateway } from './sync'
 import type {
   Category,
@@ -405,12 +409,17 @@ describe('moteur de synchronisation', () => {
       },
       userId,
     )
-    await createRepository('budgets', database.budgets, database).create({
-      workspace_id: workspaceId,
-      category_id: categoryId,
-      month: '2026-10-01',
-      limit_amount: 10_000,
-    })
+    await createBudgetsRepository(database).create(
+      {
+        workspace_id: workspaceId,
+        category_id: categoryId,
+        month: '2026-10-01',
+        period: 'month',
+        enabled: true,
+        limit_amount: 10_000,
+      },
+      userId,
+    )
     await createRepository('monthlyBudgets', database.monthlyBudgets, database).create({
       workspace_id: workspaceId,
       month: '2026-10-01',

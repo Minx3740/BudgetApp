@@ -1142,6 +1142,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
                 key={`${activeWorkspace?.id}:${selectedMonth}`}
                 month={selectedMonth}
                 mode="home"
+                userId={user.id}
                 onOpenBudgets={() => setActiveSection('budgets')}
                 onOpenAnalyses={() => {
                   setSelectedBudgetTab('analytics')
@@ -1174,6 +1175,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               initialTab={selectedBudgetTab}
               onTabChange={setSelectedBudgetTab}
               profiles={profiles}
+              userId={user.id}
               workspaceId={activeWorkspace?.id}
             />
           ) : activeSection === 'recurring-expenses' ? (

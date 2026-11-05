@@ -1,6 +1,6 @@
 # Cahier des charges — cashFlow+
 
-Version 1.4 — mise à jour V2-1 (6 novembre 2026).
+Version 1.5 — mise à jour V2-2 (6 novembre 2026).
 
 Cette version intègre la réforme décrite dans `docs\reforme-budget-global.md`. Elle définit
 la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
@@ -200,6 +200,17 @@ pas si les ressources sont nulles ou négatives.
 - Remplacer « plafond » et « plafonner » par « seuil » dans l’interface.
 - Un seuil mensuel est un montant entier supérieur ou égal à zéro, associé à un
   espace, une catégorie et un mois.
+- Le modèle prend aussi en charge les périodes jour et semaine, avec une catégorie
+  facultative (`null` signifie un seuil global à l’espace). Les seuils globaux par jour
+  et par semaine sont désactivés par défaut et restent réservés au propriétaire.
+- Les seuils mensuels par catégorie déjà enregistrés sont conservés. Les forfaits et les
+  ajustements sont exclus de tous les seuils, y compris les seuils catégoriels existants ;
+  ils restent inclus dans les dépenses, le solde et le budget.
+- Le seuil hebdomadaire utilise la semaine complète du lundi au dimanche, même lorsqu’elle
+  déborde sur un mois voisin. Le jour d’une transaction vient de sa date locale.
+- L’accueil affiche un « reste par jour » dérivé du disponible et du nombre de jours
+  restants dans le mois, aujourd’hui compris. Le montant est arrondi à l’ariary inférieur ;
+  un déficit ou un mois terminé est affiché comme un état distinct.
 - Les seuils sont des repères distincts du budget mensuel ; ils ne le modifient pas et
   ne s’y additionnent pas pour calculer les ressources ou le disponible.
 - États de suivi : normal en dessous de 80 %, alerte de 80 % à 100 % inclus, dépassé
@@ -323,6 +334,13 @@ Le projet utilise actuellement `workspaces` et `workspace_id`, non `spaces` et
 
 - Ajouter les tables locales des budgets mensuels, décisions de report et forfaits ;
   migrer la version Dexie en conservant les données déjà installées.
+- V2-2 généralise `budgets` avec `period` et `enabled`, et rend
+  `category_id`/`month` facultatifs selon la période. La version Dexie 8 ajoute ces
+  champs aux seuils existants et à leur outbox sans les effacer ; les seuils existants
+  restent mensuels et actifs.
+- La migration SQL V2-2 conserve les lignes existantes et les droits owner-only. Elle
+  doit être testée d’abord sur Supabase TEST ; aucune migration ne s’applique à la
+  production sans validation explicite.
 - Mettre à jour les schémas Zod, repositories, hooks réactifs, import initial et
   opérations d’outbox pour couvrir toutes les nouvelles données.
 - Les écritures hors ligne du budget et du report sont locales et mises en file, puis
@@ -398,8 +416,11 @@ cible.
 **F-05 — Budget du mois** : montant disponible, manuel et unique par espace/mois, y
 compris zéro ; ressources, disponible et progression calculés sur les montants du mois.
 
-**F-06 — Seuils** : seuil indépendant par catégorie/mois, états normal/alerte/dépassé,
-catégories non suivies sans barre.
+**F-06 — Seuils** : seuils jour/semaine globaux à l’espace et seuils mensuels globaux ou
+par catégorie, états normal/alerte/dépassé avec barre et texte. Les seuils jour/semaine
+sont désactivés par défaut et réservés au propriétaire. Les forfaits et ajustements sont
+exclus de tous les seuils, mais continuent de compter dans les dépenses et le disponible.
+Les seuils catégoriels existants sont conservés.
 
 **F-07 — Disponible et report** : calcul à partir du report accepté, budget, revenus,
 ajustements et dépenses nettes ; déficit non reporté ; décisions réservées au propriétaire.
@@ -594,6 +615,11 @@ Pour le moteur d’historique V2-1, tester les bornes locales d’un jour, les s
 lundi-dimanche, les semaines tronquées aux limites du mois, les années bissextiles et les
 changements d’année ; tester également les totaux par type, les filtres, la pagination des
 groupes et la lecture hors ligne.
+
+Pour les seuils V2-2, tester jour local, semaine complète lundi-dimanche aux changements
+de mois et d’année, mois, remboursements et exclusions des forfaits/ajustements, ainsi que
+les réglages owner-only et l’outbox hors ligne. Tester le reste par jour avec le jour courant
+inclus, un montant négatif, zéro jour restant et un mois de longueur différente.
 
 ### 15.2 Base et synchronisation
 

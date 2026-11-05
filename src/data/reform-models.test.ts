@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  budgetSchema,
   cashflowTransactionSchema,
   monthCarryDecisionSchema,
   monthlyBudgetSchema,
@@ -58,6 +59,54 @@ describe('modèles du budget réformé', () => {
         deleted_at: null,
       }).budget_amount,
     ).toBe(0)
+  })
+
+  it('généralise les seuils en gardant les valeurs mensuelles rétrocompatibles', () => {
+    const legacy = budgetSchema.parse({
+      id: '00000000-0000-4000-8000-000000000007',
+      workspace_id: workspaceId,
+      category_id: categoryId,
+      month: '2026-10-01',
+      limit_amount: 1_000,
+      created_at: timestamp,
+      updated_at: timestamp,
+      deleted_at: null,
+    })
+    expect(legacy).toMatchObject({ period: 'month', enabled: true })
+
+    expect(
+      budgetSchema.parse({
+        ...legacy,
+        id: '00000000-0000-4000-8000-000000000009',
+        category_id: null,
+        month: null,
+        period: 'day',
+        enabled: undefined,
+      }).enabled,
+    ).toBe(false)
+    expect(
+      budgetSchema.safeParse({
+        ...legacy,
+        id: '00000000-0000-4000-8000-000000000008',
+        category_id: null,
+        month: null,
+        period: 'week',
+      }).success,
+    ).toBe(true)
+    expect(
+      budgetSchema.safeParse({
+        ...legacy,
+        category_id: categoryId,
+        month: null,
+        period: 'day',
+      }).success,
+    ).toBe(false)
+    expect(
+      budgetSchema.safeParse({
+        ...legacy,
+        month: null,
+      }).success,
+    ).toBe(false)
   })
 
   it('valide une décision de report par espace et mois', () => {

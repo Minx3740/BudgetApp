@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { clearLocalData, db } from './database'
 import {
+  budgetsRepository,
   categoriesRepository,
   monthCarryDecisionsRepository,
   monthlyBudgetsRepository,
@@ -164,6 +165,80 @@ describe('repositories locaux', () => {
       { table: 'monthlyBudgets', action: 'upsert', payload: monthlyBudget },
       { table: 'monthCarryDecisions', action: 'upsert', payload: carryDecision },
     ])
+  })
+
+  it('réserve les seuils au propriétaire et permet un seuil global par période', async () => {
+    const daily = await budgetsRepository.create(
+      {
+        workspace_id: workspaceId,
+        category_id: null,
+        month: null,
+        period: 'day',
+        limit_amount: 5_000,
+      },
+      userId,
+    )
+    const weekly = await budgetsRepository.create(
+      {
+        workspace_id: workspaceId,
+        category_id: null,
+        month: null,
+        period: 'week',
+        enabled: false,
+        limit_amount: 20_000,
+      },
+      userId,
+    )
+
+    await db.memberships.put({
+      workspace_id: workspaceId,
+      user_id: memberId,
+      role: 'member',
+      created_at: timestamp,
+      updated_at: timestamp,
+    })
+
+    await expect(
+      budgetsRepository.update(daily.id, workspaceId, { enabled: true }, memberId),
+    ).rejects.toThrow('Seul le propriétaire')
+    await expect(
+      budgetsRepository.create(
+        {
+          workspace_id: workspaceId,
+          category_id: null,
+          month: null,
+          period: 'day',
+          enabled: true,
+          limit_amount: 5_000,
+        },
+        memberId,
+      ),
+    ).rejects.toThrow('Seul le propriétaire')
+    await expect(
+      budgetsRepository.create(
+        {
+          workspace_id: workspaceId,
+          category_id: null,
+          month: null,
+          period: 'day',
+          enabled: true,
+          limit_amount: 5_000,
+        },
+        userId,
+      ),
+    ).rejects.toThrow('existe déjà')
+
+    const storedBudgets = await db.budgets.toArray()
+    expect(storedBudgets).toHaveLength(2)
+    expect(storedBudgets.find((budget) => budget.period === 'day')).toMatchObject({
+      id: daily.id,
+      enabled: false,
+    })
+    expect(storedBudgets.find((budget) => budget.period === 'week')).toMatchObject({
+      id: weekly.id,
+      enabled: false,
+    })
+    expect(await db.outbox.count()).toBe(2)
   })
 
   it('enregistre une transaction et synchronise ses modifications et suppression', async () => {

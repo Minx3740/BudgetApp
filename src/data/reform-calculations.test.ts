@@ -78,6 +78,8 @@ function categoryBudget(month: string, limit_amount: number): Budget {
     workspace_id: workspaceId,
     category_id: categoryId,
     month,
+    period: 'month',
+    enabled: true,
     limit_amount,
     created_at: timestamp,
     updated_at: timestamp,

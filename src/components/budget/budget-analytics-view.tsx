@@ -288,11 +288,15 @@ function CategorySpendingChart({
               />
               Seuil
             </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Les dépenses réelles incluent les forfaits ; forfaits et ajustements sont exclus des
+              seuils.
+            </p>
             {accessibleList(
               values.map(
                 (item) =>
-                  `${item.name} : ${formatMoney(item.amount)}${
-                    item.threshold === null ? '' : `, seuil ${formatMoney(item.threshold)}`
+                  `${item.name} : dépenses réelles ${formatMoney(item.amount)}, pris en compte au seuil ${formatMoney(item.thresholdSpentAmount)}${
+                    item.threshold === null ? '' : ` sur un seuil de ${formatMoney(item.threshold)}`
                   }`,
               ),
             )}

@@ -1,6 +1,6 @@
 # PROGRESS
 
-## État actuel — branche v2, lot V2-1
+## État actuel — branche v2, lot V2-2
 
 - Dernière mise à jour : 2026-11-06. Branche locale `v2`, créée depuis `main`
   (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
@@ -19,14 +19,6 @@
   cinq UUID d’exemple par les IDs de fixture du projet TEST; le script vérifie les cas
   membre/propriétaire et se termine par `ROLLBACK`. La migration
   `supabase/migrations/20261106005355_v2_0_transaction_audit.sql` n’a pas été appliquée.
-- Vérifications locales : lint, typecheck et build réussis; Vitest 108/108 (17 fichiers);
-  Prettier ciblé sur tous les fichiers modifiés réussi. `format:check` global échoue sur
-  34 fichiers préexistants non formatés; aucun fichier modifié du lot n’est dans la liste
-  d’échec. Le build conserve l’avertissement Vite sur le chunk principal (~825 kB).
-- Migration/SQL distant non exécutés : aucun accès au projet Supabase TEST n’est configuré
-  ici. Dans le SQL Editor du projet TEST uniquement, appliquer d’abord le fichier de
-  migration ci-dessus, puis exécuter le script RLS après remplacement des UUID. Ne jamais
-  appliquer ce lot à la production avant validation de Laro.
 - V2-1, autorisé par Laro : moteur pur de périodes jour/semaine/mois, regroupement des
   transactions, barre de période et regroupement dans l’historique, filtres regroupés
   derrière « Filtres », état de l’historique dans l’URL, index Dexie composé espace/date
@@ -42,10 +34,29 @@
   téléphone n’a été réalisé dans cette tâche.
 - V2-1 ne contient pas de migration Supabase. L’index Dexie est ajouté en version 7 sans
   effacer de données locales ni l’outbox.
-- Prochaine étape : valider V2-1 avec Laro, puis attendre son accord explicite avant tout
-  lot suivant. Aucun déploiement ni push vers `main` effectué.
-- À confirmer avant V2-2 : l’exclusion des transactions de forfait et des ajustements
-  s’applique-t-elle également aux seuils catégoriels existants ?
+- V2-2, autorisé par Laro : modèle de seuils jour/semaine/mois dans `budgets`, options
+  globales journalières et hebdomadaires désactivées par défaut, réservées au propriétaire
+  côté interface et repository local. L’index Dexie est migré en version 8 sans effacer
+  les seuils existants ni l’outbox; les seuils mensuels existants restent actifs.
+- Les forfaits et ajustements sont exclus de tous les seuils, y compris les seuils
+  catégoriels existants (décision confirmée par Laro), tout en restant dans les dépenses
+  réelles et le calcul du disponible. Le moteur de seuils traite les semaines complètes
+  lundi-dimanche, même en cas de débordement de mois. L’accueil calcule le reste par jour
+  à partir du disponible, en incluant aujourd’hui et en affichant clairement déficit/mois
+  terminé.
+- Tests ajoutés pour les dates et états de seuil, les exclusions, les montants entiers,
+  les droits owner-only, la migration Dexie et l’outbox hors ligne.
+- Vérifications finales V2-2 : `npm run lint`, `npm run typecheck`, `npm test`
+  (126/126 tests, 21 fichiers), `npm run build`, Prettier ciblé et `git diff --check`
+  réussis. Le build conserve l’avertissement Vite sur le chunk principal (~846,87 kB).
+- Migration SQL `supabase/migrations/20261106020000_v2_2_threshold_periods.sql` et script
+  de vérification `supabase/tests/v2_2_thresholds.sql` fournis, mais non appliqués ni
+  exécutés : aucun accès Supabase TEST n’est configuré ici. Les appliquer et les rejouer
+  uniquement sur le projet TEST, après remplacement des UUID; ne jamais appliquer en
+  production sans validation explicite de Laro. Aucun essai sur téléphone n’a été réalisé.
+- V2-2 est committé localement sur `v2`; aucun déploiement, push ou merge vers `main`.
+  Prochaine étape : attendre la validation de Laro et la vérification SQL sur TEST avant
+  de commencer V2-3.
 
 ## Historique précédant la branche v2
 
