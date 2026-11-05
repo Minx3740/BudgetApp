@@ -1,6 +1,6 @@
 # Cahier des charges — cashFlow+
 
-Version 1.3 — mise à jour V2-0 (6 novembre 2026).
+Version 1.4 — mise à jour V2-1 (6 novembre 2026).
 
 Cette version intègre la réforme décrite dans `docs\reforme-budget-global.md`. Elle définit
 la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
@@ -414,6 +414,18 @@ plus consommées et lien vers les analyses.
 
 **F-10 — Transactions et historique** : vues Dépenses/Revenus/Tout, liste du mois,
 filtres adaptés à l’espace, recherche texte et pagination adaptée aux grands historiques.
+L’extension V2-1 permet de choisir un jour, une semaine, un mois ou une plage
+personnalisée, puis de regrouper sans regroupement, par jour, semaine ou mois. Les groupes
+affichent leurs bornes, le nombre de transactions, les revenus, les dépenses nettes, les
+ajustements éventuels et le net. Les semaines dans une vue mensuelle sont tronquées aux
+limites du mois ; une sélection de semaine utilise lundi-dimanche. La recherche, le type,
+la catégorie et le responsable sont accessibles derrière « Filtres ». Période,
+regroupement, filtres et page sont conservés dans l’URL.
+
+L’historique lit les transactions locales avec un index Dexie composé
+`[workspace_id+occurred_on]` ; l’ajout de cet index ne supprime ni les données ni l’outbox.
+L’écran reste utilisable hors ligne. La pagination limite l’affichage à 50 transactions
+par page, y compris au sein d’un groupe, et conserve les totaux complets de ce groupe.
 
 **F-11 — Analyses** : graphiques et indicateurs définis en section 13, avec valeurs
 accessibles sous forme textuelle.
@@ -577,6 +589,11 @@ Tester au minimum :
 11. Transactions supprimées ignorées ; corrections historiques répercutées.
 12. Report accepté/refusé/absent, mois sans transactions et disponibilité des chaînes.
 13. Statistiques : catégories triées, « Non classé », part fixe/variable.
+
+Pour le moteur d’historique V2-1, tester les bornes locales d’un jour, les semaines
+lundi-dimanche, les semaines tronquées aux limites du mois, les années bissextiles et les
+changements d’année ; tester également les totaux par type, les filtres, la pagination des
+groupes et la lecture hors ligne.
 
 ### 15.2 Base et synchronisation
 

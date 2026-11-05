@@ -12,16 +12,25 @@ import {
   firstUnusedCategoryColor,
   isCategoryPaletteColor,
 } from '@/data/category-colors'
-import { useCategories, useTransactions } from '@/data/hooks'
+import { useCategories, useTransactionsInRange } from '@/data/hooks'
 import {
   createEmptyTransactionHistoryFilters,
   countAdvancedTransactionHistoryFilters,
   filterAndSortTransactions,
-  paginateTransactions,
   TRANSACTION_HISTORY_PAGE_SIZE,
   type TransactionHistoryFilters,
 } from '@/data/transaction-history'
 import { canEditTransaction } from '@/data/transaction-permissions'
+import {
+  getHistoryPeriodBounds,
+  createDefaultTransactionHistoryUrlState,
+  parseTransactionHistoryUrlState,
+  serializeTransactionHistoryUrlState,
+  type HistoryPeriodSelection,
+  type TransactionHistoryUrlState,
+} from '@/data/transaction-history-url'
+import { isLocalDate } from '@/data/periods'
+import { groupTransactions, paginateTransactionGroups } from '@/data/transaction-grouping'
 
 type DataTab = 'transactions' | 'categories'
 type TransactionKind = Transaction['kind']
@@ -55,6 +64,10 @@ interface TransactionDraft {
   responsibleId: string
 }
 
+type LocalTransactionHistoryState = TransactionHistoryUrlState & {
+  workspaceId: string | undefined
+}
+
 const dataTabs: { id: DataTab; label: string }[] = [
   { id: 'transactions', label: 'Transactions' },
   { id: 'categories', label: 'Catégories' },
@@ -71,6 +84,13 @@ function formatMoney(amount: number): string {
   return `${new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
   }).format(amount)} Ar`
+}
+
+function formatMonthLabel(month: string): string {
+  return new Date(`${month.slice(0, 7)}-01T00:00:00`).toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 function errorMessage(failure: unknown): string {
@@ -138,17 +158,35 @@ export function LocalDataView({
   const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>(() =>
     newTransactionDraft(month, userId),
   )
-  const [historyState, setHistoryState] = useState(() => ({
+  const [historyState, setHistoryState] = useState<LocalTransactionHistoryState>(() => ({
     workspaceId,
-    filters: createEmptyTransactionHistoryFilters(),
-    page: 1,
+    ...parseTransactionHistoryUrlState(
+      typeof window === 'undefined' ? '' : window.location.search,
+      month,
+    ),
   }))
   const dialogRef = useRef<HTMLDialogElement>(null)
   const categoryDialogRef = useRef<HTMLDialogElement>(null)
   const filterDialogRef = useRef<HTMLDialogElement>(null)
-  const [draftAdvancedFilters, setDraftAdvancedFilters] = useState({ categoryId: '', memberId: '' })
+  const [draftFilters, setDraftFilters] = useState(createEmptyTransactionHistoryFilters)
   const categories = useCategories(workspaceId)
-  const transactions = useTransactions(workspaceId)
+  const historyStateForWorkspace = useMemo(() => {
+    const state =
+      historyState.workspaceId === workspaceId
+        ? historyState
+        : { workspaceId, ...createDefaultTransactionHistoryUrlState(month) }
+    if (isSharedWorkspace || !state.filters.memberId) return state
+    return { ...state, filters: { ...state.filters, memberId: '' } }
+  }, [historyState, isSharedWorkspace, month, workspaceId])
+  const historyPeriodBounds = useMemo(
+    () => getHistoryPeriodBounds(historyStateForWorkspace.period, month),
+    [historyStateForWorkspace.period, month],
+  )
+  const transactions = useTransactionsInRange(
+    workspaceId,
+    historyPeriodBounds.start,
+    historyPeriodBounds.end,
+  )
   const currentRole = memberships.find(
     (membership) => membership.workspace_id === workspaceId && membership.user_id === userId,
   )?.role
@@ -176,6 +214,24 @@ export function LocalDataView({
     if (canEdit && (categoryDraft || categoryArchiveTarget) && !dialog.open) dialog.showModal()
     if ((!canEdit || (!categoryDraft && !categoryArchiveTarget)) && dialog.open) dialog.close()
   }, [canEdit, categoryArchiveTarget, categoryDraft])
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    url.search = serializeTransactionHistoryUrlState(url.search, historyStateForWorkspace)
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [historyStateForWorkspace])
+
+  useEffect(() => {
+    function restoreHistoryStateFromUrl() {
+      setHistoryState({
+        workspaceId,
+        ...parseTransactionHistoryUrlState(window.location.search, month),
+      })
+    }
+
+    window.addEventListener('popstate', restoreHistoryStateFromUrl)
+    return () => window.removeEventListener('popstate', restoreHistoryStateFromUrl)
+  }, [month, workspaceId])
 
   const allTransactions = useLiveQuery(async () => {
     if (!workspaceId) return null
@@ -228,10 +284,8 @@ export function LocalDataView({
   if (!responsibleMembers.some((member) => member.id === userId)) {
     responsibleMembers.unshift({ id: userId, name: 'Moi' })
   }
-  const historyFilters =
-    historyState.workspaceId === workspaceId
-      ? historyState.filters
-      : createEmptyTransactionHistoryFilters()
+  const historyFilters = historyStateForWorkspace.filters
+  const groupBy = historyStateForWorkspace.groupBy
   const historyNames = useMemo(
     () => ({
       categories: new Map(categories.map((category) => [category.id, category.name])),
@@ -246,17 +300,21 @@ export function LocalDataView({
         historyFilters,
         historyNames.categories,
         historyNames.members,
-        month,
       ),
-    [historyFilters, historyNames, month, transactions],
+    [historyFilters, historyNames, transactions],
+  )
+  const transactionGroups = useMemo(
+    () => groupTransactions(filteredTransactions, groupBy, { period: historyPeriodBounds }),
+    [filteredTransactions, groupBy, historyPeriodBounds],
   )
   const transactionPage = useMemo(
     () =>
-      paginateTransactions(
-        filteredTransactions,
-        historyState.workspaceId === workspaceId ? historyState.page : 1,
+      paginateTransactionGroups(
+        transactionGroups,
+        historyStateForWorkspace.page,
+        TRANSACTION_HISTORY_PAGE_SIZE,
       ),
-    [filteredTransactions, historyState, workspaceId],
+    [historyStateForWorkspace.page, transactionGroups],
   )
   const transactionMembers = useMemo(() => {
     const memberIds = [...new Set(transactions.map((transaction) => transaction.created_by))]
@@ -268,51 +326,85 @@ export function LocalDataView({
       .sort((left, right) => left.name.localeCompare(right.name, 'fr'))
   }, [historyNames.members, transactions])
 
-  function updateHistoryFilter<Key extends keyof TransactionHistoryFilters>(
-    key: Key,
-    value: TransactionHistoryFilters[Key],
-  ) {
-    setHistoryState({
-      workspaceId,
-      filters: { ...historyFilters, [key]: value },
-      page: 1,
+  function updateHistoryState(updates: Partial<TransactionHistoryUrlState>) {
+    setHistoryState((current) => {
+      const currentForWorkspace =
+        current.workspaceId === workspaceId
+          ? current
+          : { workspaceId, ...createDefaultTransactionHistoryUrlState(month) }
+      return { ...currentForWorkspace, ...updates, workspaceId }
     })
   }
 
   function openHistoryFilterDialog() {
-    setDraftAdvancedFilters({
-      categoryId: historyFilters.categoryId,
-      memberId: historyFilters.memberId,
-    })
+    setDraftFilters(historyFilters)
     filterDialogRef.current?.showModal()
   }
 
   function applyHistoryFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setHistoryState({
-      workspaceId,
-      filters: {
-        ...historyFilters,
-        categoryId: draftAdvancedFilters.categoryId,
-        memberId: isSharedWorkspace ? draftAdvancedFilters.memberId : '',
-      },
+    updateHistoryState({
+      filters: { ...draftFilters, memberId: isSharedWorkspace ? draftFilters.memberId : '' },
       page: 1,
     })
     filterDialogRef.current?.close()
   }
 
-  function removeHistoryFilter(key: 'categoryId' | 'memberId') {
-    setHistoryState({
-      workspaceId,
-      filters: { ...historyFilters, [key]: '' },
+  function removeHistoryFilter(key: keyof TransactionHistoryFilters) {
+    updateHistoryState({
+      filters: {
+        ...historyFilters,
+        [key]: key === 'transactionType' ? 'all' : '',
+      },
       page: 1,
     })
   }
 
-  const activeAdvancedFilterCount = countAdvancedTransactionHistoryFilters(
-    historyFilters,
-    isSharedWorkspace,
-  )
+  function changeHistoryPeriodType(type: HistoryPeriodSelection['type']) {
+    const currentPeriod = historyStateForWorkspace.period
+    const date =
+      currentPeriod.type === 'day' || currentPeriod.type === 'week'
+        ? currentPeriod.date
+        : currentPeriod.type === 'custom'
+          ? currentPeriod.start
+          : historyPeriodBounds.start
+    const period: HistoryPeriodSelection =
+      type === 'month'
+        ? { type }
+        : type === 'custom'
+          ? { type, start: historyPeriodBounds.start, end: historyPeriodBounds.end }
+          : { type, date }
+    updateHistoryState({ period, page: 1 })
+  }
+
+  function changeHistoryAnchorDate(date: string) {
+    if (!isLocalDate(date)) return
+    const period = historyStateForWorkspace.period
+    if (period.type === 'day' || period.type === 'week') {
+      updateHistoryState({ period: { ...period, date }, page: 1 })
+    }
+  }
+
+  function changeCustomPeriodDate(part: 'start' | 'end', date: string) {
+    if (!isLocalDate(date) || historyStateForWorkspace.period.type !== 'custom') return
+    const current = historyStateForWorkspace.period
+    updateHistoryState({
+      period:
+        part === 'start'
+          ? { ...current, start: date, end: current.end < date ? date : current.end }
+          : { ...current, start: current.start > date ? date : current.start, end: date },
+      page: 1,
+    })
+  }
+
+  function resetDraftFilters() {
+    setDraftFilters(createEmptyTransactionHistoryFilters())
+  }
+
+  const activeFilterCount =
+    countAdvancedTransactionHistoryFilters(historyFilters, isSharedWorkspace) +
+    Number(historyFilters.transactionType !== 'all') +
+    Number(historyFilters.search.trim() !== '')
   const firstVisibleTransaction =
     filteredTransactions.length === 0
       ? 0
@@ -707,100 +799,169 @@ export function LocalDataView({
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div
-                  aria-label="Filtrer les transactions par type"
-                  className="grid grid-cols-3 gap-2"
-                >
-                  {(
-                    [
-                      { value: 'all', label: 'Tout' },
-                      { value: 'expenses', label: 'Dépenses' },
-                      { value: 'income', label: 'Revenus' },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      aria-pressed={historyFilters.transactionType === option.value}
-                      className={`min-h-11 rounded-xl px-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-emerald-800 ${
-                        historyFilters.transactionType === option.value
-                          ? 'bg-emerald-800 text-white'
-                          : 'bg-stone-100 text-stone-700'
-                      }`}
-                      key={option.value}
-                      onClick={() => updateHistoryFilter('transactionType', option.value)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-stone-500">
-                  Les remboursements sont classés avec les dépenses ; les ajustements apparaissent
-                  dans Tout.
-                </p>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-end gap-2">
-                  <label className="grid min-w-0 flex-1 gap-1.5 text-sm font-medium">
-                    <span className="flex items-center gap-2">
-                      <Search aria-hidden="true" size={16} />
-                      Rechercher
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Période
+                  <select
+                    className="min-h-11 rounded-xl border border-stone-300 bg-white px-3"
+                    onChange={(event) => {
+                      const type = event.target.value
+                      if (
+                        type === 'day' ||
+                        type === 'week' ||
+                        type === 'month' ||
+                        type === 'custom'
+                      ) {
+                        changeHistoryPeriodType(type)
+                      }
+                    }}
+                    value={historyStateForWorkspace.period.type}
+                  >
+                    <option value="day">Un jour</option>
+                    <option value="week">Une semaine</option>
+                    <option value="month">Un mois</option>
+                    <option value="custom">Plage personnalisée</option>
+                  </select>
+                </label>
+                {historyStateForWorkspace.period.type === 'month' ? (
+                  <div className="grid content-end gap-1.5 text-sm">
+                    <span className="font-medium">Mois sélectionné</span>
+                    <span className="flex min-h-11 items-center rounded-xl bg-stone-50 px-3 capitalize">
+                      {formatMonthLabel(month)}
                     </span>
+                  </div>
+                ) : historyStateForWorkspace.period.type === 'custom' ? (
+                  <>
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      Du
+                      <input
+                        className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                        onChange={(event) => changeCustomPeriodDate('start', event.target.value)}
+                        type="date"
+                        value={historyStateForWorkspace.period.start}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium">
+                      Au
+                      <input
+                        className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                        onChange={(event) => changeCustomPeriodDate('end', event.target.value)}
+                        type="date"
+                        value={historyStateForWorkspace.period.end}
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <label className="grid gap-1.5 text-sm font-medium">
+                    Date
                     <input
-                      autoComplete="off"
-                      className="min-h-11 w-full rounded-xl border border-stone-300 px-3 font-normal"
-                      onChange={(event) => updateHistoryFilter('search', event.target.value)}
-                      placeholder="Note, catégorie, membre, montant…"
-                      type="search"
-                      value={historyFilters.search}
+                      className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                      onChange={(event) => changeHistoryAnchorDate(event.target.value)}
+                      type="date"
+                      value={historyStateForWorkspace.period.date}
                     />
                   </label>
+                )}
+                <label className="grid gap-1.5 text-sm font-medium">
+                  Regroupement
+                  <select
+                    className="min-h-11 rounded-xl border border-stone-300 bg-white px-3"
+                    onChange={(event) => {
+                      const group = event.target.value
+                      if (
+                        group === 'none' ||
+                        group === 'day' ||
+                        group === 'week' ||
+                        group === 'month'
+                      ) {
+                        updateHistoryState({ groupBy: group, page: 1 })
+                      }
+                    }}
+                    value={groupBy}
+                  >
+                    <option value="none">Aucun</option>
+                    <option value="day">Jour</option>
+                    <option value="week">Semaine</option>
+                    <option value="month">Mois</option>
+                  </select>
+                </label>
+                <div className="flex items-end">
                   <Button
-                    aria-label={`Filtres${activeAdvancedFilterCount ? `, ${activeAdvancedFilterCount} actif${activeAdvancedFilterCount > 1 ? 's' : ''}` : ''}`}
-                    className="min-h-11 shrink-0 gap-2"
+                    aria-label={`Filtres${activeFilterCount ? `, ${activeFilterCount} actif${activeFilterCount > 1 ? 's' : ''}` : ''}`}
+                    className="min-h-11 w-full justify-center gap-2"
                     onClick={openHistoryFilterDialog}
                     type="button"
                     variant="outline"
                   >
                     <Filter aria-hidden="true" size={17} />
                     Filtres
-                    {activeAdvancedFilterCount > 0 && (
+                    {activeFilterCount > 0 && (
                       <span
                         aria-hidden="true"
                         className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground"
                       >
-                        {activeAdvancedFilterCount}
+                        {activeFilterCount}
                       </span>
                     )}
                   </Button>
                 </div>
-                {(historyFilters.categoryId || (isSharedWorkspace && historyFilters.memberId)) && (
-                  <div aria-label="Filtres actifs" className="flex flex-wrap gap-2">
-                    {historyFilters.categoryId && (
-                      <button
-                        aria-label={`Retirer le filtre catégorie ${historyNames.categories.get(historyFilters.categoryId) ?? 'inconnue'}`}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-stone-100 px-3 text-sm text-stone-800"
-                        onClick={() => removeHistoryFilter('categoryId')}
-                        type="button"
-                      >
-                        {historyNames.categories.get(historyFilters.categoryId) ?? 'Catégorie'}
-                        <X aria-hidden="true" size={14} />
-                      </button>
-                    )}
-                    {isSharedWorkspace && historyFilters.memberId && (
-                      <button
-                        aria-label={`Retirer le filtre saisi par ${historyNames.members.get(historyFilters.memberId) ?? 'membre'}`}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-stone-100 px-3 text-sm text-stone-800"
-                        onClick={() => removeHistoryFilter('memberId')}
-                        type="button"
-                      >
-                        Saisi par {historyNames.members.get(historyFilters.memberId) ?? 'membre'}
-                        <X aria-hidden="true" size={14} />
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
+              {historyStateForWorkspace.period.type === 'week' && (
+                <p className="text-xs text-stone-500">
+                  {historyPeriodBounds.start} – {historyPeriodBounds.end} (lundi à dimanche)
+                </p>
+              )}
+              {(historyFilters.categoryId ||
+                (isSharedWorkspace && historyFilters.memberId) ||
+                historyFilters.transactionType !== 'all' ||
+                historyFilters.search.trim()) && (
+                <div aria-label="Filtres actifs" className="flex flex-wrap gap-2">
+                  {historyFilters.transactionType !== 'all' && (
+                    <button
+                      aria-label="Retirer le filtre de type"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-stone-100 px-3 text-sm text-stone-800"
+                      onClick={() => removeHistoryFilter('transactionType')}
+                      type="button"
+                    >
+                      {historyFilters.transactionType === 'expenses' ? 'Dépenses' : 'Revenus'}
+                      <X aria-hidden="true" size={14} />
+                    </button>
+                  )}
+                  {historyFilters.search.trim() && (
+                    <button
+                      aria-label="Retirer la recherche"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-stone-100 px-3 text-sm text-stone-800"
+                      onClick={() => removeHistoryFilter('search')}
+                      type="button"
+                    >
+                      Recherche : {historyFilters.search}
+                      <X aria-hidden="true" size={14} />
+                    </button>
+                  )}
+                  {historyFilters.categoryId && (
+                    <button
+                      aria-label={`Retirer le filtre catégorie ${historyNames.categories.get(historyFilters.categoryId) ?? 'inconnue'}`}
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-stone-100 px-3 text-sm text-stone-800"
+                      onClick={() => removeHistoryFilter('categoryId')}
+                      type="button"
+                    >
+                      {historyNames.categories.get(historyFilters.categoryId) ?? 'Catégorie'}
+                      <X aria-hidden="true" size={14} />
+                    </button>
+                  )}
+                  {isSharedWorkspace && historyFilters.memberId && (
+                    <button
+                      aria-label={`Retirer le filtre saisi par ${historyNames.members.get(historyFilters.memberId) ?? 'membre'}`}
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-stone-100 px-3 text-sm text-stone-800"
+                      onClick={() => removeHistoryFilter('memberId')}
+                      type="button"
+                    >
+                      Saisi par {historyNames.members.get(historyFilters.memberId) ?? 'membre'}
+                      <X aria-hidden="true" size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div
                 aria-live="polite"
@@ -809,14 +970,16 @@ export function LocalDataView({
               >
                 <span>
                   {filteredTransactions.length === 0
-                    ? `Aucune transaction sur ${transactions.length}`
+                    ? transactions.length === 0
+                      ? 'Aucune transaction sur cette période'
+                      : 'Aucune transaction ne correspond aux filtres'
                     : `Transactions ${firstVisibleTransaction} à ${lastVisibleTransaction} sur ${filteredTransactions.length}`}
                 </span>
               </div>
 
               {transactions.length === 0 ? (
                 <p className="py-5 text-center text-sm text-stone-500">
-                  Aucune transaction. Tu peux ajouter ta première dépense.
+                  Aucune transaction sur cette période. Tu peux en ajouter une.
                 </p>
               ) : filteredTransactions.length === 0 ? (
                 <div className="space-y-2 py-5 text-center">
@@ -825,76 +988,100 @@ export function LocalDataView({
                   </p>
                 </div>
               ) : (
-                transactionPage.items.map((transaction) => {
-                  const category = categories.find((item) => item.id === transaction.category_id)
-                  const responsibleName = historyNames.members.get(transaction.paid_by) || 'Membre'
-                  const authorName = historyNames.members.get(transaction.created_by) || 'Membre'
-                  const attribution =
-                    transaction.created_by === transaction.paid_by
-                      ? `${responsibilityLabel(transaction.kind)} ${responsibleName}`
-                      : `${responsibilityLabel(transaction.kind)} ${responsibleName} · saisi par ${authorName}`
-                  const amountPrefix =
-                    transaction.kind === 'income' || transaction.kind === 'refund'
-                      ? '+'
-                      : transaction.kind === 'expense'
-                        ? '−'
-                        : ''
+                <div className="space-y-5">
+                  {transactionPage.groups.map((group) => (
+                    <section className="space-y-3" key={group.key}>
+                      {groupBy !== 'none' && (
+                        <header className="rounded-xl bg-stone-100 px-3 py-3">
+                          <h3 className="font-semibold capitalize">{group.label}</h3>
+                          <p className="mt-1 text-sm text-stone-600">
+                            {group.count} transaction{group.count > 1 ? 's' : ''} · Revenus{' '}
+                            {formatMoney(group.totalIncome)} · Dépenses nettes{' '}
+                            {formatMoney(group.totalExpenses)}
+                            {group.totalAdjustments !== 0 &&
+                              ` · Ajustements ${formatMoney(group.totalAdjustments)}`}{' '}
+                            · Net {formatMoney(group.net)}
+                          </p>
+                        </header>
+                      )}
+                      {group.transactions.map((transaction) => {
+                        const category = categories.find(
+                          (item) => item.id === transaction.category_id,
+                        )
+                        const responsibleName =
+                          historyNames.members.get(transaction.paid_by) || 'Membre'
+                        const authorName =
+                          historyNames.members.get(transaction.created_by) || 'Membre'
+                        const attribution =
+                          transaction.created_by === transaction.paid_by
+                            ? `${responsibilityLabel(transaction.kind)} ${responsibleName}`
+                            : `${responsibilityLabel(transaction.kind)} ${responsibleName} · saisi par ${authorName}`
+                        const amountPrefix =
+                          transaction.kind === 'income' || transaction.kind === 'refund'
+                            ? '+'
+                            : transaction.kind === 'expense'
+                              ? '−'
+                              : ''
 
-                  return (
-                    <article
-                      className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
-                      key={transaction.id}
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">
-                          <span
-                            aria-hidden="true"
-                            className="mr-2 inline-block size-2.5 rounded-full align-middle ring-1 ring-black/10"
-                            style={{
-                              backgroundColor: category?.color ?? 'var(--category-uncategorized)',
-                            }}
-                          />
-                          {category?.name ?? transactionLabel(transaction.kind)}
-                        </p>
-                        <p className="truncate text-sm text-stone-500">
-                          {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
-                            'fr-FR',
-                          )}
-                          {transaction.note ? ` · ${transaction.note}` : ''}
-                          {isSharedWorkspace && ` · ${attribution}`}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <span className="mr-2 text-right font-semibold">
-                          {amountPrefix}
-                          {formatMoney(transaction.amount)}
-                        </span>
-                        {canEditTransactionRecord(transaction) && (
-                          <>
-                            <Button
-                              aria-label={`Modifier ${transactionLabel(transaction.kind).toLowerCase()}`}
-                              className="min-h-12 min-w-12"
-                              onClick={() => editTransaction(transaction)}
-                              size="icon"
-                              variant="ghost"
-                            >
-                              <Pencil aria-hidden="true" size={17} />
-                            </Button>
-                            <Button
-                              aria-label={`Supprimer ${transactionLabel(transaction.kind).toLowerCase()}`}
-                              className="min-h-12 min-w-12 text-red-700 hover:text-red-800"
-                              onClick={() => void deleteTransaction(transaction)}
-                              size="icon"
-                              variant="ghost"
-                            >
-                              <Trash2 aria-hidden="true" size={17} />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </article>
-                  )
-                })
+                        return (
+                          <article
+                            className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
+                            key={transaction.id}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">
+                                <span
+                                  aria-hidden="true"
+                                  className="mr-2 inline-block size-2.5 rounded-full align-middle ring-1 ring-black/10"
+                                  style={{
+                                    backgroundColor:
+                                      category?.color ?? 'var(--category-uncategorized)',
+                                  }}
+                                />
+                                {category?.name ?? transactionLabel(transaction.kind)}
+                              </p>
+                              <p className="truncate text-sm text-stone-500">
+                                {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
+                                  'fr-FR',
+                                )}
+                                {transaction.note ? ` · ${transaction.note}` : ''}
+                                {isSharedWorkspace && ` · ${attribution}`}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <span className="mr-2 text-right font-semibold">
+                                {amountPrefix}
+                                {formatMoney(transaction.amount)}
+                              </span>
+                              {canEditTransactionRecord(transaction) && (
+                                <>
+                                  <Button
+                                    aria-label={`Modifier ${transactionLabel(transaction.kind).toLowerCase()}`}
+                                    className="min-h-12 min-w-12"
+                                    onClick={() => editTransaction(transaction)}
+                                    size="icon"
+                                    variant="ghost"
+                                  >
+                                    <Pencil aria-hidden="true" size={17} />
+                                  </Button>
+                                  <Button
+                                    aria-label={`Supprimer ${transactionLabel(transaction.kind).toLowerCase()}`}
+                                    className="min-h-12 min-w-12 text-red-700 hover:text-red-800"
+                                    onClick={() => void deleteTransaction(transaction)}
+                                    size="icon"
+                                    variant="ghost"
+                                  >
+                                    <Trash2 aria-hidden="true" size={17} />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </section>
+                  ))}
+                </div>
               )}
               {transactionPage.pageCount > 1 && (
                 <nav
@@ -904,11 +1091,7 @@ export function LocalDataView({
                   <Button
                     disabled={transactionPage.page === 1}
                     onClick={() =>
-                      setHistoryState({
-                        workspaceId,
-                        filters: historyFilters,
-                        page: Math.max(1, transactionPage.page - 1),
-                      })
+                      updateHistoryState({ page: Math.max(1, transactionPage.page - 1) })
                     }
                     type="button"
                     variant="outline"
@@ -921,9 +1104,7 @@ export function LocalDataView({
                   <Button
                     disabled={transactionPage.page === transactionPage.pageCount}
                     onClick={() =>
-                      setHistoryState({
-                        workspaceId,
-                        filters: historyFilters,
+                      updateHistoryState({
                         page: Math.min(transactionPage.pageCount, transactionPage.page + 1),
                       })
                     }
@@ -1188,13 +1369,48 @@ export function LocalDataView({
           </div>
 
           <label className="grid gap-2 text-sm font-medium">
+            <span className="flex items-center gap-2">
+              <Search aria-hidden="true" size={16} />
+              Rechercher
+            </span>
+            <input
+              autoComplete="off"
+              className="min-h-12 rounded-xl border border-stone-300 px-3 font-normal"
+              onChange={(event) => setDraftFilters({ ...draftFilters, search: event.target.value })}
+              placeholder="Note, catégorie, membre, montant…"
+              type="search"
+              value={draftFilters.search}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium">
+            Type de transaction
+            <select
+              className="min-h-12 rounded-xl border border-stone-300 bg-white px-3 font-normal"
+              onChange={(event) => {
+                const transactionType = event.target.value
+                if (
+                  transactionType === 'all' ||
+                  transactionType === 'expenses' ||
+                  transactionType === 'income'
+                ) {
+                  setDraftFilters({ ...draftFilters, transactionType })
+                }
+              }}
+              value={draftFilters.transactionType}
+            >
+              <option value="all">Tout</option>
+              <option value="expenses">Dépenses (remboursements inclus)</option>
+              <option value="income">Revenus</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-medium">
             Catégorie
             <select
               className="min-h-12 rounded-xl border border-stone-300 bg-white px-3 font-normal"
               onChange={(event) =>
-                setDraftAdvancedFilters({ ...draftAdvancedFilters, categoryId: event.target.value })
+                setDraftFilters({ ...draftFilters, categoryId: event.target.value })
               }
-              value={draftAdvancedFilters.categoryId}
+              value={draftFilters.categoryId}
             >
               <option value="">Toutes les catégories</option>
               {categories.map((category) => (
@@ -1211,9 +1427,9 @@ export function LocalDataView({
               <select
                 className="min-h-12 rounded-xl border border-stone-300 bg-white px-3 font-normal"
                 onChange={(event) =>
-                  setDraftAdvancedFilters({ ...draftAdvancedFilters, memberId: event.target.value })
+                  setDraftFilters({ ...draftFilters, memberId: event.target.value })
                 }
-                value={draftAdvancedFilters.memberId}
+                value={draftFilters.memberId}
               >
                 <option value="">Tous les membres</option>
                 {transactionMembers.map((member) => (
@@ -1227,7 +1443,7 @@ export function LocalDataView({
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
             <Button
               className="min-h-12"
-              onClick={() => setDraftAdvancedFilters({ categoryId: '', memberId: '' })}
+              onClick={resetDraftFilters}
               type="button"
               variant="outline"
             >

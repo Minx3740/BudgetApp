@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './database'
-import type { Invitation, Membership, Profile, RecurringExpense } from './models'
+import type { Invitation, Membership, Profile, RecurringExpense, Transaction } from './models'
 import {
   budgetsRepository,
   categoriesRepository,
@@ -22,6 +22,25 @@ export function useTransactions(workspaceId: string | undefined) {
   return useLiveQuery(
     () => (workspaceId ? transactionsRepository.list(workspaceId) : Promise.resolve([])),
     [workspaceId],
+    [],
+  )
+}
+
+export function useTransactionsInRange(
+  workspaceId: string | undefined,
+  startDate: string,
+  endDate: string,
+) {
+  return useLiveQuery<Transaction[], Transaction[]>(
+    () =>
+      workspaceId
+        ? db.transactions
+            .where('[workspace_id+occurred_on]')
+            .between([workspaceId, startDate], [workspaceId, endDate], true, true)
+            .filter((transaction) => transaction.deleted_at === null)
+            .toArray()
+        : Promise.resolve<Transaction[]>([]),
+    [workspaceId, startDate, endDate],
     [],
   )
 }

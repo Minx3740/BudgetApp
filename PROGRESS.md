@@ -1,6 +1,6 @@
 # PROGRESS
 
-## État actuel — branche v2, lot V2-0
+## État actuel — branche v2, lot V2-1
 
 - Dernière mise à jour : 2026-11-06. Branche locale `v2`, créée depuis `main`
   (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
@@ -27,8 +27,23 @@
   ici. Dans le SQL Editor du projet TEST uniquement, appliquer d’abord le fichier de
   migration ci-dessus, puis exécuter le script RLS après remplacement des UUID. Ne jamais
   appliquer ce lot à la production avant validation de Laro.
-- Prochaine étape : attendre le résultat de la vérification SQL sur TEST et l’accord de
-  Laro avant le lot V2-1. Aucun déploiement ni push vers `main` effectué.
+- V2-1, autorisé par Laro : moteur pur de périodes jour/semaine/mois, regroupement des
+  transactions, barre de période et regroupement dans l’historique, filtres regroupés
+  derrière « Filtres », état de l’historique dans l’URL, index Dexie composé espace/date
+  ajouté en version 7 sans migration destructive. La pagination conserve une limite de
+  50 transactions affichées à la fois.
+- L’historique reste alimenté par Dexie et fonctionne hors ligne. Les semaines affichées
+  dans un mois sont tronquées aux bornes de ce mois ; les plages de semaine normales sont
+  lundi-dimanche. Les remboursements réduisent les dépenses nettes du groupe ; les
+  ajustements sont présentés séparément et inclus dans le net.
+- Vérifications finales V2-1 : `npm run lint`, `npm run typecheck`, `npm test` (119 tests,
+  20 fichiers), `npm run build` et Prettier ciblé réussis. Le build conserve l’avertissement
+  Vite sur le chunk principal (835,94 kB) ; aucun échec. Aucun essai visuel sur un vrai
+  téléphone n’a été réalisé dans cette tâche.
+- V2-1 ne contient pas de migration Supabase. L’index Dexie est ajouté en version 7 sans
+  effacer de données locales ni l’outbox.
+- Prochaine étape : valider V2-1 avec Laro, puis attendre son accord explicite avant tout
+  lot suivant. Aucun déploiement ni push vers `main` effectué.
 - À confirmer avant V2-2 : l’exclusion des transactions de forfait et des ajustements
   s’applique-t-elle également aux seuils catégoriels existants ?
 

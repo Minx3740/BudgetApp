@@ -134,6 +134,9 @@ describe('migration destructive de Dexie vers R1', () => {
     await upgraded.open()
 
     expect(upgraded.tables.map((table) => table.name)).toContain('recurringExpenses')
+    expect(upgraded.transactions.schema.indexes.map((index) => index.name)).toContain(
+      '[workspace_id+occurred_on]',
+    )
     expect(await upgraded.transactions.count()).toBe(1)
     expect(await upgraded.transactions.toArray()).toMatchObject([
       {
@@ -143,6 +146,17 @@ describe('migration destructive de Dexie vers R1', () => {
         updated_by: transaction.created_by,
       },
     ])
+    expect(
+      await upgraded.transactions
+        .where('[workspace_id+occurred_on]')
+        .between(
+          [transaction.workspace_id, '2026-10-01'],
+          [transaction.workspace_id, '2026-10-31'],
+          true,
+          true,
+        )
+        .toArray(),
+    ).toHaveLength(1)
     expect(await upgraded.outbox.get(operation.op_id)).toMatchObject({
       status: 'pending',
       payload: {
