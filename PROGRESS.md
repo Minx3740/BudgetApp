@@ -3,6 +3,9 @@
 ## Reprise
 
 - Dernière mise à jour : 2026-11-05.
+- La correction hors ligne `8d02db4` est fusionnée dans `main` et poussée
+  (`324c949`) ; le push déclenche le déploiement Cloudflare de production, dont le
+  résultat reste à vérifier.
 - Reprise hors ligne après panne réseau au démarrage : l’identité locale minimale
   (id, e-mail, nom affiché — sans jeton) permet d’ouvrir les données Dexie si le
   renouvellement de session Supabase échoue sur le réseau. La déconnexion explicite
@@ -10,10 +13,10 @@
   pendant que l’utilisateur est connecté pour la mettre en cache. Tests : 101/101
   sur 16 fichiers ; typecheck, ESLint et Prettier ciblés, build et `git diff --check`
   réussis.
-  Essai réel sur téléphone et déploiement restent à faire ; avertissement Vite non
-  bloquant sur le bundle principal d’environ 821 kB.
-- Branche courante : `reforme-budget`. Objectif de la tâche : préparer et demander sa
-  fusion dans `main`; aucune fusion n'a encore été faite.
+  Essai réel sur téléphone et vérification du déploiement restent à faire ; avertissement
+  Vite non bloquant sur le bundle principal d’environ 821 kB.
+- Branche courante : `main`. La correction hors ligne a été promue depuis
+  `reforme-budget`.
 - Tâche en cours : promotion en production après l'implémentation des lots R0–R9 et du
   logo cashFlow+. Les cinq changements locaux préexistants ont été examinés et committés
   séparément par sujet ; `.env.example` ne contient que des valeurs vides. Commits :
