@@ -4,8 +4,12 @@
 
 - Dernière mise à jour : 2026-11-06. Branche locale `v2`, créée depuis `main`
   (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
-- Lot V2-0, étape A : audit terminé en lecture seule. Étape B : corrections implémentées,
-  en attente de l’application et de la vérification de la migration sur Supabase TEST.
+- Lots V2-0, V2-1 et V2-2 implémentés et committés respectivement dans
+  `8c8ac77`, `cccec42` et `fc8b918`. La branche `v2` est encore locale; elle n’a pas été
+  poussée, ouverte en PR ni déployée.
+- Migrations 001 à 010 exécutées manuellement dans le projet Supabase TEST
+  `wkympekogzamodupmqwg`. La migration R1 destructive n’a été exécutée que sur le projet
+  TEST qui avait été vérifié vide avant son initialisation.
 - Ajout de `transactions.updated_by`, rempli par trigger serveur avec l’utilisateur
   authentifié ; les lignes existantes sont initialisées avec `created_by` sans toucher
   à leur `updated_at`. Les transactions Dexie sont migrées sans effacer les données.
@@ -49,14 +53,29 @@
 - Vérifications finales V2-2 : `npm run lint`, `npm run typecheck`, `npm test`
   (126/126 tests, 21 fichiers), `npm run build`, Prettier ciblé et `git diff --check`
   réussis. Le build conserve l’avertissement Vite sur le chunk principal (~846,87 kB).
-- Migration SQL `supabase/migrations/20261106020000_v2_2_threshold_periods.sql` et script
-  de vérification `supabase/tests/v2_2_thresholds.sql` fournis, mais non appliqués ni
-  exécutés : aucun accès Supabase TEST n’est configuré ici. Les appliquer et les rejouer
-  uniquement sur le projet TEST, après remplacement des UUID; ne jamais appliquer en
-  production sans validation explicite de Laro. Aucun essai sur téléphone n’a été réalisé.
-- V2-2 est committé localement sur `v2`; aucun déploiement, push ou merge vers `main`.
-  Prochaine étape : attendre la validation de Laro et la vérification SQL sur TEST avant
-  de commencer V2-3.
+- Le script `supabase/tests/v2_2_thresholds.sql` a été exécuté sur le TEST avec les
+  fixtures owner/member; aucune erreur SQL n’a été rapportée. Une vérification en lecture
+  seule après exécution a confirmé que les seuils temporaires avaient été annulés
+  (`ROLLBACK`).
+- La migration `20261106020000_v2_2_threshold_periods.sql` a ensuite été appliquée
+  manuellement au projet de production `jnhdljqappsorzajokjz`, à la demande explicite de
+  Laro. La vérification en lecture seule a confirmé les colonnes `period`/`enabled`, les
+  trois index attendus, le remplacement de l’ancienne contrainte unique et la conservation
+  des deux lignes `budgets`.
+- Attention : la migration V2-2 a été passée dans le SQL Editor, sans enregistrement
+  confirmé dans `supabase_migrations.schema_migrations`. Réconcilier l’historique avant
+  tout `supabase db push` sur ce projet afin d’éviter une tentative de rejeu.
+- Le contrôle de production avant migration a aussi montré l’absence de
+  `transactions.updated_by`. La migration préalable V2-0
+  (`20261106005355_v2_0_transaction_audit.sql`) n’a pas été appliquée en production.
+  Elle est requise avant de déployer le code V2, qui dépend de cette colonne et de sa
+  traçabilité. Son application en production nécessite une autorisation explicite
+  distincte; ne pas lancer le déploiement applicatif avant ce prérequis.
+- La migration V2-2 est donc présente en production, mais le code V2-0 à V2-2 n’y est
+  pas déployé. Aucun push, PR, déploiement Cloudflare ni merge vers `main` n’a été fait.
+  Prochaine étape : obtenir l’accord de Laro pour le prérequis V2-0 en production, puis
+  pousser `v2` et valider CI/aperçu Cloudflare. La production ne se déploie qu’après
+  fusion autorisée par Laro; ne jamais fusionner soi-même dans `main`.
 
 ## Historique précédant la branche v2
 
