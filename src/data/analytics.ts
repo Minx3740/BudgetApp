@@ -10,6 +10,7 @@ export interface CategorySpending {
   categoryId: string | null
   name: string
   amount: number
+  thresholdSpentAmount: number
   threshold: number | null
   color: string | null
 }
@@ -105,13 +106,22 @@ export function calculateCategorySpending(
       .map((category) => [category.id, category]),
   )
   const totals = new Map<string | null, number>()
+  const thresholdTotals = new Map<string | null, number>()
   for (const transaction of selectedMonthTransactions(month, transactions)) {
     addExpenseAmount(totals, transaction)
+    if (transaction.recurring_id === null) addExpenseAmount(thresholdTotals, transaction)
   }
 
   const thresholds = new Map(
     budgets
-      .filter((budget) => budget.month === month && budget.deleted_at === null)
+      .filter(
+        (budget) =>
+          budget.period === 'month' &&
+          budget.month === month &&
+          budget.enabled &&
+          budget.deleted_at === null &&
+          budget.category_id !== null,
+      )
       .map((budget) => [budget.category_id, budget.limit_amount]),
   )
   const categoryIds = new Set<string | null>([...totals.keys(), ...thresholds.keys()])
@@ -120,6 +130,7 @@ export function calculateCategorySpending(
       categoryId,
       name: categoryLabel(categoryId, categoriesById),
       amount: totals.get(categoryId) ?? 0,
+      thresholdSpentAmount: thresholdTotals.get(categoryId) ?? 0,
       threshold: categoryId === null ? null : (thresholds.get(categoryId) ?? null),
       color: categoryColor(categoryId, categoriesById),
     }))
@@ -227,13 +238,7 @@ export function calculateAnalyticsIndicators(
 ): AnalyticsIndicators {
   const monthTransactions = selectedMonthTransactions(month, transactions)
   const composition = calculateExpenseComposition(month, monthTransactions)
-  const budgetSummary = calculateMonthlyBudgetSummary(
-    month,
-    budgets,
-    categories,
-    monthTransactions,
-    new Date(`${month}T15:00:00.000Z`),
-  )
+  const budgetSummary = calculateMonthlyBudgetSummary(month, budgets, categories, monthTransactions)
   const alertThresholds = budgetSummary.categories.filter(
     (item) => item.budgetAmount !== null && !item.isOverBudget && item.progressPercentage >= 80,
   )

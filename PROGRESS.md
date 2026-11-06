@@ -1,8 +1,86 @@
 # PROGRESS
 
-## Reprise
+## État actuel — branche v2, lot V2-2
 
-- Dernière mise à jour : 2026-11-05.
+- Dernière mise à jour : 2026-11-06. Branche locale `v2`, créée depuis `main`
+  (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
+- Lots V2-0, V2-1 et V2-2 implémentés et committés respectivement dans
+  `8c8ac77`, `cccec42` et `fc8b918`. La branche `v2` est encore locale; elle n’a pas été
+  poussée, ouverte en PR ni déployée.
+- Migrations 001 à 010 exécutées manuellement dans le projet Supabase TEST
+  `wkympekogzamodupmqwg`. La migration R1 destructive n’a été exécutée que sur le projet
+  TEST qui avait été vérifié vide avant son initialisation.
+- Ajout de `transactions.updated_by`, rempli par trigger serveur avec l’utilisateur
+  authentifié ; les lignes existantes sont initialisées avec `created_by` sans toucher
+  à leur `updated_at`. Les transactions Dexie sont migrées sans effacer les données.
+- Droits : l’interface et le repository Dexie limitent un membre à ses propres
+  transactions; le propriétaire garde l’accès complet. La synchro restaure l’état local
+  antérieur après un refus serveur, marque l’opération d’outbox en échec et ne la renvoie
+  pas automatiquement à chaque cycle. Les actions directes sur `recurring_expenses`
+  restent sans grant d’écriture; policies owner-only ajoutées en défense, RPC existantes
+  conservent leurs contrôles owner.
+- Tests RLS à rejouer sur TEST : `supabase/tests/v2_0_transaction_rls.sql`. Remplacer les
+  cinq UUID d’exemple par les IDs de fixture du projet TEST; le script vérifie les cas
+  membre/propriétaire et se termine par `ROLLBACK`. La migration
+  `supabase/migrations/20261106005355_v2_0_transaction_audit.sql` n’a pas été appliquée.
+- V2-1, autorisé par Laro : moteur pur de périodes jour/semaine/mois, regroupement des
+  transactions, barre de période et regroupement dans l’historique, filtres regroupés
+  derrière « Filtres », état de l’historique dans l’URL, index Dexie composé espace/date
+  ajouté en version 7 sans migration destructive. La pagination conserve une limite de
+  50 transactions affichées à la fois.
+- L’historique reste alimenté par Dexie et fonctionne hors ligne. Les semaines affichées
+  dans un mois sont tronquées aux bornes de ce mois ; les plages de semaine normales sont
+  lundi-dimanche. Les remboursements réduisent les dépenses nettes du groupe ; les
+  ajustements sont présentés séparément et inclus dans le net.
+- Vérifications finales V2-1 : `npm run lint`, `npm run typecheck`, `npm test` (119 tests,
+  20 fichiers), `npm run build` et Prettier ciblé réussis. Le build conserve l’avertissement
+  Vite sur le chunk principal (835,94 kB) ; aucun échec. Aucun essai visuel sur un vrai
+  téléphone n’a été réalisé dans cette tâche.
+- V2-1 ne contient pas de migration Supabase. L’index Dexie est ajouté en version 7 sans
+  effacer de données locales ni l’outbox.
+- V2-2, autorisé par Laro : modèle de seuils jour/semaine/mois dans `budgets`, options
+  globales journalières et hebdomadaires désactivées par défaut, réservées au propriétaire
+  côté interface et repository local. L’index Dexie est migré en version 8 sans effacer
+  les seuils existants ni l’outbox; les seuils mensuels existants restent actifs.
+- Les forfaits et ajustements sont exclus de tous les seuils, y compris les seuils
+  catégoriels existants (décision confirmée par Laro), tout en restant dans les dépenses
+  réelles et le calcul du disponible. Le moteur de seuils traite les semaines complètes
+  lundi-dimanche, même en cas de débordement de mois. L’accueil calcule le reste par jour
+  à partir du disponible, en incluant aujourd’hui et en affichant clairement déficit/mois
+  terminé.
+- Tests ajoutés pour les dates et états de seuil, les exclusions, les montants entiers,
+  les droits owner-only, la migration Dexie et l’outbox hors ligne.
+- Vérifications finales V2-2 : `npm run lint`, `npm run typecheck`, `npm test`
+  (126/126 tests, 21 fichiers), `npm run build`, Prettier ciblé et `git diff --check`
+  réussis. Le build conserve l’avertissement Vite sur le chunk principal (~846,87 kB).
+- Le script `supabase/tests/v2_2_thresholds.sql` a été exécuté sur le TEST avec les
+  fixtures owner/member; aucune erreur SQL n’a été rapportée. Une vérification en lecture
+  seule après exécution a confirmé que les seuils temporaires avaient été annulés
+  (`ROLLBACK`).
+- La migration `20261106020000_v2_2_threshold_periods.sql` a ensuite été appliquée
+  manuellement au projet de production `jnhdljqappsorzajokjz`, à la demande explicite de
+  Laro. La vérification en lecture seule a confirmé les colonnes `period`/`enabled`, les
+  trois index attendus, le remplacement de l’ancienne contrainte unique et la conservation
+  des deux lignes `budgets`.
+- Attention : la migration V2-2 a été passée dans le SQL Editor, sans enregistrement
+  confirmé dans `supabase_migrations.schema_migrations`. Réconcilier l’historique avant
+  tout `supabase db push` sur ce projet afin d’éviter une tentative de rejeu.
+- La migration préalable V2-0 (`20261106005355_v2_0_transaction_audit.sql`) a aussi été
+  appliquée manuellement en production après autorisation explicite de Laro. Le contrôle
+  en lecture seule confirme `updated_by` présent et NOT NULL, aucune des 53 transactions
+  sans valeur, le trigger d’audit présent et les trois politiques owner-only des forfaits.
+- Les migrations SQL requises V2-0 et V2-2 sont maintenant présentes sur la production,
+  mais le code V2-0 à V2-2 n’y est pas déployé. L’historique Supabase CLI des deux
+  migrations passées via SQL Editor n’est pas confirmé; ne pas lancer `supabase db push`
+  avant réconciliation. Aucun push Git, PR, déploiement Cloudflare ni merge vers `main`
+  n’a encore été fait.
+- Prochaine étape : vérifier la suite locale, pousser `v2`, puis valider CI et l’aperçu
+  Cloudflare avant de proposer la PR. La production ne se déploie qu’après fusion
+  autorisée par Laro; ne jamais fusionner soi-même dans `main`.
+
+## Historique précédant la branche v2
+
+- Note historique, dernière mise à jour : 2026-11-05.
 - La correction hors ligne `8d02db4` est fusionnée dans `main` et poussée
   (`324c949`) ; le push déclenche le déploiement Cloudflare de production, dont le
   résultat reste à vérifier.
@@ -15,7 +93,7 @@
   réussis.
   Essai réel sur téléphone et vérification du déploiement restent à faire ; avertissement
   Vite non bloquant sur le bundle principal d’environ 821 kB.
-- Branche courante : `main`. La correction hors ligne a été promue depuis
+- À la date de cette note, la branche courante était `main`. La correction hors ligne a été promue depuis
   `reforme-budget`.
 - Tâche en cours : promotion en production après l'implémentation des lots R0–R9 et du
   logo cashFlow+. Les cinq changements locaux préexistants ont été examinés et committés

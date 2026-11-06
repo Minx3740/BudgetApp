@@ -72,19 +72,36 @@ export const categorySchema = z.object({
   archived_at: timestampSchema.nullable(),
 })
 
-export const budgetSchema = z.object({
-  ...syncFields,
-  workspace_id: uuidSchema,
-  category_id: uuidSchema,
-  month: z
-    .string()
-    .regex(/^\d{4}-\d{2}-01$/)
-    .refine((value) => {
-      const date = new Date(`${value}T00:00:00.000Z`)
-      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-    }),
-  limit_amount: moneySchema.nonnegative(),
-})
+export const budgetSchema = z
+  .object({
+    ...syncFields,
+    workspace_id: uuidSchema,
+    category_id: uuidSchema.nullable(),
+    month: monthSchema.nullable(),
+    period: z.enum(['day', 'week', 'month']).default('month'),
+    enabled: z.boolean().optional(),
+    limit_amount: moneySchema.nonnegative(),
+  })
+  .superRefine((budget, context) => {
+    if (budget.period === 'month' && budget.month === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['month'],
+        message: 'A monthly threshold requires a month.',
+      })
+    }
+    if (budget.period !== 'month' && (budget.month !== null || budget.category_id !== null)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['period'],
+        message: 'Daily and weekly thresholds must be global and not month-specific.',
+      })
+    }
+  })
+  .transform((budget) => ({
+    ...budget,
+    enabled: budget.enabled ?? budget.period === 'month',
+  }))
 
 export const monthlyBudgetSchema = z.object({
   ...syncFields,
@@ -126,6 +143,7 @@ export const cashflowTransactionSchema = z
     occurred_on: dateSchema,
     note: z.string().nullable(),
     created_by: uuidSchema,
+    updated_by: uuidSchema,
     paid_by: uuidSchema,
     recurring_id: uuidSchema.nullable().default(null),
     recurring_month: monthSchema.nullable().default(null),

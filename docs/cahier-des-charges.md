@@ -1,6 +1,6 @@
 # Cahier des charges — cashFlow+
 
-Version 1.2 — validée par Laro (24 octobre 2026).
+Version 1.5 — mise à jour V2-2 (6 novembre 2026).
 
 Cette version intègre la réforme décrite dans `docs\reforme-budget-global.md`. Elle définit
 la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
@@ -200,6 +200,17 @@ pas si les ressources sont nulles ou négatives.
 - Remplacer « plafond » et « plafonner » par « seuil » dans l’interface.
 - Un seuil mensuel est un montant entier supérieur ou égal à zéro, associé à un
   espace, une catégorie et un mois.
+- Le modèle prend aussi en charge les périodes jour et semaine, avec une catégorie
+  facultative (`null` signifie un seuil global à l’espace). Les seuils globaux par jour
+  et par semaine sont désactivés par défaut et restent réservés au propriétaire.
+- Les seuils mensuels par catégorie déjà enregistrés sont conservés. Les forfaits et les
+  ajustements sont exclus de tous les seuils, y compris les seuils catégoriels existants ;
+  ils restent inclus dans les dépenses, le solde et le budget.
+- Le seuil hebdomadaire utilise la semaine complète du lundi au dimanche, même lorsqu’elle
+  déborde sur un mois voisin. Le jour d’une transaction vient de sa date locale.
+- L’accueil affiche un « reste par jour » dérivé du disponible et du nombre de jours
+  restants dans le mois, aujourd’hui compris. Le montant est arrondi à l’ariary inférieur ;
+  un déficit ou un mois terminé est affiché comme un état distinct.
 - Les seuils sont des repères distincts du budget mensuel ; ils ne le modifient pas et
   ne s’y additionnent pas pour calculer les ressources ou le disponible.
 - États de suivi : normal en dessous de 80 %, alerte de 80 % à 100 % inclus, dépassé
@@ -233,17 +244,22 @@ R1.
 Le rôle `viewer` reste en lecture seule. Les droits sont appliqués par RLS et par les
 fonctions serveur, pas uniquement dans l’interface.
 
-Chaque transaction contient `created_by`, attribué automatiquement et immuable, ainsi
-que `paid_by`, égal par défaut à `created_by` et modifiable par un utilisateur autorisé.
-`paid_by` doit être membre de l’espace. Une dépense générée par un forfait a son
-créateur comme auteur et responsable.
+Chaque transaction contient `created_by`, fixé à l’utilisateur connecté à l’insertion
+et immuable côté base, ainsi que `updated_by` et `updated_at`, renseignés par des triggers
+serveur à chaque insertion ou modification. Les lignes historiques reçoivent leur
+`created_by` comme valeur initiale de `updated_by`, seul auteur connu avant l’activation
+de la traçabilité. `paid_by` est égal par défaut à `created_by` et modifiable par un
+utilisateur autorisé. `paid_by` doit être membre de l’espace. Une dépense générée par un
+forfait a son créateur comme auteur et responsable.
 
-### Écart avec la RLS actuelle
-
-Les politiques actuelles autorisent les rôles `owner` et `member` à mettre à jour
-n’importe quelle transaction de leur espace. Elles ne limitent pas la modification
-aux transactions dont `created_by` correspond au membre. La migration devra resserrer
-ces politiques et être couverte par des tests RLS.
+La lecture est ouverte aux membres de l’espace. Un membre ne peut créer que ses propres
+transactions et ne modifier ou supprimer logiquement que celles dont il est l’auteur ;
+le propriétaire peut créer et modifier les transactions de l’espace. Les triggers refusent
+de modifier `id`, `workspace_id` ou `created_by`, y compris au propriétaire. Dexie applique
+les mêmes droits à partir de l’appartenance locale avant d’écrire. Les écritures restent
+optimistes hors ligne ; si le serveur refuse une écriture pour droits insuffisants, la
+ligne locale est restaurée, l’opération d’outbox est marquée en échec et le refus est
+signalé à l’utilisateur.
 
 ---
 
@@ -318,6 +334,13 @@ Le projet utilise actuellement `workspaces` et `workspace_id`, non `spaces` et
 
 - Ajouter les tables locales des budgets mensuels, décisions de report et forfaits ;
   migrer la version Dexie en conservant les données déjà installées.
+- V2-2 généralise `budgets` avec `period` et `enabled`, et rend
+  `category_id`/`month` facultatifs selon la période. La version Dexie 8 ajoute ces
+  champs aux seuils existants et à leur outbox sans les effacer ; les seuils existants
+  restent mensuels et actifs.
+- La migration SQL V2-2 conserve les lignes existantes et les droits owner-only. Elle
+  doit être testée d’abord sur Supabase TEST ; aucune migration ne s’applique à la
+  production sans validation explicite.
 - Mettre à jour les schémas Zod, repositories, hooks réactifs, import initial et
   opérations d’outbox pour couvrir toutes les nouvelles données.
 - Les écritures hors ligne du budget et du report sont locales et mises en file, puis
@@ -356,6 +379,9 @@ Le projet utilise actuellement `workspaces` et `workspace_id`, non `spaces` et
 - Toute écriture locale ajoute sa mutation à l’outbox dans une transaction locale.
 - Le push est séquentiel, idempotent et retenté après une interruption. Les suppressions
   logiques ne peuvent pas être ressuscitées par une modification ultérieure.
+- Un refus serveur pour droits insuffisants n’est pas renvoyé automatiquement : la
+  valeur locale antérieure est restaurée, l’opération reste marquée en échec et le
+  détail est visible ; une reprise éventuelle est explicite.
 - Le pull est paginé, par espace et table, à partir d’un curseur d’heure serveur avec
   chevauchement.
 - La synchronisation s’exécute au démarrage, au retour réseau, au retour au premier
@@ -390,8 +416,11 @@ cible.
 **F-05 — Budget du mois** : montant disponible, manuel et unique par espace/mois, y
 compris zéro ; ressources, disponible et progression calculés sur les montants du mois.
 
-**F-06 — Seuils** : seuil indépendant par catégorie/mois, états normal/alerte/dépassé,
-catégories non suivies sans barre.
+**F-06 — Seuils** : seuils jour/semaine globaux à l’espace et seuils mensuels globaux ou
+par catégorie, états normal/alerte/dépassé avec barre et texte. Les seuils jour/semaine
+sont désactivés par défaut et réservés au propriétaire. Les forfaits et ajustements sont
+exclus de tous les seuils, mais continuent de compter dans les dépenses et le disponible.
+Les seuils catégoriels existants sont conservés.
 
 **F-07 — Disponible et report** : calcul à partir du report accepté, budget, revenus,
 ajustements et dépenses nettes ; déficit non reporté ; décisions réservées au propriétaire.
@@ -406,6 +435,18 @@ plus consommées et lien vers les analyses.
 
 **F-10 — Transactions et historique** : vues Dépenses/Revenus/Tout, liste du mois,
 filtres adaptés à l’espace, recherche texte et pagination adaptée aux grands historiques.
+L’extension V2-1 permet de choisir un jour, une semaine, un mois ou une plage
+personnalisée, puis de regrouper sans regroupement, par jour, semaine ou mois. Les groupes
+affichent leurs bornes, le nombre de transactions, les revenus, les dépenses nettes, les
+ajustements éventuels et le net. Les semaines dans une vue mensuelle sont tronquées aux
+limites du mois ; une sélection de semaine utilise lundi-dimanche. La recherche, le type,
+la catégorie et le responsable sont accessibles derrière « Filtres ». Période,
+regroupement, filtres et page sont conservés dans l’URL.
+
+L’historique lit les transactions locales avec un index Dexie composé
+`[workspace_id+occurred_on]` ; l’ajout de cet index ne supprime ni les données ni l’outbox.
+L’écran reste utilisable hors ligne. La pagination limite l’affichage à 50 transactions
+par page, y compris au sein d’un groupe, et conserve les totaux complets de ce groupe.
 
 **F-11 — Analyses** : graphiques et indicateurs définis en section 13, avec valeurs
 accessibles sous forme textuelle.
@@ -569,6 +610,16 @@ Tester au minimum :
 11. Transactions supprimées ignorées ; corrections historiques répercutées.
 12. Report accepté/refusé/absent, mois sans transactions et disponibilité des chaînes.
 13. Statistiques : catégories triées, « Non classé », part fixe/variable.
+
+Pour le moteur d’historique V2-1, tester les bornes locales d’un jour, les semaines
+lundi-dimanche, les semaines tronquées aux limites du mois, les années bissextiles et les
+changements d’année ; tester également les totaux par type, les filtres, la pagination des
+groupes et la lecture hors ligne.
+
+Pour les seuils V2-2, tester jour local, semaine complète lundi-dimanche aux changements
+de mois et d’année, mois, remboursements et exclusions des forfaits/ajustements, ainsi que
+les réglages owner-only et l’outbox hors ligne. Tester le reste par jour avec le jour courant
+inclus, un montant négatif, zéro jour restant et un mois de longueur différente.
 
 ### 15.2 Base et synchronisation
 

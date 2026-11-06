@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { calculateMonthlyBudgetSummary, monthKeyForDate, shiftMonth } from './calculations'
+import {
+  calculateMonthlyBudgetSummary,
+  calculateRemainingPerDay,
+  monthKeyForDate,
+  shiftMonth,
+} from './calculations'
 import type { Budget, Category, Transaction } from './models'
 
 const workspaceId = '00000000-0000-4000-8000-000000000001'
@@ -35,6 +40,8 @@ function budget(
     workspace_id: workspaceId,
     category_id: categoryId,
     month,
+    period: 'month',
+    enabled: true,
     limit_amount: limitAmount,
     created_at: timestamp,
     updated_at: timestamp,
@@ -59,6 +66,7 @@ function transaction(
     occurred_on: occurredOn,
     note: null,
     created_by: userId,
+    updated_by: userId,
     paid_by: userId,
     recurring_id: null,
     recurring_month: null,
@@ -126,7 +134,6 @@ describe('calcul du budget mensuel local', () => {
           timestamp,
         ),
       ],
-      new Date(2026, 9, 15),
     )
 
     expect(summary).toMatchObject({
@@ -134,15 +141,14 @@ describe('calcul du budget mensuel local', () => {
       totalBudgeted: 15_000,
       totalSpent: 13_000,
       remaining: 2_000,
-      daysRemaining: 17,
     })
-    expect(summary.remainingPerDay).toBeCloseTo(2_000 / 17)
     expect(summary.categories).toMatchObject([
       {
         categoryId: expenseCategoryId,
         categoryName: 'Logement',
         budgetAmount: 10_000,
         spentAmount: 7_000,
+        thresholdSpentAmount: 7_000,
         remainingAmount: 3_000,
         progressPercentage: 70,
         isOverBudget: false,
@@ -152,6 +158,7 @@ describe('calcul du budget mensuel local', () => {
         categoryName: 'Alimentation',
         budgetAmount: 5_000,
         spentAmount: 6_000,
+        thresholdSpentAmount: 6_000,
         remainingAmount: -1_000,
         progressPercentage: 100,
         isOverBudget: true,
@@ -173,7 +180,6 @@ describe('calcul du budget mensuel local', () => {
           foodCategoryId,
         ),
       ],
-      new Date(2026, 9, 14),
     )
 
     expect(summary.totalBudgeted).toBe(10_000)
@@ -210,7 +216,6 @@ describe('calcul du budget mensuel local', () => {
           null,
         ),
       ],
-      new Date(2026, 9, 15),
     )
 
     expect(summary).toMatchObject({
@@ -238,15 +243,12 @@ describe('calcul du budget mensuel local', () => {
           expenseCategoryId,
         ),
       ],
-      new Date(2026, 9, 15),
     )
 
     expect(summary).toMatchObject({
       totalBudgeted: 0,
       totalSpent: 3_000,
       remaining: -3_000,
-      remainingPerDay: 0,
-      daysRemaining: 0,
     })
   })
 
@@ -271,7 +273,6 @@ describe('calcul du budget mensuel local', () => {
           foodCategoryId,
         ),
       ],
-      new Date(2026, 9, 15),
     )
 
     expect(summary.totalSpent).toBe(1_500)
@@ -287,7 +288,6 @@ describe('calcul du budget mensuel local', () => {
       [budget(foodCategoryId, month, 0)],
       categories,
       [],
-      new Date(2026, 9, 15),
     )
     expect(
       unusedZeroThreshold.categories.find((item) => item.categoryId === foodCategoryId),
@@ -298,26 +298,92 @@ describe('calcul du budget mensuel local', () => {
     })
   })
 
+  it('exclut les dépenses de forfait du seuil sans les retirer des dépenses réelles', () => {
+    const recurringExpense = {
+      ...transaction(
+        '20000000-0000-4000-8000-000000000041',
+        'expense',
+        2_000,
+        '2026-10-15',
+        foodCategoryId,
+      ),
+      recurring_id: '30000000-0000-4000-8000-000000000001',
+    }
+    const summary = calculateMonthlyBudgetSummary(
+      month,
+      [budget(foodCategoryId, month, 5_000)],
+      categories,
+      [
+        transaction(
+          '20000000-0000-4000-8000-000000000042',
+          'expense',
+          4_000,
+          '2026-10-14',
+          foodCategoryId,
+        ),
+        recurringExpense,
+      ],
+    )
+
+    expect(summary.totalSpent).toBe(6_000)
+    expect(summary.categories.find((item) => item.categoryId === foodCategoryId)).toMatchObject({
+      spentAmount: 6_000,
+      thresholdSpentAmount: 4_000,
+      remainingAmount: 1_000,
+      progressPercentage: 80,
+      isOverBudget: false,
+    })
+  })
+
   it('gère les mois courts, le changement d’année et les mois à venir', () => {
     expect(shiftMonth('2026-01-01', -1)).toBe('2025-12-01')
     expect(shiftMonth('2026-12-01', 1)).toBe('2027-01-01')
     expect(monthKeyForDate(new Date(2026, 1, 28))).toBe('2026-02-01')
 
-    const future = calculateMonthlyBudgetSummary(
-      '2026-02-01',
-      [],
-      categories,
-      [],
-      new Date(2026, 0, 31),
+    const future = calculateMonthlyBudgetSummary('2026-02-01', [], categories, [])
+    expect(future.totalBudgeted).toBe(0)
+  })
+
+  it('calcule le reste par jour en ariary entiers, en comptant aujourd’hui', () => {
+    expect(calculateRemainingPerDay(month, 2_000, new Date(2026, 9, 15))).toEqual({
+      state: 'available',
+      dailyAmount: 117,
+      deficitAmount: null,
+      daysRemaining: 17,
+    })
+    expect(calculateRemainingPerDay(month, 900, new Date(2026, 9, 31))).toEqual({
+      state: 'available',
+      dailyAmount: 900,
+      deficitAmount: null,
+      daysRemaining: 1,
+    })
+    expect(calculateRemainingPerDay(month, 0, new Date(2026, 9, 31)).dailyAmount).toBe(0)
+    expect(calculateRemainingPerDay(month, -4_500, new Date(2026, 9, 15))).toMatchObject({
+      state: 'deficit',
+      dailyAmount: null,
+      deficitAmount: 4_500,
+      daysRemaining: 17,
+    })
+    expect(calculateRemainingPerDay(month, 4_500, new Date(2026, 10, 1))).toMatchObject({
+      state: 'month-ended',
+      dailyAmount: null,
+      deficitAmount: null,
+      daysRemaining: 0,
+    })
+    expect(calculateRemainingPerDay('2026-11-01', 2_900, new Date(2026, 9, 31))).toMatchObject({
+      state: 'available',
+      dailyAmount: 96,
+      daysRemaining: 30,
+    })
+    expect(() => calculateRemainingPerDay(month, 1.5, new Date(2026, 9, 15))).toThrow(
+      'safe integer',
     )
-    expect(future.daysRemaining).toBe(28)
-    expect(future.remainingPerDay).toBe(0)
   })
 
   it('refuse une clé de mois invalide', () => {
     expect(() => shiftMonth('2026-13-01', 1)).toThrow('Invalid budget month')
-    expect(() =>
-      calculateMonthlyBudgetSummary('2026-02-30', [], categories, [], new Date()),
-    ).toThrow('Invalid budget month')
+    expect(() => calculateMonthlyBudgetSummary('2026-02-30', [], categories, [])).toThrow(
+      'Invalid budget month',
+    )
   })
 })

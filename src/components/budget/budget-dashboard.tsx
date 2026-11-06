@@ -9,8 +9,13 @@ import {
   useMonthlyBudgets,
   useTransactions,
 } from '@/data/hooks'
-import { calculateMonthlyBudgetSummary, shiftMonth } from '@/data/calculations'
+import {
+  calculateMonthlyBudgetSummary,
+  calculateRemainingPerDay,
+  shiftMonth,
+} from '@/data/calculations'
 import { calculateMonthLedger, resourceUsagePercentage } from '@/data/reform-calculations'
+import { calculateThresholdStatuses } from '@/data/thresholds'
 import {
   budgetsRepository,
   monthCarryDecisionsRepository,
@@ -24,9 +29,11 @@ const LazyBudgetAnalyticsView = lazy(() =>
 
 type BudgetDashboardMode = 'home' | 'manage'
 type BudgetTab = 'month' | 'analytics'
+type GlobalThresholdPeriod = Exclude<Budget['period'], 'month'>
 
 interface BudgetDashboardProps {
   workspaceId: string | undefined
+  userId: string
   month: string
   canManageBudget: boolean
   mode: BudgetDashboardMode
@@ -112,6 +119,7 @@ function defaultCategoryId(categoryIds: string[], budgets: Budget[], month: stri
 
 export function BudgetDashboard({
   workspaceId,
+  userId,
   month,
   canManageBudget,
   mode,
@@ -127,6 +135,10 @@ export function BudgetDashboard({
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState('')
   const [limitAmount, setLimitAmount] = useState('')
+  const [editingGlobalThresholdPeriod, setEditingGlobalThresholdPeriod] =
+    useState<GlobalThresholdPeriod | null>(null)
+  const [globalThresholdAmount, setGlobalThresholdAmount] = useState('')
+  const [globalThresholdEnabled, setGlobalThresholdEnabled] = useState(false)
   const [isEditingMonthlyBudget, setIsEditingMonthlyBudget] = useState(false)
   const [monthlyBudgetAmount, setMonthlyBudgetAmount] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
@@ -156,6 +168,10 @@ export function BudgetDashboard({
     () => calculateMonthlyBudgetSummary(month, budgets, categories, transactions),
     [budgets, categories, month, transactions],
   )
+  const thresholdStatuses = useMemo(
+    () => calculateThresholdStatuses(month, budgets, categories, transactions),
+    [budgets, categories, month, transactions],
+  )
   const ledger = useMemo(() => {
     try {
       return {
@@ -178,9 +194,22 @@ export function BudgetDashboard({
   }, [carryDecisions, month, monthlyBudgets, transactions])
   const currentLedger = ledger.current
   const previousLedger = ledger.previous
+  const remainingPerDay = currentLedger
+    ? calculateRemainingPerDay(month, currentLedger.available)
+    : null
   const monthBudgets = budgets.filter(
-    (budget) => budget.month === month && budget.deleted_at === null,
+    (budget) => budget.period === 'month' && budget.month === month && budget.deleted_at === null,
   )
+  const thresholdPeriods: GlobalThresholdPeriod[] = ['day', 'week']
+  const globalThresholdForPeriod = (period: GlobalThresholdPeriod) =>
+    budgets.find(
+      (budget) =>
+        budget.period === period &&
+        budget.category_id === null &&
+        budget.month === null &&
+        budget.deleted_at === null,
+    )
+  const thresholdStatusById = new Map(thresholdStatuses.map((status) => [status.budgetId, status]))
   const activeBudgetCategories = summary.categories.filter((item) => item.budgetAmount !== null)
   const monthlyBudget = monthlyBudgets.find(
     (budget) => budget.month === month && budget.deleted_at === null,
@@ -263,6 +292,7 @@ export function BudgetDashboard({
   }
 
   function startEditingBudget(budget: Budget) {
+    if (budget.category_id === null || budget.period !== 'month') return
     setEditingBudgetId(budget.id)
     setCategoryId(budget.category_id)
     setLimitAmount(String(budget.limit_amount))
@@ -299,27 +329,121 @@ export function BudgetDashboard({
       const existingBudget = budgets.find(
         (budget) =>
           budget.id === editingBudgetId ||
-          (budget.category_id === selectedCategory.id && budget.month === month),
+          (budget.period === 'month' &&
+            budget.category_id === selectedCategory.id &&
+            budget.month === month),
       )
       if (existingBudget) {
-        await budgetsRepository.update(existingBudget.id, workspaceId, {
-          category_id: selectedCategory.id,
-          month,
-          limit_amount: amount,
-        })
+        await budgetsRepository.update(
+          existingBudget.id,
+          workspaceId,
+          {
+            category_id: selectedCategory.id,
+            month,
+            period: 'month',
+            enabled: true,
+            limit_amount: amount,
+          },
+          userId,
+        )
       } else {
-        await budgetsRepository.create({
-          workspace_id: workspaceId,
-          category_id: selectedCategory.id,
-          month,
-          limit_amount: amount,
-        })
+        await budgetsRepository.create(
+          {
+            workspace_id: workspaceId,
+            category_id: selectedCategory.id,
+            month,
+            period: 'month',
+            enabled: true,
+            limit_amount: amount,
+          },
+          userId,
+        )
       }
       setIsEditing(false)
       setEditingBudgetId(null)
       setNotice('Seuil enregistré.')
     } catch (failure) {
       setFormError(`Impossible d’enregistrer ce seuil. ${budgetErrorMessage(failure)}`)
+    }
+  }
+
+  function startEditingGlobalThreshold(period: GlobalThresholdPeriod) {
+    const existing = globalThresholdForPeriod(period)
+    setEditingGlobalThresholdPeriod(period)
+    setGlobalThresholdAmount(existing ? String(existing.limit_amount) : '')
+    setGlobalThresholdEnabled(existing?.enabled ?? false)
+    setFormError(null)
+    setNotice(null)
+    setIsEditing(false)
+  }
+
+  async function saveGlobalThreshold(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFormError(null)
+    setNotice(null)
+    if (!canManageBudget) {
+      setFormError('Seul le propriétaire peut modifier les seuils de cet espace.')
+      return
+    }
+    if (!workspaceId || editingGlobalThresholdPeriod === null) {
+      setFormError('Aucun seuil global à enregistrer.')
+      return
+    }
+    const amount = Number(globalThresholdAmount)
+    if (globalThresholdAmount.trim() === '' || !Number.isSafeInteger(amount) || amount < 0) {
+      setFormError('Le seuil doit être un montant entier positif ou égal à zéro.')
+      return
+    }
+
+    const period = editingGlobalThresholdPeriod
+    const existing = globalThresholdForPeriod(period)
+    const changes = {
+      category_id: null,
+      month: null,
+      period,
+      enabled: globalThresholdEnabled,
+      limit_amount: amount,
+    }
+    try {
+      if (existing) {
+        await budgetsRepository.update(existing.id, workspaceId, changes, userId)
+      } else {
+        await budgetsRepository.create(
+          {
+            workspace_id: workspaceId,
+            ...changes,
+          },
+          userId,
+        )
+      }
+      setEditingGlobalThresholdPeriod(null)
+      setNotice('Seuil global enregistré.')
+    } catch (failure) {
+      setFormError(`Impossible d’enregistrer ce seuil. ${budgetErrorMessage(failure)}`)
+    }
+  }
+
+  async function setGlobalThresholdActive(period: GlobalThresholdPeriod, enabled: boolean) {
+    setFormError(null)
+    setNotice(null)
+    if (!canManageBudget) {
+      setFormError('Seul le propriétaire peut modifier les seuils de cet espace.')
+      return
+    }
+    if (!workspaceId) {
+      setFormError('Aucun espace local n’est disponible.')
+      return
+    }
+    const existing = globalThresholdForPeriod(period)
+    if (!existing) {
+      if (enabled) startEditingGlobalThreshold(period)
+      return
+    }
+    try {
+      await budgetsRepository.update(existing.id, workspaceId, { enabled }, userId)
+      setNotice(enabled ? 'Seuil activé.' : 'Seuil désactivé.')
+    } catch (failure) {
+      setFormError(`Impossible de modifier ce seuil. ${budgetErrorMessage(failure)}`)
     }
   }
 
@@ -416,6 +540,11 @@ export function BudgetDashboard({
               Dépensé : {formatMoney(item.spentAmount)}
               {item.budgetAmount !== null && ` sur ${formatMoney(item.budgetAmount)}`}
             </p>
+            {item.spentAmount !== item.thresholdSpentAmount && (
+              <p className="mt-1 text-xs text-stone-500">
+                Pris en compte dans le seuil : {formatMoney(item.thresholdSpentAmount)}
+              </p>
+            )}
           </div>
           {canManageBudget && item.budgetAmount !== null && (
             <Button
@@ -467,6 +596,94 @@ export function BudgetDashboard({
               </span>
               <span className={statusColor}>{Math.round(item.progressPercentage)} %</span>
             </div>
+          </>
+        )}
+      </article>
+    )
+  }
+
+  function renderGlobalThresholdCard(period: GlobalThresholdPeriod) {
+    const budget = globalThresholdForPeriod(period)
+    const status = budget ? thresholdStatusById.get(budget.id) : undefined
+    const periodLabel = period === 'day' ? 'par jour' : 'par semaine'
+    const active = budget?.enabled === true
+    const statusColor = status?.isOverThreshold
+      ? 'text-red-700'
+      : status?.isNearThreshold
+        ? 'text-amber-800'
+        : 'text-stone-700'
+
+    return (
+      <article className="rounded-2xl border border-stone-200 bg-white p-4" key={period}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">Seuil {periodLabel}</h3>
+            <p className="mt-1 text-sm text-stone-600">
+              {!budget
+                ? 'Désactivé par défaut.'
+                : !active
+                  ? `Désactivé · montant conservé : ${formatMoney(budget.limit_amount)}`
+                  : status?.isOverThreshold
+                    ? `Seuil dépassé de ${formatMoney(Math.abs(status.remainingAmount))}`
+                    : status?.isNearThreshold
+                      ? 'Seuil presque atteint.'
+                      : 'Seuil actif.'}
+            </p>
+          </div>
+          {canManageBudget && (
+            <div className="flex flex-wrap gap-2">
+              {budget && (
+                <Button
+                  className="min-h-11"
+                  onClick={() => void setGlobalThresholdActive(period, !active)}
+                  size="sm"
+                  variant="outline"
+                >
+                  {active ? 'Désactiver' : 'Activer'}
+                </Button>
+              )}
+              <Button
+                className="min-h-11"
+                onClick={() => startEditingGlobalThreshold(period)}
+                size="sm"
+                variant="outline"
+              >
+                {budget ? 'Modifier' : 'Configurer'}
+              </Button>
+            </div>
+          )}
+        </div>
+        {active && status && (
+          <>
+            <div
+              aria-label={`Progression du ${periodLabel}`}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={Math.round(status.progressPercentage)}
+              className="mt-4 h-2.5 overflow-hidden rounded-full bg-stone-100"
+              role="progressbar"
+            >
+              <div
+                className={`h-full rounded-full ${
+                  status.isOverThreshold
+                    ? 'bg-red-600'
+                    : status.isNearThreshold
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-700'
+                }`}
+                style={{ width: `${status.progressPercentage}%` }}
+              />
+            </div>
+            <p className={`mt-2 text-sm ${statusColor}`}>
+              Dépenses prises en compte : {formatMoney(status.spentAmount)} sur{' '}
+              {formatMoney(status.amount)} ·{' '}
+              {status.isOverThreshold
+                ? 'seuil dépassé'
+                : `reste ${formatMoney(Math.max(0, status.remainingAmount))}`}
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              Période : {status.start} au {status.end}. Forfaits et ajustements exclus.
+            </p>
           </>
         )}
       </article>
@@ -531,6 +748,24 @@ export function BudgetDashboard({
                       style={{ width: `${resourceUsage}%` }}
                     />
                   </div>
+                )}
+                {remainingPerDay && (
+                  <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
+                    {remainingPerDay.state === 'available' ? (
+                      <>
+                        Reste par jour :{' '}
+                        <strong>{formatMoney(remainingPerDay.dailyAmount ?? 0)}</strong> ·{' '}
+                        {remainingPerDay.daysRemaining} jour(s), aujourd’hui compris.
+                      </>
+                    ) : remainingPerDay.state === 'deficit' ? (
+                      <>
+                        Déficit de {formatMoney(remainingPerDay.deficitAmount ?? 0)} : aucun reste
+                        journalier disponible.
+                      </>
+                    ) : (
+                      'Mois terminé : aucun reste journalier à calculer.'
+                    )}
+                  </p>
                 )}
                 {currentLedger.budgetAmount === null && (
                   <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-950">
@@ -830,6 +1065,75 @@ export function BudgetDashboard({
           </CardContent>
         )}
       </Card>
+
+      <section aria-label="Seuils globaux" className="mt-6 space-y-3">
+        <div>
+          <h2 className="text-xl font-semibold">Seuils par jour et par semaine</h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Les dépenses de forfait et les ajustements sont exclus de tous les seuils. Les seuils
+            par jour et par semaine sont désactivés par défaut.
+          </p>
+        </div>
+        <div className="grid gap-3">{thresholdPeriods.map(renderGlobalThresholdCard)}</div>
+        {editingGlobalThresholdPeriod !== null && canManageBudget && (
+          <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
+            <CardHeader>
+              <CardTitle>
+                Configurer le seuil{' '}
+                {editingGlobalThresholdPeriod === 'day' ? 'par jour' : 'par semaine'}
+              </CardTitle>
+              <CardDescription>
+                Montant en ariary entier. Le seuil global s’applique à toutes les catégories.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                className="grid gap-4 sm:grid-cols-[1fr_auto_auto]"
+                onSubmit={(event) => void saveGlobalThreshold(event)}
+              >
+                <div>
+                  <label
+                    className="mb-1.5 block text-sm font-medium"
+                    htmlFor="global-threshold-amount"
+                  >
+                    Montant du seuil (Ar)
+                  </label>
+                  <input
+                    className="min-h-12 w-full rounded-xl border border-stone-300 px-3"
+                    id="global-threshold-amount"
+                    inputMode="numeric"
+                    min="0"
+                    onChange={(event) => setGlobalThresholdAmount(event.target.value)}
+                    required
+                    step="1"
+                    type="number"
+                    value={globalThresholdAmount}
+                  />
+                  <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      checked={globalThresholdEnabled}
+                      onChange={(event) => setGlobalThresholdEnabled(event.target.checked)}
+                      type="checkbox"
+                    />
+                    Activer ce seuil
+                  </label>
+                </div>
+                <Button className="min-h-12 self-end" type="submit">
+                  Enregistrer
+                </Button>
+                <Button
+                  className="min-h-12 self-end"
+                  onClick={() => setEditingGlobalThresholdPeriod(null)}
+                  type="button"
+                  variant="outline"
+                >
+                  Annuler
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+      </section>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2" ref={thresholdHelpRef}>

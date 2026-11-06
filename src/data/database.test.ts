@@ -82,7 +82,7 @@ describe('migration destructive de Dexie vers R1', () => {
     expect(await upgraded.syncMetadata.count()).toBe(0)
   })
 
-  it('ajoute les forfaits à Dexie v5 sans vider les données R4', async () => {
+  it('ajoute forfaits, traçabilité et champs de seuil sans vider les données', async () => {
     const name = `r5-upgrade-${crypto.randomUUID()}`
     const legacy = new Dexie(name)
     legacy.version(4).stores({
@@ -117,6 +117,17 @@ describe('migration destructive de Dexie vers R1', () => {
       deleted_at: null,
     }
     await legacy.table('transactions').put(transaction)
+    const budget = {
+      id: '00000000-0000-4000-8000-000000000005',
+      workspace_id: '00000000-0000-4000-8000-000000000002',
+      category_id: '00000000-0000-4000-8000-000000000006',
+      month: '2026-10-01',
+      limit_amount: 10_000,
+      created_at: '2026-10-24T10:00:00.000Z',
+      updated_at: '2026-10-24T10:00:00.000Z',
+      deleted_at: null,
+    }
+    await legacy.table('budgets').put(budget)
     const operation = {
       op_id: '00000000-0000-4000-8000-000000000004',
       table: 'transactions',
@@ -127,6 +138,16 @@ describe('migration destructive de Dexie vers R1', () => {
       status: 'pending',
     }
     await legacy.table('outbox').put(operation)
+    const budgetOperation = {
+      op_id: '00000000-0000-4000-8000-000000000007',
+      table: 'budgets',
+      action: 'upsert',
+      payload: budget,
+      created_at: '2026-10-24T10:00:00.000Z',
+      attempts: 0,
+      status: 'pending',
+    }
+    await legacy.table('outbox').put(budgetOperation)
     legacy.close()
 
     const upgraded = new BudgetDatabase(name)
@@ -134,13 +155,53 @@ describe('migration destructive de Dexie vers R1', () => {
     await upgraded.open()
 
     expect(upgraded.tables.map((table) => table.name)).toContain('recurringExpenses')
+    expect(upgraded.budgets.schema.indexes.map((index) => index.name)).toContain(
+      '[workspace_id+period]',
+    )
+    expect(upgraded.budgets.schema.indexes.map((index) => index.name)).not.toContain(
+      '[workspace_id+category_id+month]',
+    )
+    expect(upgraded.transactions.schema.indexes.map((index) => index.name)).toContain(
+      '[workspace_id+occurred_on]',
+    )
     expect(await upgraded.transactions.count()).toBe(1)
     expect(await upgraded.transactions.toArray()).toMatchObject([
-      { note: 'Donnée existante', recurring_id: null, recurring_month: null },
+      {
+        note: 'Donnée existante',
+        recurring_id: null,
+        recurring_month: null,
+        updated_by: transaction.created_by,
+      },
     ])
+    expect(
+      await upgraded.transactions
+        .where('[workspace_id+occurred_on]')
+        .between(
+          [transaction.workspace_id, '2026-10-01'],
+          [transaction.workspace_id, '2026-10-31'],
+          true,
+          true,
+        )
+        .toArray(),
+    ).toHaveLength(1)
     expect(await upgraded.outbox.get(operation.op_id)).toMatchObject({
       status: 'pending',
-      payload: { recurring_id: null, recurring_month: null },
+      payload: {
+        recurring_id: null,
+        recurring_month: null,
+        updated_by: transaction.created_by,
+      },
+    })
+    expect(await upgraded.budgets.get(budget.id)).toMatchObject({
+      period: 'month',
+      enabled: true,
+    })
+    expect(await upgraded.outbox.get(budgetOperation.op_id)).toMatchObject({
+      status: 'pending',
+      payload: {
+        period: 'month',
+        enabled: true,
+      },
     })
   })
 })

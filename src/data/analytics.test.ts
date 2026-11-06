@@ -37,6 +37,8 @@ function budget(categoryId: string, month: string, limitAmount: number): Budget 
     workspace_id: workspaceId,
     category_id: categoryId,
     month,
+    period: 'month',
+    enabled: true,
     limit_amount: limitAmount,
     created_at: timestamp,
     updated_at: timestamp,
@@ -61,6 +63,7 @@ function transaction(
     occurred_on: occurredOn,
     note: null,
     created_by: ownerId,
+    updated_by: ownerId,
     paid_by: options.paid_by ?? ownerId,
     recurring_id: options.recurring_id ?? null,
     recurring_month: null,
@@ -104,13 +107,37 @@ describe('analyses de budget', () => {
           deleted_at: timestamp,
         }),
         transaction('20000000-0000-4000-8000-000000000007', 'expense', 900, '2026-09-30', foodId),
+        transaction('20000000-0000-4000-8000-000000000008', 'expense', 300, '2026-10-15', foodId, {
+          recurring_id: '30000000-0000-4000-8000-000000000001',
+        }),
       ],
     )
 
     expect(results).toEqual([
-      { categoryId: foodId, name: 'Alimentation', amount: 700, threshold: 500, color: null },
-      { categoryId: housingId, name: 'Logement', amount: 700, threshold: 1_000, color: null },
-      { categoryId: null, name: 'Non classé', amount: 200, threshold: null, color: null },
+      {
+        categoryId: foodId,
+        name: 'Alimentation',
+        amount: 1_000,
+        thresholdSpentAmount: 700,
+        threshold: 500,
+        color: null,
+      },
+      {
+        categoryId: housingId,
+        name: 'Logement',
+        amount: 700,
+        thresholdSpentAmount: 700,
+        threshold: 1_000,
+        color: null,
+      },
+      {
+        categoryId: null,
+        name: 'Non classé',
+        amount: 200,
+        thresholdSpentAmount: 200,
+        threshold: null,
+        color: null,
+      },
     ])
   })
 
@@ -239,7 +266,7 @@ describe('analyses de budget', () => {
       variableSharePercent: 59,
       uncategorizedSharePercent: 9,
       alertThresholds: [{ categoryName: 'Alimentation', budgetAmount: 1_000, spentAmount: 850 }],
-      exceededThresholds: [{ categoryName: 'Logement', budgetAmount: 500, spentAmount: 700 }],
+      exceededThresholds: [],
       expensesByResponsible: [
         { userId: ownerId, name: 'Aina', netExpenses: 1_550 },
         { userId: memberId, name: 'Mamy', netExpenses: 150 },

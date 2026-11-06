@@ -6,6 +6,7 @@ import {
   type EditableRows,
   type EditableTable,
 } from './models'
+import { canCreateTransaction, canEditTransaction } from './transaction-permissions'
 
 type RepositoryRow<K extends EditableTable> = EditableRows[K]
 type CreateInput<K extends EditableTable> = Omit<
@@ -19,10 +20,26 @@ type UpdateInput<K extends EditableTable> = Partial<
   >
 >
 
+type RepositoryWriteGuard<K extends EditableTable> = (
+  row: RepositoryRow<K>,
+  actorUserId: string | undefined,
+  mode: 'create' | 'update' | 'delete',
+) => Promise<void>
+
 export interface Repository<K extends EditableTable> {
-  create(input: CreateInput<K>): Promise<RepositoryRow<K>>
-  update(id: string, workspaceId: string, changes: UpdateInput<K>): Promise<RepositoryRow<K>>
-  softDelete(id: string, workspaceId: string): Promise<RepositoryRow<K>>
+  create(input: CreateInput<K>, actorUserId?: string): Promise<RepositoryRow<K>>
+  update(
+    id: string,
+    workspaceId: string,
+    changes: UpdateInput<K>,
+    actorUserId?: string,
+  ): Promise<RepositoryRow<K>>
+  softDelete(
+    id: string,
+    workspaceId: string,
+    actorUserId?: string,
+    changes?: UpdateInput<K>,
+  ): Promise<RepositoryRow<K>>
   list(workspaceId: string, includeDeleted?: boolean): Promise<RepositoryRow<K>[]>
 }
 
@@ -47,12 +64,14 @@ function makeOutboxOperation<K extends EditableTable>(
   action: OutboxOperation['action'],
   payload: RepositoryRow<K>,
   createdAt: string,
+  previousPayload: RepositoryRow<K> | null,
 ): OutboxOperation {
   return {
     op_id: createUuid(),
     table,
     action,
     payload,
+    previousPayload,
     created_at: createdAt,
     attempts: 0,
     status: 'pending',
@@ -63,11 +82,19 @@ export function createRepository<K extends EditableTable>(
   tableName: K,
   table: Table<RepositoryRow<K>, string>,
   database: BudgetDatabase = db,
+  writeGuard?: RepositoryWriteGuard<K>,
 ): Repository<K> {
+  if (tableName === 'transactions' && !writeGuard) {
+    throw new Error('Transactions require an authorizing repository.')
+  }
+  if (tableName === 'budgets' && !writeGuard) {
+    throw new Error('Budgets require an authorizing repository.')
+  }
+
   const schema = editableRowSchemas[tableName]
 
   return {
-    async create(input) {
+    async create(input, actorUserId) {
       const now = new Date().toISOString()
       const row = schema.parse({
         ...input,
@@ -77,43 +104,46 @@ export function createRepository<K extends EditableTable>(
         deleted_at: null,
       })
 
-      await database.transaction('rw', table, database.outbox, async () => {
+      await database.transaction('rw', table, database.memberships, database.outbox, async () => {
+        await writeGuard?.(row, actorUserId, 'create')
         await table.add(row)
         const queuedAt = await nextOutboxTimestamp(database, now)
-        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt))
+        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt, null))
       })
 
       return row
     },
 
-    async update(id, workspaceId, changes) {
-      return database.transaction('rw', table, database.outbox, async () => {
+    async update(id: string, workspaceId: string, changes: UpdateInput<K>, actorUserId?: string) {
+      return database.transaction('rw', table, database.memberships, database.outbox, async () => {
         const existing = await table.get(id)
         if (!existing || existing.workspace_id !== workspaceId || existing.deleted_at !== null) {
           throw new Error(`${tableName} row ${id} is not available in workspace ${workspaceId}.`)
         }
 
+        await writeGuard?.(existing, actorUserId, 'update')
         const now = nextTimestamp(existing.updated_at)
         const row = schema.parse({ ...existing, ...changes, updated_at: now })
         await table.put(row)
         const queuedAt = await nextOutboxTimestamp(database, now)
-        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt))
+        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt, existing))
         return row
       })
     },
 
-    async softDelete(id, workspaceId) {
-      return database.transaction('rw', table, database.outbox, async () => {
+    async softDelete(id, workspaceId, actorUserId, changes) {
+      return database.transaction('rw', table, database.memberships, database.outbox, async () => {
         const existing = await table.get(id)
         if (!existing || existing.workspace_id !== workspaceId || existing.deleted_at !== null) {
           throw new Error(`${tableName} row ${id} is not available in workspace ${workspaceId}.`)
         }
 
+        await writeGuard?.(existing, actorUserId, 'delete')
         const now = nextTimestamp(existing.updated_at)
-        const row = schema.parse({ ...existing, updated_at: now, deleted_at: now })
+        const row = schema.parse({ ...existing, ...changes, updated_at: now, deleted_at: now })
         await table.put(row)
         const queuedAt = await nextOutboxTimestamp(database, now)
-        await database.outbox.add(makeOutboxOperation(tableName, 'delete', row, queuedAt))
+        await database.outbox.add(makeOutboxOperation(tableName, 'delete', row, queuedAt, existing))
         return row
       })
     },
@@ -126,8 +156,102 @@ export function createRepository<K extends EditableTable>(
 }
 
 export const categoriesRepository = createRepository('categories', db.categories)
-export const transactionsRepository = createRepository('transactions', db.transactions)
-export const budgetsRepository = createRepository('budgets', db.budgets)
+
+type TransactionCreateInput = Omit<CreateInput<'transactions'>, 'updated_by'>
+type TransactionUpdateInput = Omit<UpdateInput<'transactions'>, 'updated_by'>
+
+export function createTransactionsRepository(database: BudgetDatabase = db) {
+  const repository = createRepository(
+    'transactions',
+    database.transactions,
+    database,
+    async (transaction, actorUserId, mode) => {
+      if (!actorUserId) {
+        throw new Error('Un utilisateur est requis pour modifier une transaction.')
+      }
+      const membership = await database.memberships.get([transaction.workspace_id, actorUserId])
+      const allowed =
+        mode === 'create'
+          ? canCreateTransaction(actorUserId, membership?.role, transaction.created_by)
+          : canEditTransaction(actorUserId, membership?.role, transaction)
+      if (!allowed) {
+        throw new Error('Tu ne peux pas modifier cette transaction dans cet espace.')
+      }
+    },
+  )
+
+  return {
+    create(input: TransactionCreateInput, userId: string) {
+      return repository.create({ ...input, updated_by: userId }, userId)
+    },
+    update(id: string, workspaceId: string, changes: TransactionUpdateInput, userId: string) {
+      return repository.update(id, workspaceId, { ...changes, updated_by: userId }, userId)
+    },
+    softDelete(id: string, workspaceId: string, userId: string) {
+      return repository.softDelete(id, workspaceId, userId, {
+        updated_by: userId,
+      })
+    },
+    list: repository.list,
+  }
+}
+
+export const transactionsRepository = createTransactionsRepository()
+
+export function createBudgetsRepository(database: BudgetDatabase = db) {
+  const repository = createRepository(
+    'budgets',
+    database.budgets,
+    database,
+    async (budget, actorUserId) => {
+      if (!actorUserId) {
+        throw new Error('Un utilisateur est requis pour modifier un seuil.')
+      }
+      const membership = await database.memberships.get([budget.workspace_id, actorUserId])
+      if (membership?.role !== 'owner') {
+        throw new Error('Seul le propriétaire peut modifier les seuils de cet espace.')
+      }
+      const existingRows = await database.budgets
+        .where('workspace_id')
+        .equals(budget.workspace_id)
+        .toArray()
+      if (
+        existingRows.some(
+          (existing) =>
+            existing.id !== budget.id &&
+            existing.period === budget.period &&
+            existing.category_id === budget.category_id &&
+            existing.month === budget.month,
+        )
+      ) {
+        throw new Error('Un seuil existe déjà pour cette période et cette portée.')
+      }
+    },
+  )
+
+  return {
+    ...repository,
+    async update(
+      id: string,
+      workspaceId: string,
+      changes: UpdateInput<'budgets'>,
+      actorUserId?: string,
+    ) {
+      const current = await database.budgets.get(id)
+      if (
+        current &&
+        ((changes.period !== undefined && changes.period !== current.period) ||
+          (changes.category_id !== undefined && changes.category_id !== current.category_id) ||
+          (changes.month !== undefined && changes.month !== current.month))
+      ) {
+        throw new Error('La période et la portée d’un seuil ne peuvent pas être modifiées.')
+      }
+      return repository.update(id, workspaceId, changes, actorUserId)
+    },
+  }
+}
+
+export const budgetsRepository = createBudgetsRepository()
 export const monthlyBudgetsRepository = createRepository('monthlyBudgets', db.monthlyBudgets)
 export const monthCarryDecisionsRepository = createRepository(
   'monthCarryDecisions',

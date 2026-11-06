@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { clearLocalData, db } from './database'
 import {
+  budgetsRepository,
   categoriesRepository,
   monthCarryDecisionsRepository,
   monthlyBudgetsRepository,
@@ -12,6 +13,8 @@ const workspaceId = '00000000-0000-4000-8000-000000000001'
 const categoryId = '00000000-0000-4000-8000-000000000002'
 const transactionId = '00000000-0000-4000-8000-000000000003'
 const userId = '00000000-0000-4000-8000-000000000004'
+const memberId = '00000000-0000-4000-8000-000000000005'
+const timestamp = '2026-10-24T10:00:00.000Z'
 
 const categoryInput = {
   workspace_id: workspaceId,
@@ -36,6 +39,13 @@ const transactionInput = {
 describe('repositories locaux', () => {
   beforeEach(async () => {
     await clearLocalData()
+    await db.memberships.put({
+      workspace_id: workspaceId,
+      user_id: userId,
+      role: 'owner',
+      created_at: timestamp,
+      updated_at: timestamp,
+    })
   })
 
   it('crée une catégorie avec un UUID client et une entrée outbox atomique', async () => {
@@ -69,10 +79,13 @@ describe('repositories locaux', () => {
 
   it('archive et restaure une catégorie sans modifier son historique', async () => {
     const category = await categoriesRepository.create({ ...categoryInput, id: categoryId })
-    const transaction = await transactionsRepository.create({
-      ...transactionInput,
-      id: transactionId,
-    })
+    const transaction = await transactionsRepository.create(
+      {
+        ...transactionInput,
+        id: transactionId,
+      },
+      userId,
+    )
     const archivedAt = '2026-10-25T12:00:00.000Z'
 
     const archived = await categoriesRepository.update(category.id, workspaceId, {
@@ -120,11 +133,14 @@ describe('repositories locaux', () => {
 
   it('refuse une transaction invalide sans créer de ligne ni entrée outbox', async () => {
     await expect(
-      transactionsRepository.create({
-        ...transactionInput,
-        amount: 0,
-        occurred_on: '2026-02-30',
-      }),
+      transactionsRepository.create(
+        {
+          ...transactionInput,
+          amount: 0,
+          occurred_on: '2026-02-30',
+        },
+        userId,
+      ),
     ).rejects.toThrow()
 
     expect(await db.transactions.count()).toBe(0)
@@ -151,26 +167,186 @@ describe('repositories locaux', () => {
     ])
   })
 
+  it('réserve les seuils au propriétaire et permet un seuil global par période', async () => {
+    const daily = await budgetsRepository.create(
+      {
+        workspace_id: workspaceId,
+        category_id: null,
+        month: null,
+        period: 'day',
+        limit_amount: 5_000,
+      },
+      userId,
+    )
+    const weekly = await budgetsRepository.create(
+      {
+        workspace_id: workspaceId,
+        category_id: null,
+        month: null,
+        period: 'week',
+        enabled: false,
+        limit_amount: 20_000,
+      },
+      userId,
+    )
+
+    await db.memberships.put({
+      workspace_id: workspaceId,
+      user_id: memberId,
+      role: 'member',
+      created_at: timestamp,
+      updated_at: timestamp,
+    })
+
+    await expect(
+      budgetsRepository.update(daily.id, workspaceId, { enabled: true }, memberId),
+    ).rejects.toThrow('Seul le propriétaire')
+    await expect(
+      budgetsRepository.create(
+        {
+          workspace_id: workspaceId,
+          category_id: null,
+          month: null,
+          period: 'day',
+          enabled: true,
+          limit_amount: 5_000,
+        },
+        memberId,
+      ),
+    ).rejects.toThrow('Seul le propriétaire')
+    await expect(
+      budgetsRepository.create(
+        {
+          workspace_id: workspaceId,
+          category_id: null,
+          month: null,
+          period: 'day',
+          enabled: true,
+          limit_amount: 5_000,
+        },
+        userId,
+      ),
+    ).rejects.toThrow('existe déjà')
+
+    const storedBudgets = await db.budgets.toArray()
+    expect(storedBudgets).toHaveLength(2)
+    expect(storedBudgets.find((budget) => budget.period === 'day')).toMatchObject({
+      id: daily.id,
+      enabled: false,
+    })
+    expect(storedBudgets.find((budget) => budget.period === 'week')).toMatchObject({
+      id: weekly.id,
+      enabled: false,
+    })
+    expect(await db.outbox.count()).toBe(2)
+  })
+
   it('enregistre une transaction et synchronise ses modifications et suppression', async () => {
     await categoriesRepository.create({ ...categoryInput, id: categoryId })
-    const transaction = await transactionsRepository.create({
-      ...transactionInput,
-      id: transactionId,
-    })
+    const transaction = await transactionsRepository.create(
+      {
+        ...transactionInput,
+        id: transactionId,
+      },
+      userId,
+    )
 
     expect(transaction.amount).toBe(1_200)
     expect(transaction.paid_by).toBe(userId)
 
-    const updated = await transactionsRepository.update(transaction.id, workspaceId, {
-      amount: 2_000,
-    })
+    const updated = await transactionsRepository.update(
+      transaction.id,
+      workspaceId,
+      {
+        amount: 2_000,
+      },
+      userId,
+    )
     expect(updated.amount).toBe(2_000)
+    expect(updated.updated_by).toBe(userId)
+    const transactionOperations = await db.outbox
+      .filter((operation) => operation.table === 'transactions')
+      .toArray()
+    transactionOperations.sort((left, right) => left.created_at.localeCompare(right.created_at))
+    expect(transactionOperations).toMatchObject([
+      { previousPayload: null },
+      { previousPayload: transaction },
+    ])
 
-    await transactionsRepository.softDelete(updated.id, workspaceId)
+    await transactionsRepository.softDelete(updated.id, workspaceId, userId)
     expect(await transactionsRepository.list(workspaceId)).toEqual([])
     expect(await db.outbox.filter((operation) => operation.table === 'transactions').count()).toBe(
       3,
     )
+  })
+
+  it('refuse localement à un membre les transactions d’un autre auteur', async () => {
+    await db.memberships.put({
+      workspace_id: workspaceId,
+      user_id: memberId,
+      role: 'member',
+      created_at: timestamp,
+      updated_at: timestamp,
+    })
+    const transaction = await transactionsRepository.create(
+      { ...transactionInput, id: transactionId },
+      userId,
+    )
+    const outboxCount = await db.outbox.count()
+
+    await expect(
+      transactionsRepository.update(transaction.id, workspaceId, { amount: 2_000 }, memberId),
+    ).rejects.toThrow('Tu ne peux pas modifier cette transaction')
+    await expect(
+      transactionsRepository.softDelete(transaction.id, workspaceId, memberId),
+    ).rejects.toThrow('Tu ne peux pas modifier cette transaction')
+
+    expect(await db.transactions.get(transaction.id)).toEqual(transaction)
+    expect(await db.outbox.count()).toBe(outboxCount)
+  })
+
+  it('autorise un membre à créer et modifier ses propres transactions', async () => {
+    await db.memberships.put({
+      workspace_id: workspaceId,
+      user_id: memberId,
+      role: 'member',
+      created_at: timestamp,
+      updated_at: timestamp,
+    })
+    const transaction = await transactionsRepository.create(
+      { ...transactionInput, id: transactionId, created_by: memberId, paid_by: memberId },
+      memberId,
+    )
+
+    const updated = await transactionsRepository.update(
+      transaction.id,
+      workspaceId,
+      { amount: 2_000 },
+      memberId,
+    )
+
+    expect(updated.amount).toBe(2_000)
+    expect(updated.updated_by).toBe(memberId)
+  })
+
+  it('refuse à un viewer toute écriture locale de transaction', async () => {
+    await db.memberships.put({
+      workspace_id: workspaceId,
+      user_id: memberId,
+      role: 'viewer',
+      created_at: timestamp,
+      updated_at: timestamp,
+    })
+
+    await expect(
+      transactionsRepository.create(
+        { ...transactionInput, id: transactionId, created_by: memberId },
+        memberId,
+      ),
+    ).rejects.toThrow('Tu ne peux pas modifier cette transaction')
+
+    expect(await db.transactions.count()).toBe(0)
+    expect(await db.outbox.count()).toBe(0)
   })
 
   it('refuse une modification depuis un autre espace', async () => {

@@ -41,6 +41,7 @@ export interface SyncGateway {
   fetchMemberships(userId: string, signal: AbortSignal): Promise<Membership[]>
   getServerTime(signal: AbortSignal): Promise<string>
   push(operation: OutboxOperation, signal: AbortSignal): Promise<unknown>
+  fetchCurrentRow(table: EditableTable, rowId: string, signal: AbortSignal): Promise<unknown | null>
   fetchChangedRows(
     table: SyncTable,
     workspaceId: string,
@@ -317,6 +318,61 @@ export function createSupabaseSyncGateway(client: SupabaseClient): SyncGateway {
       }
     },
 
+    async fetchCurrentRow(table, rowId, signal) {
+      switch (table) {
+        case 'categories': {
+          const { data, error } = await client
+            .from('categories')
+            .select('*')
+            .eq('id', rowId)
+            .abortSignal(signal)
+            .maybeSingle()
+          throwSupabaseError(error)
+          return data
+        }
+        case 'transactions': {
+          const { data, error } = await client
+            .from('transactions')
+            .select('*')
+            .eq('id', rowId)
+            .abortSignal(signal)
+            .maybeSingle()
+          throwSupabaseError(error)
+          return data
+        }
+        case 'budgets': {
+          const { data, error } = await client
+            .from('budgets')
+            .select('*')
+            .eq('id', rowId)
+            .abortSignal(signal)
+            .maybeSingle()
+          throwSupabaseError(error)
+          return data
+        }
+        case 'monthlyBudgets': {
+          const { data, error } = await client
+            .from('monthly_budgets')
+            .select('*')
+            .eq('id', rowId)
+            .abortSignal(signal)
+            .maybeSingle()
+          throwSupabaseError(error)
+          return data
+        }
+        case 'monthCarryDecisions': {
+          const { data, error } = await client
+            .from('month_carry_decisions')
+            .select('*')
+            .eq('id', rowId)
+            .abortSignal(signal)
+            .maybeSingle()
+          throwSupabaseError(error)
+          return data
+        }
+      }
+    },
+
     async fetchChangedRows(table, workspaceId, after, through, signal) {
       return fetchAllPages(createPageQuery(client, table, workspaceId, after, through, signal))
     },
@@ -346,6 +402,43 @@ async function deleteOutboxOperation(database: BudgetDatabase, operationId: stri
   await database.outbox.delete(operationId)
 }
 
+async function restoreRejectedOperation(
+  gateway: SyncGateway,
+  database: BudgetDatabase,
+  operation: OutboxOperation,
+  error: SyncFailure,
+  signal: AbortSignal,
+): Promise<void> {
+  let previousRow = operation.previousPayload
+  if (previousRow === undefined) {
+    const rawRow = await gateway.fetchCurrentRow(operation.table, operation.payload.id, signal)
+    previousRow = rawRow === null ? null : parseRow(operation.table, rawRow)
+  }
+
+  const localTable = localTableFor(database, operation.table)
+  await database.transaction('rw', localTable, database.outbox, async () => {
+    const relatedOperations = (await database.outbox.toArray()).filter(
+      (candidate) =>
+        candidate.table === operation.table && candidate.payload.id === operation.payload.id,
+    )
+    if (previousRow === null) {
+      await localTable.delete(operation.payload.id)
+    } else {
+      await localTable.put(previousRow)
+    }
+    await database.outbox.bulkDelete(
+      relatedOperations
+        .filter((candidate) => candidate.op_id !== operation.op_id)
+        .map((candidate) => candidate.op_id),
+    )
+    await database.outbox.update(operation.op_id, {
+      status: 'failed',
+      last_error: error.message,
+      previousPayload: previousRow,
+    })
+  })
+}
+
 async function savePushResult(
   database: BudgetDatabase,
   operation: OutboxOperation,
@@ -364,7 +457,7 @@ async function savePushResult(
       return
     }
     const hasLaterOperation = sameRowOperations.some(
-      (candidate) => candidate.op_id !== operation.op_id,
+      (candidate) => candidate.op_id !== operation.op_id && candidate.status !== 'failed',
     )
     if (!hasLaterOperation) {
       await localTable.put(serverRow)
@@ -402,6 +495,17 @@ async function markOperationFailure(
       })
       throw classifyFailure(membershipFailure)
     }
+
+    try {
+      await restoreRejectedOperation(gateway, database, operation, error, signal)
+    } catch (restoreFailure) {
+      const restoreError = classifyFailure(restoreFailure)
+      await database.outbox.update(operation.op_id, {
+        status: 'failed',
+        last_error: `${error.message} La restauration locale a échoué : ${restoreError.message}`,
+      })
+    }
+    return false
   }
 
   await database.outbox.update(operation.op_id, {
@@ -434,10 +538,7 @@ async function pushPendingOperations(
       continue
     }
     if (operation.status === 'failed') {
-      throw new SyncFailure(
-        operation.last_error ?? 'Une opération précédente doit être corrigée avant de continuer.',
-        'permanent',
-      )
+      continue
     }
     if (operation.status !== 'pending') {
       continue
@@ -475,6 +576,9 @@ async function pushPendingOperations(
         signal,
       )
       if (accessWasRevoked) {
+        continue
+      }
+      if (syncFailure.kind === 'forbidden') {
         continue
       }
       throw syncFailure
@@ -525,8 +629,16 @@ async function pullTable<K extends EditableTable>(
       if (row.deleted_at !== null) {
         await localTable.put(row)
         await database.outbox.bulkDelete(matchingOperations.map((operation) => operation.op_id))
-      } else if (matchingOperations.length === 0) {
+      } else if (!matchingOperations.some((operation) => operation.status !== 'failed')) {
         await localTable.put(row)
+        const resolvedFailures = matchingOperations.filter(
+          (operation) =>
+            operation.status === 'failed' &&
+            (operation.previousPayload === undefined ||
+              operation.previousPayload === null ||
+              Date.parse(row.updated_at) > Date.parse(operation.previousPayload.updated_at)),
+        )
+        await database.outbox.bulkDelete(resolvedFailures.map((operation) => operation.op_id))
       }
     }
     const nextCursor: SyncCursor = {
