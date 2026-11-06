@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { Transaction } from './models'
+import type { Budget, Transaction } from './models'
+import { calculateNetExpenseTotals } from './reform-calculations'
 import {
+  calculateHistoryThresholdUsage,
+  calculateTransactionHistorySummary,
   createEmptyTransactionHistoryFilters,
   countAdvancedTransactionHistoryFilters,
   filterAndSortTransactions,
@@ -171,6 +174,104 @@ describe('transaction history', () => {
     ).toEqual([novemberTransaction])
     expect(countAdvancedTransactionHistoryFilters(filters, true)).toBe(2)
     expect(countAdvancedTransactionHistoryFilters(filters, false)).toBe(1)
+  })
+
+  it('uses the same net-expense totals as the analyses logic for the same dataset', () => {
+    const transactions: Transaction[] = [
+      { ...createTransaction(1), kind: 'expense', amount: 2_000, recurring_id: null },
+      { ...createTransaction(2), kind: 'refund', amount: 500, recurring_id: null },
+      { ...createTransaction(3), kind: 'income', amount: 1_500, recurring_id: null },
+      { ...createTransaction(4), kind: 'adjustment', amount: 250, category_id: null },
+      { ...createTransaction(5), kind: 'expense', amount: 1_200, recurring_id: '8c4e5b00-4e90-4ef1-a8ce-12c23a182c2a' },
+    ]
+
+    const summary = calculateTransactionHistorySummary(transactions)
+    const totals = calculateNetExpenseTotals(transactions)
+
+    expect(summary.income).toBe(totals.income)
+    expect(summary.netExpenses).toBe(totals.netExpenses)
+    expect(summary.net).toBe(totals.net)
+    expect(summary.adjustments).toBe(totals.adjustments)
+    expect(summary.count).toBe(transactions.length)
+  })
+
+  it('computes threshold usage without counting forfaits or adjustments', () => {
+    const thresholdDate = '2026-11-02'
+    const transactions: Transaction[] = [
+      { ...createTransaction(1), occurred_on: thresholdDate, kind: 'expense', amount: 1_200 },
+      { ...createTransaction(2), occurred_on: thresholdDate, kind: 'refund', amount: 300 },
+      { ...createTransaction(3), occurred_on: thresholdDate, kind: 'adjustment', amount: 50, category_id: null },
+      {
+        ...createTransaction(4),
+        occurred_on: thresholdDate,
+        kind: 'expense',
+        amount: 900,
+        recurring_id: '8c4e5b00-4e90-4ef1-a8ce-12c23a182c2a',
+      },
+    ]
+    const budgets: Budget[] = [
+      {
+        id: '0e0c97be-a919-4bc4-83d0-2f04fef2cb77',
+        workspace_id: '74d4d0a1-2088-4071-b85d-74d7cb7620b6',
+        category_id: null,
+        month: null,
+        period: 'day',
+        enabled: true,
+        limit_amount: 2_000,
+        created_at: '2026-11-01T00:00:00.000Z',
+        updated_at: '2026-11-01T00:00:00.000Z',
+        deleted_at: null,
+      },
+    ]
+
+    const usage = calculateHistoryThresholdUsage(
+      transactions,
+      budgets,
+      thresholdDate,
+      thresholdDate,
+      'day',
+    )
+
+    expect(usage).not.toBeNull()
+    expect(usage?.spentAmount).toBe(900)
+    expect(usage?.limitAmount).toBe(2_000)
+    expect(usage?.status).toBe('under')
+    expect(usage?.progressPercentage).toBe(45)
+  })
+
+  it('returns no threshold when the period is empty or no matching budget exists', () => {
+    const thresholdDate = '2026-11-02'
+    const emptyUsage = calculateHistoryThresholdUsage([], [], thresholdDate, thresholdDate, 'day')
+    const noMatchingBudget = calculateHistoryThresholdUsage(
+      [createTransaction(1)],
+      [
+        {
+          id: 'd7e7d1ee-f501-43c6-915e-8e68d3a7b146',
+          workspace_id: '74d4d0a1-2088-4071-b85d-74d7cb7620b6',
+          category_id: null,
+          month: null,
+          period: 'week',
+          enabled: true,
+          limit_amount: 1_000,
+          created_at: '2026-11-01T00:00:00.000Z',
+          updated_at: '2026-11-01T00:00:00.000Z',
+          deleted_at: null,
+        },
+      ],
+      thresholdDate,
+      thresholdDate,
+      'day',
+    )
+
+    expect(calculateTransactionHistorySummary([])).toEqual({
+      income: 0,
+      netExpenses: 0,
+      net: 0,
+      adjustments: 0,
+      count: 0,
+    })
+    expect(emptyUsage).toBeNull()
+    expect(noMatchingBudget).toBeNull()
   })
 
   it('keeps a 5,000-transaction history bounded to 50 visible rows per page', () => {
