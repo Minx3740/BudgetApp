@@ -65,17 +65,18 @@
 - Attention : la migration V2-2 a été passée dans le SQL Editor, sans enregistrement
   confirmé dans `supabase_migrations.schema_migrations`. Réconcilier l’historique avant
   tout `supabase db push` sur ce projet afin d’éviter une tentative de rejeu.
-- Le contrôle de production avant migration a aussi montré l’absence de
-  `transactions.updated_by`. La migration préalable V2-0
-  (`20261106005355_v2_0_transaction_audit.sql`) n’a pas été appliquée en production.
-  Elle est requise avant de déployer le code V2, qui dépend de cette colonne et de sa
-  traçabilité. Son application en production nécessite une autorisation explicite
-  distincte; ne pas lancer le déploiement applicatif avant ce prérequis.
-- La migration V2-2 est donc présente en production, mais le code V2-0 à V2-2 n’y est
-  pas déployé. Aucun push, PR, déploiement Cloudflare ni merge vers `main` n’a été fait.
-  Prochaine étape : obtenir l’accord de Laro pour le prérequis V2-0 en production, puis
-  pousser `v2` et valider CI/aperçu Cloudflare. La production ne se déploie qu’après
-  fusion autorisée par Laro; ne jamais fusionner soi-même dans `main`.
+- La migration préalable V2-0 (`20261106005355_v2_0_transaction_audit.sql`) a aussi été
+  appliquée manuellement en production après autorisation explicite de Laro. Le contrôle
+  en lecture seule confirme `updated_by` présent et NOT NULL, aucune des 53 transactions
+  sans valeur, le trigger d’audit présent et les trois politiques owner-only des forfaits.
+- Les migrations SQL requises V2-0 et V2-2 sont maintenant présentes sur la production,
+  mais le code V2-0 à V2-2 n’y est pas déployé. L’historique Supabase CLI des deux
+  migrations passées via SQL Editor n’est pas confirmé; ne pas lancer `supabase db push`
+  avant réconciliation. Aucun push Git, PR, déploiement Cloudflare ni merge vers `main`
+  n’a encore été fait.
+- Prochaine étape : vérifier la suite locale, pousser `v2`, puis valider CI et l’aperçu
+  Cloudflare avant de proposer la PR. La production ne se déploie qu’après fusion
+  autorisée par Laro; ne jamais fusionner soi-même dans `main`.
 
 ## Historique précédant la branche v2
 
