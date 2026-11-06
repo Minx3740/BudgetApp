@@ -1,9 +1,14 @@
 # PROGRESS
 
-## État actuel — branche v2, lot V2-2
+## État actuel — branche v2, lot V2-4
 
 - Dernière mise à jour : 2026-11-06. Branche locale `v2`, créée depuis `main`
   (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
+- Lot V2-4 validé sur l’historique : barre sticky de synthèse, libellé de période
+  jour/semaine/mois, total des dépenses nettes sur toute la période, indicateur « Filtres
+  actifs », ligne de seuil journalière/hebdomadaire et test de comparaison avec la même
+  source de calcul que l’écran Analyses. Le moteur réutilise la logique de dépenses nettes
+  existante plutôt qu’une seconde implémentation.
 - Lots V2-0, V2-1 et V2-2 implémentés et committés respectivement dans
   `8c8ac77`, `cccec42` et `fc8b918`. La branche `v2` est encore locale; elle n’a pas été
   poussée, ouverte en PR ni déployée.

@@ -14,6 +14,8 @@ import {
 } from '@/data/category-colors'
 import { useCategories, useTransactionsInRange } from '@/data/hooks'
 import {
+  calculateHistoryThresholdUsage,
+  calculateTransactionHistorySummary,
   createEmptyTransactionHistoryFilters,
   countAdvancedTransactionHistoryFilters,
   filterAndSortTransactions,
@@ -87,10 +89,45 @@ function formatMoney(amount: number): string {
 }
 
 function formatMonthLabel(month: string): string {
-  return new Date(`${month.slice(0, 7)}-01T00:00:00`).toLocaleDateString('fr-FR', {
+  const value = new Date(`${month.slice(0, 7)}-01T00:00:00`).toLocaleDateString('fr-FR', {
     month: 'long',
     year: 'numeric',
   })
+  return `${value.charAt(0).toLocaleUpperCase('fr-FR')}${value.slice(1)}`
+}
+
+function formatHistoryPeriodLabel(
+  period: HistoryPeriodSelection,
+  bounds: { start: string; end: string },
+): string {
+  const formatDate = (value: string, options: Intl.DateTimeFormatOptions) =>
+    new Date(`${value}T00:00:00`).toLocaleDateString('fr-FR', options)
+
+  switch (period.type) {
+    case 'day': {
+      const value = formatDate(period.date, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+      return `${value.charAt(0).toLocaleUpperCase('fr-FR')}${value.slice(1)}`
+    }
+    case 'week':
+      return `Semaine du ${formatDate(bounds.start, { day: 'numeric', month: 'short' })} au ${formatDate(bounds.end, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })}`
+    case 'month':
+      return formatMonthLabel(bounds.start.slice(0, 7))
+    case 'custom':
+      return `Du ${formatDate(bounds.start, { day: 'numeric', month: 'short' })} au ${formatDate(bounds.end, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })}`
+  }
 }
 
 function errorMessage(failure: unknown): string {
@@ -170,6 +207,10 @@ export function LocalDataView({
   const filterDialogRef = useRef<HTMLDialogElement>(null)
   const [draftFilters, setDraftFilters] = useState(createEmptyTransactionHistoryFilters)
   const categories = useCategories(workspaceId)
+  const budgets = useLiveQuery(async () => {
+    if (!workspaceId) return []
+    return await db.budgets.where('workspace_id').equals(workspaceId).toArray()
+  }, [workspaceId])
   const historyStateForWorkspace = useMemo(() => {
     const state =
       historyState.workspaceId === workspaceId
@@ -303,6 +344,10 @@ export function LocalDataView({
       ),
     [historyFilters, historyNames, transactions],
   )
+  const transactionSummary = useMemo(
+    () => calculateTransactionHistorySummary(filteredTransactions),
+    [filteredTransactions],
+  )
   const transactionGroups = useMemo(
     () => groupTransactions(filteredTransactions, groupBy, { period: historyPeriodBounds }),
     [filteredTransactions, groupBy, historyPeriodBounds],
@@ -405,6 +450,20 @@ export function LocalDataView({
     countAdvancedTransactionHistoryFilters(historyFilters, isSharedWorkspace) +
     Number(historyFilters.transactionType !== 'all') +
     Number(historyFilters.search.trim() !== '')
+  const thresholdUsage = useMemo(() => {
+    const periodType = historyStateForWorkspace.period.type
+    if (activeFilterCount > 0 || (periodType !== 'day' && periodType !== 'week')) {
+      return null
+    }
+    if (!Array.isArray(budgets)) return null
+    return calculateHistoryThresholdUsage(
+      transactions,
+      budgets,
+      historyPeriodBounds.start,
+      historyPeriodBounds.end,
+      periodType,
+    )
+  }, [activeFilterCount, budgets, historyPeriodBounds, historyStateForWorkspace.period.type, transactions])
   const firstVisibleTransaction =
     filteredTransactions.length === 0
       ? 0
@@ -962,6 +1021,91 @@ export function LocalDataView({
                   )}
                 </div>
               )}
+
+              <div className="sticky top-0 z-10 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-sm backdrop-blur-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">
+                      Période
+                    </p>
+                    <p className="truncate text-sm font-semibold text-stone-900">
+                      {formatHistoryPeriodLabel(historyStateForWorkspace.period, historyPeriodBounds)}
+                    </p>
+                  </div>
+                  {activeFilterCount > 0 && (
+                    <span className="inline-flex w-fit items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-medium text-amber-900">
+                      Filtres actifs
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-stone-600 sm:grid-cols-4">
+                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">
+                      Dépenses nettes
+                    </p>
+                    <p className="mt-1 font-semibold text-stone-900">
+                      {formatMoney(transactionSummary.netExpenses)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">
+                      Revenus
+                    </p>
+                    <p className="mt-1 font-semibold text-stone-900">
+                      {formatMoney(transactionSummary.income)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Net</p>
+                    <p className="mt-1 font-semibold text-stone-900">{formatMoney(transactionSummary.net)}</p>
+                  </div>
+                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">
+                      Transactions
+                    </p>
+                    <p className="mt-1 font-semibold text-stone-900">
+                      {transactionSummary.count}
+                    </p>
+                  </div>
+                </div>
+                {thresholdUsage && (
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5">
+                    <div className="flex items-center justify-between gap-2 text-xs text-stone-700">
+                      <span className="font-medium text-stone-800">
+                        Comptées dans le seuil : {formatMoney(thresholdUsage.spentAmount)} sur{' '}
+                        {formatMoney(thresholdUsage.limitAmount)} (hors forfaits)
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                          thresholdUsage.status === 'over'
+                            ? 'bg-red-100 text-red-700'
+                            : thresholdUsage.status === 'alert'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {thresholdUsage.status === 'over'
+                          ? 'Dépassé'
+                          : thresholdUsage.status === 'alert'
+                            ? 'Alerte'
+                            : 'Sous le seuil'}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-200">
+                      <div
+                        className={`h-full rounded-full ${
+                          thresholdUsage.status === 'over'
+                            ? 'bg-red-500'
+                            : thresholdUsage.status === 'alert'
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, thresholdUsage.progressPercentage)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div
                 aria-live="polite"
