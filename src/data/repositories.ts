@@ -34,6 +34,7 @@ export interface Repository<K extends EditableTable> {
     changes: UpdateInput<K>,
     actorUserId?: string,
   ): Promise<RepositoryRow<K>>
+  restore(id: string, workspaceId: string, actorUserId?: string): Promise<RepositoryRow<K>>
   softDelete(
     id: string,
     workspaceId: string,
@@ -124,6 +125,23 @@ export function createRepository<K extends EditableTable>(
         await writeGuard?.(existing, actorUserId, 'update')
         const now = nextTimestamp(existing.updated_at)
         const row = schema.parse({ ...existing, ...changes, updated_at: now })
+        await table.put(row)
+        const queuedAt = await nextOutboxTimestamp(database, now)
+        await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt, existing))
+        return row
+      })
+    },
+
+    async restore(id, workspaceId, actorUserId) {
+      return database.transaction('rw', table, database.memberships, database.outbox, async () => {
+        const existing = await table.get(id)
+        if (!existing || existing.workspace_id !== workspaceId || existing.deleted_at === null) {
+          throw new Error(`${tableName} row ${id} is not available in workspace ${workspaceId}.`)
+        }
+
+        await writeGuard?.(existing, actorUserId, 'update')
+        const now = nextTimestamp(existing.updated_at)
+        const row = schema.parse({ ...existing, updated_at: now, deleted_at: null })
         await table.put(row)
         const queuedAt = await nextOutboxTimestamp(database, now)
         await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt, existing))

@@ -17,6 +17,7 @@ import {
   type AnalyticsIndicators,
 } from '@/data/analytics'
 import type { Budget, CashflowTransaction, Category, Profile } from '@/data/models'
+import { calculateThresholdStatuses, type ThresholdStatus } from '@/data/thresholds'
 
 interface BudgetAnalyticsViewProps {
   month: string
@@ -429,14 +430,18 @@ function CategoryComparisonChart({
 function DailyCumulativeChart({
   month,
   monthlyResources,
+  budgets,
   transactions,
   expanded,
   onToggle,
-}: Pick<BudgetAnalyticsViewProps, 'month' | 'monthlyResources' | 'transactions'> & {
+}: Pick<BudgetAnalyticsViewProps, 'month' | 'monthlyResources' | 'budgets' | 'transactions'> & {
   expanded: boolean
   onToggle: () => void
 }) {
   const values = calculateDailyExpenseCumulative(month, transactions)
+  const dayThreshold = calculateThresholdStatuses(month, budgets, [], transactions).find(
+    (item) => item.enabled && item.period === 'day' && item.amount > 0,
+  )
   const plot = { left: 72, top: 14, width: chartWidth - 84, height: 178 }
   const minimum = Math.min(0, monthlyResources ?? 0, ...values.map((item) => item.cumulativeAmount))
   const maximum = Math.max(0, monthlyResources ?? 0, ...values.map((item) => item.cumulativeAmount))
@@ -448,6 +453,13 @@ function DailyCumulativeChart({
         `${plot.left + (index / Math.max(1, values.length - 1)) * plot.width},${y(item.cumulativeAmount)}`,
     )
     .join(' ')
+  const thresholdY = dayThreshold ? y(dayThreshold.amount) : null
+  const daysAboveThreshold =
+    dayThreshold === undefined
+      ? 0
+      : values.reduce((count, item) => {
+          return count + Number(item.cumulativeAmount > dayThreshold.amount)
+        }, 0)
 
   return (
     <AnalyticsChartCard
@@ -494,6 +506,17 @@ function DailyCumulativeChart({
               y2={y(monthlyResources)}
             />
           )}
+          {thresholdY !== null && (
+            <line
+              stroke="var(--chart-5)"
+              strokeDasharray="4 4"
+              strokeWidth="2"
+              x1={plot.left}
+              x2={plot.left + plot.width}
+              y1={thresholdY}
+              y2={thresholdY}
+            />
+          )}
           <polyline
             fill="none"
             points={points}
@@ -527,7 +550,13 @@ function DailyCumulativeChart({
         <p className="mt-2 text-xs text-muted-foreground">
           Ligne pleine : dépenses nettes cumulées.
           {monthlyResources !== null ? ' Ligne pointillée : ressources du mois.' : ''}
+          {dayThreshold ? ` Ligne en pointillés de seuil : ${formatMoney(dayThreshold.amount)}.` : ''}
         </p>
+        {dayThreshold && (
+          <p className="mt-2 text-sm font-medium text-foreground">
+            {daysAboveThreshold} jour{daysAboveThreshold > 1 ? 's' : ''} au-dessus du seuil ce mois
+          </p>
+        )}
         {accessibleList(
           values.map((item) => `Jour ${item.day} : ${formatMoney(item.cumulativeAmount)} cumulés`),
         )}
@@ -680,6 +709,111 @@ export function BudgetAnalyticsView({
     setChartVisibility((current) => ({ ...current, [chartId]: !current[chartId] }))
   }
 
+  const thresholdStatuses = useMemo(
+    () =>
+      calculateThresholdStatuses(month, budgets, categories, transactions).filter(
+        (item) => item.enabled && item.amount > 0,
+      ),
+    [budgets, categories, month, transactions],
+  )
+
+  const thresholdSections = useMemo(() => {
+    const ordered = [...thresholdStatuses].sort((left, right) => {
+      const severityDelta =
+        Number(right.isOverThreshold) - Number(left.isOverThreshold) ||
+        Number(right.isNearThreshold) - Number(left.isNearThreshold) ||
+        right.progressPercentage - left.progressPercentage
+      if (severityDelta !== 0) return severityDelta
+      const periodOrder = ['day', 'week', 'month']
+      return (
+        periodOrder.indexOf(left.period) - periodOrder.indexOf(right.period) ||
+        left.label.localeCompare(right.label, 'fr')
+      )
+    })
+
+    return {
+      day: ordered.filter((item) => item.period === 'day'),
+      week: ordered.filter((item) => item.period === 'week'),
+      month: ordered.filter((item) => item.period === 'month' && item.categoryId !== null),
+      all: ordered,
+    }
+  }, [thresholdStatuses])
+
+  const daysAboveDailyThreshold = useMemo(() => {
+    const dayThreshold = thresholdSections.day[0]
+    if (!dayThreshold) return 0
+
+    const dailyTotals = new Map<number, number>()
+    for (const transaction of transactions) {
+      if (
+        transaction.deleted_at !== null ||
+        transaction.recurring_id !== null ||
+        (transaction.kind !== 'expense' && transaction.kind !== 'refund') ||
+        !transaction.occurred_on.startsWith(`${month.slice(0, 7)}-`)
+      ) {
+        continue
+      }
+      const day = Number(transaction.occurred_on.slice(8, 10))
+      const amount = transaction.kind === 'expense' ? transaction.amount : -transaction.amount
+      dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + amount)
+    }
+    return [...dailyTotals.values()].filter((amount) => amount > dayThreshold.amount).length
+  }, [month, thresholdSections.day, transactions])
+
+  function renderThresholdItem(item: ThresholdStatus) {
+    const statusLabel = item.isOverThreshold ? 'Dépassé' : item.isNearThreshold ? 'Alerte' : 'Sous le seuil'
+    const remaining = Math.max(0, item.remainingAmount)
+    return (
+      <div key={item.budgetId} className="rounded-xl border border-border bg-muted/35 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {item.period === 'day'
+                ? 'Aujourd’hui'
+                : item.period === 'week'
+                  ? 'Cette semaine'
+                  : item.label}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {item.period === 'month' ? `${item.label}` : `${formatMoney(item.spentAmount)} / ${formatMoney(item.amount)}`}
+            </p>
+          </div>
+          <span
+            className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+              item.isOverThreshold
+                ? 'bg-red-100 text-red-700'
+                : item.isNearThreshold
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-emerald-100 text-emerald-700'
+            }`}
+          >
+            {statusLabel}
+          </span>
+        </div>
+        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-stone-200">
+          <div
+            className={`h-full rounded-full ${
+              item.isOverThreshold
+                ? 'bg-red-500'
+                : item.isNearThreshold
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+            }`}
+            style={{ width: `${Math.min(100, Math.max(0, item.progressPercentage))}%` }}
+          />
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>
+            {formatMoney(item.spentAmount)} / {formatMoney(item.amount)}
+          </span>
+          <span>
+            {item.isOverThreshold ? 'Reste ' : 'Restant '} {formatMoney(remaining)}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <section aria-label={`Analyses du budget de ${formatMonthLabel(month)}`} className="space-y-4">
       <div>
@@ -694,28 +828,46 @@ export function BudgetAnalyticsView({
         <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Seuils</CardTitle>
-            <CardDescription>Alertes à partir de 80 %</CardDescription>
+            <CardDescription>Liste de tous les seuils actifs</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              En alerte : <strong>{indicators.alertThresholds.length}</strong>
-            </p>
-            <p>
-              Dépassés : <strong>{indicators.exceededThresholds.length}</strong>
-            </p>
-            {indicators.alertThresholds.length + indicators.exceededThresholds.length > 0 && (
-              <ul className="space-y-1 text-muted-foreground">
-                {indicators.alertThresholds.map((item) => (
-                  <li key={`alert-${item.categoryId}`}>
-                    {item.categoryName} : seuil presque atteint
-                  </li>
-                ))}
-                {indicators.exceededThresholds.map((item) => (
-                  <li key={`over-${item.categoryId}`} className="text-destructive">
-                    {item.categoryName} : seuil dépassé
-                  </li>
-                ))}
-              </ul>
+          <CardContent className="space-y-3 text-sm">
+            {thresholdSections.all.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucun seuil actif pour ce mois. Ajoute un seuil dans{' '}
+                <span className="font-medium text-foreground">Budgets &gt; Mois</span>.
+              </p>
+            ) : (
+              <>
+                {thresholdSections.day.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Jour
+                    </p>
+                    {thresholdSections.day.map(renderThresholdItem)}
+                  </div>
+                )}
+                {thresholdSections.week.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Semaine
+                    </p>
+                    {thresholdSections.week.map(renderThresholdItem)}
+                  </div>
+                )}
+                {thresholdSections.month.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Catégories
+                    </p>
+                    {thresholdSections.month.map(renderThresholdItem)}
+                  </div>
+                )}
+                {thresholdSections.day.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {daysAboveDailyThreshold} jour{daysAboveDailyThreshold > 1 ? 's' : ''} au-dessus du seuil ce mois.
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -771,6 +923,7 @@ export function BudgetAnalyticsView({
           transactions={transactions}
         />
         <DailyCumulativeChart
+          budgets={budgets}
           expanded={chartVisibility.dailyCumulative}
           month={month}
           monthlyResources={monthlyResources}
