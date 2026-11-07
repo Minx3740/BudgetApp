@@ -1,21 +1,19 @@
 # PROGRESS
 
-## État actuel — branche v2, lot V2-6
+## État actuel — branche main, export CSV terminé
 
-- Dernière mise à jour : 2026-11-07. Branche locale `v2`, créée depuis `main`
-  (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
-- Lot V2-6 validé sur le rendu visuel et les écrans d’onglets : un conteneur de page
-  partagé a été appliqué pour harmoniser les larges vues (transactions, budgets,
-  espaces, forfaits), avec un max-width commun pour réduire les espaces vides.
-- Les lignes de transaction ont été revues pour aligner les montants à droite avec
-  chiffres tabulaires, rendre les montants de revenus positifs avec couleur dédiée,
-  masquer la date lors d’un regroupement par jour, utiliser une pastille avec initiales
-  dans les espaces partagés et remplacer les boutons toujours visibles par un menu par
-  ligne. La suppression garde la possibilité d’annuler immédiatement via restauration.
-- Le lot V2-5 reste validé avec les seuils et les analyses ; le lot V2-6 enrichit la
-  cohérence visuelle sans modifier la logique métier déjà validée.
-- Lots V2-0, V2-1, V2-2, V2-4, V2-5 et V2-6 sont en branche locale `v2` ; elle n’a pas été
-  poussée, ouverte en PR ni déployée.
+- Dernière mise à jour : 2026-11-07. Les lots V2-0 à V2-6 ont été fusionnés dans `main`
+  et poussés sur `origin/main` avant cette évolution.
+- L’export CSV de l’historique exporte hors ligne les transactions
+  correspondantes à la période et aux filtres actifs, sur toutes les pages. Le fichier
+  utilise un séparateur point-virgule, UTF-8 avec BOM, des montants signés en ariary et
+  des libellés lisibles ; les identifiants techniques sont omis et les champs texte sont
+  protégés contre l’exécution de formules dans un tableur.
+- Aucune migration Supabase ni dépendance n’est nécessaire pour l’export CSV.
+- Vérifications : lint, typecheck, `npm test` (133 tests / 22 fichiers), build et Prettier
+  sur les nouveaux fichiers et la documentation réussis. L’avertissement Vite existant sur
+  le bundle principal de plus de 500 kB demeure. Cette évolution locale n’a pas encore été poussée.
+- Les lots V2-4, V2-5 et V2-6 restent documentés et validés plus bas dans ce fichier.
 - Migrations 001 à 010 exécutées manuellement dans le projet Supabase TEST
   `wkympekogzamodupmqwg`. La migration R1 destructive n’a été exécutée que sur le projet
   TEST qui avait été vérifié vide avant son initialisation.

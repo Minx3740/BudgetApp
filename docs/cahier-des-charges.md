@@ -1,6 +1,6 @@
 # Cahier des charges — cashFlow+
 
-Version 1.8 — mise à jour V2-6 (7 novembre 2026).
+Version 1.9 — ajout de l’export CSV (7 novembre 2026).
 
 Cette version intègre la réforme décrite dans `docs\reforme-budget-global.md`. Elle définit
 la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
@@ -75,6 +75,10 @@ La réforme distingue explicitement :
 - **Rendu visuel V2-6** : le layout partage un conteneur de page commun, les lignes de
   transactions sont densément lisibles sur mobile et desktop, et les actions sont masquées
   derrière un menu compact avec restauration immédiate possible après suppression.
+- **Export CSV** : depuis l’historique, l’utilisateur peut exporter hors ligne toutes les
+  transactions de la période sélectionnée qui correspondent aux filtres actifs, sans
+  limitation par la pagination. Le fichier utilise UTF-8 avec BOM et un séparateur point-
+  virgule, des montants signés en ariary et des libellés lisibles sans identifiants internes.
 - **Seuil par catégorie** : montant de référence pour observer les dépenses d’une
   catégorie. Les seuils sont indépendants du budget du mois.
 - **Ressources du mois** : report accepté + budget (0 s’il n’est pas défini) + revenus
@@ -769,7 +773,6 @@ R0–R6 suivent l’implémentation de la réforme.
 
 - Import ou lecture des SMS Mobile Money.
 - Connexion bancaire automatique.
-- Export CSV.
 - Projections de fin de mois ou détection d’anomalies.
 - Report d’un disponible négatif.
 - Lien automatique entre écritures de deux espaces.
