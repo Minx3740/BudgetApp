@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import {
   Archive,
   CirclePlus,
+  Download,
   Filter,
   MoreHorizontal,
   Pencil,
@@ -43,6 +44,11 @@ import {
 } from '@/data/transaction-history-url'
 import { isLocalDate } from '@/data/periods'
 import { groupTransactions, paginateTransactionGroups } from '@/data/transaction-grouping'
+import {
+  buildTransactionCsv,
+  downloadCsvFile,
+  transactionCsvFilename,
+} from '@/data/transaction-export'
 
 type DataTab = 'transactions' | 'categories'
 type TransactionKind = Transaction['kind']
@@ -786,6 +792,30 @@ export function LocalDataView({
     }
   }
 
+  function exportTransactions() {
+    if (filteredTransactions.length === 0) {
+      setError('Aucune transaction à exporter pour cette période et ces filtres.')
+      return
+    }
+
+    setError(null)
+    try {
+      const csv = buildTransactionCsv(filteredTransactions, {
+        categoryNames: historyNames.categories,
+        memberNames: historyNames.members,
+      })
+      downloadCsvFile(
+        csv,
+        transactionCsvFilename(historyPeriodBounds.start, historyPeriodBounds.end),
+      )
+      setNotice(
+        `${filteredTransactions.length} transaction${filteredTransactions.length > 1 ? 's' : ''} exportée${filteredTransactions.length > 1 ? 's' : ''} au format CSV.`,
+      )
+    } catch (failure) {
+      setError(`Impossible de créer le fichier CSV. ${errorMessage(failure)}`)
+    }
+  }
+
   return (
     <section aria-labelledby="section-title" className="page-shell">
       <p className="mb-2 text-sm font-medium text-emerald-800">Données de l’espace actif</p>
@@ -1124,18 +1154,29 @@ export function LocalDataView({
                 )}
               </div>
 
-              <div
-                aria-live="polite"
-                className="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-600"
-                role="status"
-              >
-                <span>
+              <div className="flex flex-col gap-2 border-t border-stone-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <span aria-live="polite" className="text-sm text-stone-600" role="status">
                   {filteredTransactions.length === 0
                     ? transactions.length === 0
                       ? 'Aucune transaction sur cette période'
                       : 'Aucune transaction ne correspond aux filtres'
                     : `Transactions ${firstVisibleTransaction} à ${lastVisibleTransaction} sur ${filteredTransactions.length}`}
                 </span>
+                <div className="flex flex-col gap-1 sm:items-end">
+                  <Button
+                    className="min-h-11 w-full sm:w-auto"
+                    disabled={filteredTransactions.length === 0}
+                    onClick={exportTransactions}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Download aria-hidden="true" size={17} />
+                    Exporter CSV ({filteredTransactions.length})
+                  </Button>
+                  <p className="text-xs text-stone-500">
+                    Toute la période filtrée, pas seulement cette page. Disponible hors ligne.
+                  </p>
+                </div>
               </div>
 
               {transactions.length === 0 ? (
