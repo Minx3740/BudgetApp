@@ -1,20 +1,20 @@
 # PROGRESS
 
-## État actuel — branche v2, lot V2-5
+## État actuel — branche v2, lot V2-6
 
 - Dernière mise à jour : 2026-11-07. Branche locale `v2`, créée depuis `main`
   (`26a68bf`) ; aucun changement de cette branche n’a été fusionné ni poussé vers `main`.
-- Lot V2-4 validé sur l’historique : barre sticky de synthèse, libellé de période
-  jour/semaine/mois, total des dépenses nettes sur toute la période, indicateur « Filtres
-  actifs », ligne de seuil journalière/hebdomadaire et test de comparaison avec la même
-  source de calcul que l’écran Analyses. Le moteur réutilise la logique de dépenses nettes
-  existante plutôt qu’une seconde implémentation.
-- Lot V2-5 validé : la carte “Seuils” a été remplacée par une liste complète de seuils
-  actifs (jour, semaine, catégories), triée du pire au meilleur, avec sections, états,
-  message vide configurable, jours au-dessus du seuil et repères de seuil dans les
-  graphiques. Les calculs de projection, variation mensuelle et cas limites ont été
-  couverts par tests unitaires ciblés.
-- Lots V2-0, V2-1, V2-2, V2-4 et V2-5 sont en branche locale `v2` ; elle n’a pas été
+- Lot V2-6 validé sur le rendu visuel et les écrans d’onglets : un conteneur de page
+  partagé a été appliqué pour harmoniser les larges vues (transactions, budgets,
+  espaces, forfaits), avec un max-width commun pour réduire les espaces vides.
+- Les lignes de transaction ont été revues pour aligner les montants à droite avec
+  chiffres tabulaires, rendre les montants de revenus positifs avec couleur dédiée,
+  masquer la date lors d’un regroupement par jour, utiliser une pastille avec initiales
+  dans les espaces partagés et remplacer les boutons toujours visibles par un menu par
+  ligne. La suppression garde la possibilité d’annuler immédiatement via restauration.
+- Le lot V2-5 reste validé avec les seuils et les analyses ; le lot V2-6 enrichit la
+  cohérence visuelle sans modifier la logique métier déjà validée.
+- Lots V2-0, V2-1, V2-2, V2-4, V2-5 et V2-6 sont en branche locale `v2` ; elle n’a pas été
   poussée, ouverte en PR ni déployée.
 - Migrations 001 à 010 exécutées manuellement dans le projet Supabase TEST
   `wkympekogzamodupmqwg`. La migration R1 destructive n’a été exécutée que sur le projet

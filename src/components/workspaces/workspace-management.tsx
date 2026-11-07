@@ -258,7 +258,7 @@ export function WorkspaceManagement({
   }
 
   return (
-    <section aria-labelledby="spaces-title" className="max-w-4xl">
+    <section aria-labelledby="spaces-title" className="page-shell">
       <div className="mb-6">
         <p className="mb-2 text-sm font-medium text-emerald-800">Espaces</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="spaces-title">

@@ -290,7 +290,7 @@ export function RecurringExpensesView({
   }
 
   return (
-    <section aria-labelledby="section-title" className="max-w-4xl space-y-5">
+    <section aria-labelledby="section-title" className="page-shell space-y-5">
       <div>
         <p className="mb-2 text-sm font-medium text-emerald-800">Dépenses récurrentes</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">

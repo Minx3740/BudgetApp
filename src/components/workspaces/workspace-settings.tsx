@@ -78,7 +78,7 @@ export function WorkspaceSettings({
   }
 
   return (
-    <section aria-labelledby="workspace-settings-title" className="max-w-3xl space-y-5">
+    <section aria-labelledby="workspace-settings-title" className="page-shell space-y-5">
       <div>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="workspace-settings-title">
           Réglages de l’espace

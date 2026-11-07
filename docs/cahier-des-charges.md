@@ -1,6 +1,6 @@
 # Cahier des charges — cashFlow+
 
-Version 1.7 — mise à jour V2-5 (7 novembre 2026).
+Version 1.8 — mise à jour V2-6 (7 novembre 2026).
 
 Cette version intègre la réforme décrite dans `docs\reforme-budget-global.md`. Elle définit
 la cible fonctionnelle ; elle ne signifie pas que les fonctions décrites sont déjà
@@ -72,6 +72,9 @@ La réforme distingue explicitement :
 - **Seuils V2-5** : l’écran Analyses affiche la liste complète des seuils actifs, triée du
   pire au meilleur, avec états clairs, repères visuels et projection au rythme courant
   lorsqu’elle est fiable.
+- **Rendu visuel V2-6** : le layout partage un conteneur de page commun, les lignes de
+  transactions sont densément lisibles sur mobile et desktop, et les actions sont masquées
+  derrière un menu compact avec restauration immédiate possible après suppression.
 - **Seuil par catégorie** : montant de référence pour observer les dépenses d’une
   catégorie. Les seuils sont indépendants du budget du mois.
 - **Ressources du mois** : report accepté + budget (0 s’il n’est pas défini) + revenus

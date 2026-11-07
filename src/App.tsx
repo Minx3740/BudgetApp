@@ -1046,7 +1046,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
           </div>
         </header>
 
-        <main className="mx-auto max-w-6xl px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-7 sm:px-8 sm:pt-10 md:px-10 md:pb-12">
+        <main className="page-shell pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-7 sm:pt-10 md:pb-12">
           {error && (
             <p className="mb-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
               {error}
@@ -1219,7 +1219,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               workspace={activeWorkspace}
             />
           ) : activeSection === 'profile' ? (
-            <section aria-labelledby="section-title" className="max-w-3xl space-y-5">
+            <section aria-labelledby="section-title" className="page-shell space-y-5">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
                   Mon profil
@@ -1297,7 +1297,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               />
             </section>
           ) : activeSection === 'plus' ? (
-            <section aria-labelledby="section-title" className="max-w-4xl space-y-5">
+            <section aria-labelledby="section-title" className="page-shell space-y-5">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
                   Plus

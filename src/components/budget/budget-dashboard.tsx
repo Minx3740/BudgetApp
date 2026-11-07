@@ -928,7 +928,7 @@ export function BudgetDashboard({
 
   if (activeBudgetTab === 'analytics') {
     return (
-      <section aria-label="Budgets mensuels" className="max-w-4xl">
+      <section aria-label="Budgets mensuels" className="page-shell">
         <div className="mb-6">
           <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
@@ -956,7 +956,7 @@ export function BudgetDashboard({
   }
 
   return (
-    <section aria-label="Budgets mensuels" className="max-w-4xl">
+    <section aria-label="Budgets mensuels" className="page-shell">
       <div className="mb-6">
         <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
