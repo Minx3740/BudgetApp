@@ -1,8 +1,24 @@
-import type { Transaction } from './models'
+import type { Budget, Transaction } from './models'
+import { calculateNetExpenseTotals } from './reform-calculations'
 
 export const TRANSACTION_HISTORY_PAGE_SIZE = 50
 
 export type TransactionTypeFilter = 'all' | 'expenses' | 'income'
+
+export interface TransactionHistorySummary {
+  income: number
+  netExpenses: number
+  net: number
+  adjustments: number
+  count: number
+}
+
+export interface ThresholdUsageSummary {
+  spentAmount: number
+  limitAmount: number
+  progressPercentage: number
+  status: 'under' | 'alert' | 'over'
+}
 
 export interface TransactionHistoryFilters {
   transactionType: TransactionTypeFilter
@@ -53,6 +69,61 @@ export function countAdvancedTransactionHistoryFilters(
   includeMember: boolean,
 ): number {
   return Number(filters.categoryId !== '') + Number(includeMember && filters.memberId !== '')
+}
+
+export function calculateTransactionHistorySummary(
+  transactions: Transaction[],
+): TransactionHistorySummary {
+  const totals = calculateNetExpenseTotals(transactions)
+  return {
+    income: totals.income,
+    netExpenses: totals.netExpenses,
+    net: totals.net,
+    adjustments: totals.adjustments,
+    count: transactions.length,
+  }
+}
+
+export function calculateHistoryThresholdUsage(
+  transactions: Transaction[],
+  budgets: Budget[],
+  periodStart: string,
+  periodEnd: string,
+  periodType: 'day' | 'week',
+): ThresholdUsageSummary | null {
+  const budget = budgets.find(
+    (item) =>
+      item.deleted_at === null &&
+      item.enabled &&
+      item.period === periodType &&
+      item.category_id === null &&
+      item.limit_amount > 0,
+  )
+  if (!budget) return null
+
+  const thresholdTransactions = transactions.filter(
+    (transaction) =>
+      transaction.deleted_at === null &&
+      transaction.occurred_on >= periodStart &&
+      transaction.occurred_on <= periodEnd &&
+      transaction.kind !== 'adjustment' &&
+      transaction.kind !== 'income' &&
+      transaction.recurring_id === null,
+  )
+
+  const totals = calculateNetExpenseTotals(thresholdTransactions)
+  const spentAmount = totals.netExpenses
+  const progressPercentage =
+    budget.limit_amount === 0 ? (spentAmount > 0 ? 100 : 0) : Math.max(0, Math.min((spentAmount / budget.limit_amount) * 100, 100))
+  const status: ThresholdUsageSummary['status'] =
+    spentAmount > budget.limit_amount ? 'over' : progressPercentage >= 80 ? 'alert' : 'under'
+
+  return {
+    spentAmount,
+    limitAmount: budget.limit_amount,
+    progressPercentage,
+    status,
+  }
 }
 
 export function filterAndSortTransactions(

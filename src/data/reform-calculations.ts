@@ -37,6 +37,49 @@ function monthTransactions(month: string, transactions: CashflowTransaction[]) {
   )
 }
 
+export function calculateNetExpenseTotals(
+  transactions: Pick<CashflowTransaction, 'kind' | 'amount'>[],
+): {
+  expenses: number
+  refunds: number
+  income: number
+  adjustments: number
+  netExpenses: number
+  net: number
+} {
+  let expenses = 0
+  let refunds = 0
+  let income = 0
+  let adjustments = 0
+
+  for (const transaction of transactions) {
+    switch (transaction.kind) {
+      case 'expense':
+        expenses = addSafe(expenses, transaction.amount)
+        break
+      case 'refund':
+        refunds = addSafe(refunds, transaction.amount)
+        break
+      case 'income':
+        income = addSafe(income, transaction.amount)
+        break
+      case 'adjustment':
+        adjustments = addSafe(adjustments, transaction.amount)
+        break
+    }
+  }
+
+  const netExpenses = addSafe(expenses, -refunds)
+  return {
+    expenses,
+    refunds,
+    income,
+    adjustments,
+    netExpenses,
+    net: addSafe(addSafe(income, -netExpenses), adjustments),
+  }
+}
+
 export function calculateExpenseComposition(
   month: string,
   transactions: CashflowTransaction[],
@@ -73,34 +116,13 @@ export function calculateExpenseComposition(
 }
 
 function totalsForMonth(month: string, transactions: CashflowTransaction[]) {
-  let expenses = 0
-  let refunds = 0
-  let income = 0
-  let adjustments = 0
-
-  for (const transaction of monthTransactions(month, transactions)) {
-    switch (transaction.kind) {
-      case 'expense':
-        expenses = addSafe(expenses, transaction.amount)
-        break
-      case 'refund':
-        refunds = addSafe(refunds, transaction.amount)
-        break
-      case 'income':
-        income = addSafe(income, transaction.amount)
-        break
-      case 'adjustment':
-        adjustments = addSafe(adjustments, transaction.amount)
-        break
-    }
-  }
-
+  const monthTotals = calculateNetExpenseTotals(monthTransactions(month, transactions))
   return {
-    expenses,
-    refunds,
-    income,
-    adjustments,
-    netExpenses: addSafe(expenses, -refunds),
+    expenses: monthTotals.expenses,
+    refunds: monthTotals.refunds,
+    income: monthTotals.income,
+    adjustments: monthTotals.adjustments,
+    netExpenses: monthTotals.netExpenses,
   }
 }
 
