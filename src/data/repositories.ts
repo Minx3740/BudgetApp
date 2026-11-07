@@ -34,7 +34,12 @@ export interface Repository<K extends EditableTable> {
     changes: UpdateInput<K>,
     actorUserId?: string,
   ): Promise<RepositoryRow<K>>
-  restore(id: string, workspaceId: string, actorUserId?: string): Promise<RepositoryRow<K>>
+  restore(
+    id: string,
+    workspaceId: string,
+    actorUserId?: string,
+    changes?: UpdateInput<K>,
+  ): Promise<RepositoryRow<K>>
   softDelete(
     id: string,
     workspaceId: string,
@@ -132,7 +137,7 @@ export function createRepository<K extends EditableTable>(
       })
     },
 
-    async restore(id, workspaceId, actorUserId) {
+    async restore(id, workspaceId, actorUserId, changes) {
       return database.transaction('rw', table, database.memberships, database.outbox, async () => {
         const existing = await table.get(id)
         if (!existing || existing.workspace_id !== workspaceId || existing.deleted_at === null) {
@@ -141,7 +146,7 @@ export function createRepository<K extends EditableTable>(
 
         await writeGuard?.(existing, actorUserId, 'update')
         const now = nextTimestamp(existing.updated_at)
-        const row = schema.parse({ ...existing, updated_at: now, deleted_at: null })
+        const row = schema.parse({ ...existing, ...changes, updated_at: now, deleted_at: null })
         await table.put(row)
         const queuedAt = await nextOutboxTimestamp(database, now)
         await database.outbox.add(makeOutboxOperation(tableName, 'upsert', row, queuedAt, existing))
@@ -204,6 +209,11 @@ export function createTransactionsRepository(database: BudgetDatabase = db) {
     },
     update(id: string, workspaceId: string, changes: TransactionUpdateInput, userId: string) {
       return repository.update(id, workspaceId, { ...changes, updated_by: userId }, userId)
+    },
+    restore(id: string, workspaceId: string, userId: string) {
+      return repository.restore(id, workspaceId, userId, {
+        updated_by: userId,
+      })
     },
     softDelete(id: string, workspaceId: string, userId: string) {
       return repository.softDelete(id, workspaceId, userId, {

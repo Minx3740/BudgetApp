@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Archive, CirclePlus, Filter, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import {
+  Archive,
+  CirclePlus,
+  Filter,
+  MoreHorizontal,
+  Pencil,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { categoriesRepository, transactionsRepository } from '@/data/repositories'
@@ -160,19 +170,6 @@ function transactionLabel(kind: TransactionKind): string {
   }
 }
 
-function responsibilityLabel(kind: TransactionKind): string {
-  switch (kind) {
-    case 'expense':
-      return 'payé par'
-    case 'refund':
-      return 'remboursement reçu par'
-    case 'income':
-      return 'revenu reçu par'
-    case 'adjustment':
-      return 'ajustement pour'
-  }
-}
-
 export function LocalDataView({
   workspaceId,
   month,
@@ -189,6 +186,7 @@ export function LocalDataView({
   const [transactionError, setTransactionError] = useState<string | null>(null)
   const [categoryFormError, setCategoryFormError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pendingDeletionId, setPendingDeletionId] = useState<string | null>(null)
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null)
   const [categoryArchiveTarget, setCategoryArchiveTarget] = useState<Category | null>(null)
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null)
@@ -768,14 +766,28 @@ export function LocalDataView({
     setNotice(null)
     try {
       await transactionsRepository.softDelete(transaction.id, workspaceId, userId)
+      setPendingDeletionId(transaction.id)
       setNotice('Transaction supprimée.')
     } catch (failure) {
       setError(`Impossible de supprimer cette transaction. ${errorMessage(failure)}`)
     }
   }
 
+  async function restoreTransaction() {
+    if (!workspaceId || !pendingDeletionId) return
+    setError(null)
+    setNotice(null)
+    try {
+      await transactionsRepository.restore(pendingDeletionId, workspaceId, userId)
+      setPendingDeletionId(null)
+      setNotice('Suppression annulée.')
+    } catch (failure) {
+      setError(`Impossible d’annuler la suppression. ${errorMessage(failure)}`)
+    }
+  }
+
   return (
-    <section aria-labelledby="section-title" className="max-w-3xl">
+    <section aria-labelledby="section-title" className="page-shell">
       <p className="mb-2 text-sm font-medium text-emerald-800">Données de l’espace actif</p>
       <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
         Transactions et catégories
@@ -797,12 +809,17 @@ export function LocalDataView({
         </p>
       )}
       {notice && (
-        <p
-          className="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+        <div
+          className="mt-5 flex flex-col gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:flex-row sm:items-center sm:justify-between"
           role="status"
         >
-          {notice}
-        </p>
+          <span>{notice}</span>
+          {pendingDeletionId && (
+            <Button className="min-h-10" onClick={() => void restoreTransaction()} variant="outline">
+              Annuler
+            </Button>
+          )}
+        </div>
       )}
 
       <nav
@@ -1154,12 +1171,6 @@ export function LocalDataView({
                         )
                         const responsibleName =
                           historyNames.members.get(transaction.paid_by) || 'Membre'
-                        const authorName =
-                          historyNames.members.get(transaction.created_by) || 'Membre'
-                        const attribution =
-                          transaction.created_by === transaction.paid_by
-                            ? `${responsibilityLabel(transaction.kind)} ${responsibleName}`
-                            : `${responsibilityLabel(transaction.kind)} ${responsibleName} · saisi par ${authorName}`
                         const amountPrefix =
                           transaction.kind === 'income' || transaction.kind === 'refund'
                             ? '+'
@@ -1167,12 +1178,26 @@ export function LocalDataView({
                               ? '−'
                               : ''
 
+                        const amountTone =
+                          transaction.kind === 'income' || transaction.kind === 'refund'
+                            ? 'text-[var(--color-income)]'
+                            : 'text-[var(--color-neutral)]'
+                        const sharedOwnerInitials =
+                          isSharedWorkspace && responsibleName
+                            ? responsibleName
+                                .split(/\s+/)
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .map((part) => part[0]?.toUpperCase() ?? '')
+                                .join('')
+                            : ''
+
                         return (
                           <article
                             className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
                             key={transaction.id}
                           >
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">
                                 <span
                                   aria-hidden="true"
@@ -1184,40 +1209,62 @@ export function LocalDataView({
                                 />
                                 {category?.name ?? transactionLabel(transaction.kind)}
                               </p>
-                              <p className="truncate text-sm text-stone-500">
-                                {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
-                                  'fr-FR',
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-stone-500">
+                                {groupBy !== 'day' && (
+                                  <span className="tabular-nums">
+                                    {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
+                                      'fr-FR',
+                                    )}
+                                  </span>
                                 )}
-                                {transaction.note ? ` · ${transaction.note}` : ''}
-                                {isSharedWorkspace && ` · ${attribution}`}
-                              </p>
+                                {transaction.note && <span className="truncate">· {transaction.note}</span>}
+                                {isSharedWorkspace && (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span
+                                      aria-label={`Payé par ${responsibleName}`}
+                                      className="flex size-5 items-center justify-center rounded-full bg-stone-200 text-[10px] font-semibold text-stone-700"
+                                      title={`Payé par ${responsibleName}`}
+                                    >
+                                      {sharedOwnerInitials || 'M'}
+                                    </span>
+                                    <span className="sr-only">Payé par {responsibleName}</span>
+                                    <span className="hidden sm:inline">{responsibleName}</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex shrink-0 items-center gap-1">
-                              <span className="mr-2 text-right font-semibold">
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className={`tabular-nums text-right text-base font-semibold ${amountTone}`}>
                                 {amountPrefix}
                                 {formatMoney(transaction.amount)}
                               </span>
                               {canEditTransactionRecord(transaction) && (
-                                <>
-                                  <Button
-                                    aria-label={`Modifier ${transactionLabel(transaction.kind).toLowerCase()}`}
-                                    className="min-h-12 min-w-12"
-                                    onClick={() => editTransaction(transaction)}
-                                    size="icon"
-                                    variant="ghost"
+                                <details className="relative">
+                                  <summary
+                                    aria-label={`Actions pour ${transactionLabel(transaction.kind).toLowerCase()}`}
+                                    className="flex size-8 cursor-pointer list-none items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-900"
                                   >
-                                    <Pencil aria-hidden="true" size={17} />
-                                  </Button>
-                                  <Button
-                                    aria-label={`Supprimer ${transactionLabel(transaction.kind).toLowerCase()}`}
-                                    className="min-h-12 min-w-12 text-red-700 hover:text-red-800"
-                                    onClick={() => void deleteTransaction(transaction)}
-                                    size="icon"
-                                    variant="ghost"
-                                  >
-                                    <Trash2 aria-hidden="true" size={17} />
-                                  </Button>
-                                </>
+                                    <MoreHorizontal aria-hidden="true" size={16} />
+                                  </summary>
+                                  <div className="absolute right-0 top-full z-20 mt-2 min-w-36 rounded-xl border border-stone-200 bg-white p-1 shadow-lg">
+                                    <button
+                                      className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-stone-100"
+                                      onClick={() => editTransaction(transaction)}
+                                      type="button"
+                                    >
+                                      <Pencil aria-hidden="true" size={15} />
+                                      Modifier
+                                    </button>
+                                    <button
+                                      className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-red-700 hover:bg-red-50"
+                                      onClick={() => void deleteTransaction(transaction)}
+                                      type="button"
+                                    >
+                                      <Trash2 aria-hidden="true" size={15} />
+                                      Supprimer
+                                    </button>
+                                  </div>
+                                </details>
                               )}
                             </div>
                           </article>
