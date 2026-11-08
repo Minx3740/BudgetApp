@@ -2167,7 +2167,7 @@ export function LocalDataView({
             {transactionDraft.kind === 'adjustment' ? 'Montant signé' : 'Montant'}
             <input
               autoFocus
-              className="min-h-14 rounded-xl border border-stone-300 px-4 text-2xl font-semibold"
+              className="min-h-14 w-full min-w-0 rounded-xl border border-stone-300 px-4 text-2xl font-semibold"
               inputMode="numeric"
               min={transactionDraft.kind === 'adjustment' ? undefined : '1'}
               onChange={(event) =>
