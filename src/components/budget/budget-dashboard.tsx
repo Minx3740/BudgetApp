@@ -782,13 +782,13 @@ export function BudgetDashboard({
 
             <div className="grid grid-cols-2 gap-3">
               <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                <CardContent className="p-4">
+                <CardContent className="px-3 py-4 sm:p-4">
                   <p className="text-sm text-stone-600">Revenus</p>
                   <p className="mt-1 text-lg font-semibold">{formatMoney(currentLedger.income)}</p>
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-                <CardContent className="p-4">
+                <CardContent className="px-3 py-4 sm:p-4">
                   <p className="text-sm text-stone-600">Dépenses</p>
                   <p className="mt-1 text-lg font-semibold">
                     {formatMoney(currentLedger.netExpenses)}
@@ -861,7 +861,7 @@ export function BudgetDashboard({
                         className="flex min-w-0 items-center justify-between gap-3 text-sm"
                         key={transaction.id}
                       >
-                        <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
                           <span
                             aria-hidden="true"
                             className="size-2.5 shrink-0 rounded-full"
@@ -869,7 +869,7 @@ export function BudgetDashboard({
                               backgroundColor: category?.color ?? 'var(--category-uncategorized)',
                             }}
                           />
-                          <span className="truncate">
+                          <span className="min-w-0 flex-1 truncate">
                             {category?.name ?? (transaction.note?.trim() || typeLabel)}
                           </span>
                         </div>
@@ -894,10 +894,12 @@ export function BudgetDashboard({
                   ) : (
                     consumedCategories.map((item) => (
                       <div
-                        className="flex items-center justify-between gap-3 text-sm"
+                        className="flex min-w-0 items-center justify-between gap-3 text-sm"
                         key={item.categoryId}
                       >
-                        <span className="truncate text-stone-600">{item.categoryName}</span>
+                        <span className="min-w-0 flex-1 truncate text-stone-600">
+                          {item.categoryName}
+                        </span>
                         <span className="shrink-0 font-semibold">
                           {formatMoney(item.spentAmount)}
                         </span>
@@ -928,7 +930,7 @@ export function BudgetDashboard({
 
   if (activeBudgetTab === 'analytics') {
     return (
-      <section aria-label="Budgets mensuels" className="page-shell">
+      <section aria-label="Budgets mensuels">
         <div className="mb-6">
           <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
@@ -956,7 +958,7 @@ export function BudgetDashboard({
   }
 
   return (
-    <section aria-label="Budgets mensuels" className="page-shell">
+    <section aria-label="Budgets mensuels">
       <div className="mb-6">
         <p className="mb-2 text-sm font-medium text-emerald-800">Budget de l’espace</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Budgets mensuels</h1>
@@ -1175,7 +1177,7 @@ export function BudgetDashboard({
 
       {activeBudgetCategories.length === 0 && !isEditing && (
         <Card className="mt-4 rounded-2xl border-0 bg-muted shadow-sm">
-          <CardContent className="p-4 text-sm text-muted-foreground">
+          <CardContent className="px-3 py-4 text-sm text-muted-foreground sm:p-4">
             Aucun seuil défini pour ce mois. Les seuils sont facultatifs.
           </CardContent>
         </Card>

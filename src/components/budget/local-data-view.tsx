@@ -759,7 +759,7 @@ export function LocalDataView({
   function renderCategory(category: Category) {
     return (
       <article
-        className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
+        className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-2 sm:p-3"
         key={category.id}
       >
         <div className="flex min-w-0 items-center gap-3">
@@ -1014,7 +1014,7 @@ export function LocalDataView({
   }
 
   return (
-    <section aria-labelledby="section-title" className="page-shell">
+    <section aria-labelledby="section-title">
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl" id="section-title">
         Transactions
       </h1>
@@ -1359,7 +1359,7 @@ export function LocalDataView({
                                     aria-controls={weekContentId}
                                     aria-expanded={weekExpanded}
                                     aria-label={`${weekExpanded ? 'Replier' : 'Déplier'} ${week.label}, ${week.count} transactions, dépenses nettes ${formatMoney(week.totalExpenses)}`}
-                                    className="flex min-h-[4.25rem] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800 motion-reduce:transition-none"
+                                    className="flex min-h-[4.25rem] w-full items-center justify-between gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800 motion-reduce:transition-none sm:px-3"
                                     onClick={() =>
                                       activeFilterCount > 0
                                         ? setClosedAgendaWeekKeys((current) => {
@@ -1471,7 +1471,7 @@ export function LocalDataView({
                   {transactionPage.groups.map((group) => (
                     <section className="space-y-3" key={group.key}>
                       {groupBy !== 'none' && (
-                        <header className="rounded-xl bg-stone-100 px-3 py-3">
+                        <header className="rounded-xl bg-stone-100 px-2 py-2 sm:px-3 sm:py-3">
                           <h3 className="font-semibold capitalize">{group.label}</h3>
                           <p className="mt-1 text-sm text-stone-600">
                             {group.count} transaction{group.count > 1 ? 's' : ''} · Revenus{' '}
@@ -1512,7 +1512,7 @@ export function LocalDataView({
 
                         return (
                           <article
-                            className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-3"
+                            className="flex items-center justify-between gap-3 rounded-xl bg-stone-50 p-2 sm:p-3"
                             key={transaction.id}
                           >
                             <div className="min-w-0 flex-1">

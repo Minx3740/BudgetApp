@@ -55,7 +55,7 @@
 
 :root {
   --page-shell-max: 76rem;
-  --page-shell-gutter: clamp(1rem, 2.2vw, 2.25rem);
+  --page-shell-gutter: clamp(0.75rem, 2.2vw, 2.25rem);
   --income: oklch(0.57 0.17 152);
   --expense: oklch(0.27 0.01 115);
   --alert: oklch(0.74 0.15 78);

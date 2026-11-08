@@ -1223,7 +1223,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               workspace={activeWorkspace}
             />
           ) : activeSection === 'profile' ? (
-            <section aria-labelledby="section-title" className="page-shell space-y-5">
+            <section aria-labelledby="section-title" className="space-y-5">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
                   Mon profil
@@ -1301,7 +1301,7 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               />
             </section>
           ) : activeSection === 'plus' ? (
-            <section aria-labelledby="section-title" className="page-shell space-y-5">
+            <section aria-labelledby="section-title" className="space-y-5">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
                   Plus

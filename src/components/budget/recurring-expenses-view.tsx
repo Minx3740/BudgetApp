@@ -290,7 +290,7 @@ export function RecurringExpensesView({
   }
 
   return (
-    <section aria-labelledby="section-title" className="page-shell space-y-5">
+    <section aria-labelledby="section-title" className="space-y-5">
       <div>
         <p className="mb-2 text-sm font-medium text-emerald-800">Dépenses récurrentes</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
@@ -436,7 +436,7 @@ export function RecurringExpensesView({
                 className="rounded-2xl border-0 shadow-sm ring-1 ring-stone-200"
                 key={expense.id}
               >
-                <CardContent className="space-y-4 p-4 sm:p-5">
+                <CardContent className="space-y-4 px-3 py-4 sm:px-4 sm:py-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="break-words text-lg font-semibold">{expense.label}</h3>
