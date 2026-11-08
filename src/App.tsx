@@ -1100,33 +1100,35 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               </Button>
             </div>
           )}
-          <nav
-            aria-label="Sélection du mois"
-            className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white px-3 py-2"
-          >
-            <Button
-              aria-label="Mois précédent"
-              className="min-h-11 min-w-11"
-              onClick={() => changeMonth(shiftMonth(selectedMonth, -1))}
-              size="icon"
-              variant="outline"
+          {activeSection !== 'transactions' && (
+            <nav
+              aria-label="Sélection du mois"
+              className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white px-3 py-2"
             >
-              <ArrowLeft aria-hidden="true" size={18} />
-            </Button>
-            <p aria-live="polite" className="text-center font-semibold">
-              {formatMonth(selectedMonth)}
-            </p>
-            <Button
-              aria-label="Mois suivant"
-              className="min-h-11 min-w-11"
-              disabled={selectedMonth >= currentMonth}
-              onClick={() => changeMonth(shiftMonth(selectedMonth, 1))}
-              size="icon"
-              variant="outline"
-            >
-              <ArrowRight aria-hidden="true" size={18} />
-            </Button>
-          </nav>
+              <Button
+                aria-label="Mois précédent"
+                className="min-h-11 min-w-11"
+                onClick={() => changeMonth(shiftMonth(selectedMonth, -1))}
+                size="icon"
+                variant="outline"
+              >
+                <ArrowLeft aria-hidden="true" size={18} />
+              </Button>
+              <p aria-live="polite" className="text-center font-semibold">
+                {formatMonth(selectedMonth)}
+              </p>
+              <Button
+                aria-label="Mois suivant"
+                className="min-h-11 min-w-11"
+                disabled={selectedMonth >= currentMonth}
+                onClick={() => changeMonth(shiftMonth(selectedMonth, 1))}
+                size="icon"
+                variant="outline"
+              >
+                <ArrowRight aria-hidden="true" size={18} />
+              </Button>
+            </nav>
+          )}
           {activeSection === 'home' ? (
             <>
               <div className="mb-8">
@@ -1160,10 +1162,12 @@ function SignedInView({ client, user }: { client: SupabaseClient; user: OfflineI
               key={activeWorkspace?.id}
               month={selectedMonth}
               memberships={memberships}
+              onMonthChange={changeMonth}
               onQuickEntryOpenChange={setIsQuickEntryOpen}
               profiles={profiles}
               userId={user.id}
               workspaceId={activeWorkspace?.id}
+              workspaceName={activeWorkspace?.name ?? 'Mon espace'}
             />
           ) : activeSection === 'budgets' ? (
             <BudgetDashboard

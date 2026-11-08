@@ -19,6 +19,35 @@ export interface TransactionGroupingOptions {
   period?: DatePeriod
 }
 
+export interface AgendaDayGroup extends Omit<TransactionGroup, 'bounds' | 'label'> {
+  date: string
+  label: string
+}
+
+export interface AgendaWeekGroup extends Omit<TransactionGroup, 'label' | 'transactions'> {
+  label: string
+  days: AgendaDayGroup[]
+  categoryIds: string[]
+}
+
+export interface AgendaMonthGroup {
+  key: string
+  label: string
+  bounds: DatePeriod
+  weeks: AgendaWeekGroup[]
+}
+
+export interface TransactionAgendaOptions {
+  period: DatePeriod
+  currentDate?: string
+  groupByMonth?: boolean
+}
+
+export interface TransactionAgendaExpandedKeys {
+  monthKeys: string[]
+  weekKeys: string[]
+}
+
 function addSafe(left: number, right: number): number {
   const result = left + right
   if (!Number.isSafeInteger(result)) {
@@ -35,6 +64,14 @@ function formatDate(date: string, options: Intl.DateTimeFormatOptions): string {
   dateValue.setUTCFullYear(year, month - 1, day)
   dateValue.setUTCHours(0, 0, 0, 0)
   return new Intl.DateTimeFormat('fr-FR', { ...options, timeZone: 'UTC' }).format(dateValue)
+}
+
+function formatShortDate(date: string): string {
+  return formatDate(date, { day: 'numeric', month: 'short' }).replace(/\.$/u, '')
+}
+
+function formatShortMonth(date: string): string {
+  return formatDate(date, { month: 'short', year: 'numeric' })
 }
 
 function groupBounds(
@@ -86,6 +123,118 @@ function createGroup(
     net,
     count: transactions.length,
     transactions,
+  }
+}
+
+export function groupTransactionsForAgenda(
+  transactions: Transaction[],
+  options: TransactionAgendaOptions,
+): AgendaMonthGroup[] {
+  if (transactions.length === 0) return []
+
+  const groupByMonth = options.groupByMonth !== false
+  const monthTransactions = new Map<string, Transaction[]>()
+  for (const transaction of transactions) {
+    const monthKey = groupByMonth ? transaction.occurred_on.slice(0, 7) : 'period'
+    const group = monthTransactions.get(monthKey)
+    if (group) group.push(transaction)
+    else monthTransactions.set(monthKey, [transaction])
+  }
+
+  return [...monthTransactions.entries()]
+    .map(([monthKey, monthRows]) => {
+      const monthBounds = groupByMonth ? getMonthPeriod(monthKey) : options.period
+      const bounds = {
+        start: monthBounds.start < options.period.start ? options.period.start : monthBounds.start,
+        end: monthBounds.end > options.period.end ? options.period.end : monthBounds.end,
+      }
+      const weeks = new Map<string, Transaction[]>()
+      for (const transaction of monthRows) {
+        const fullWeek = getWeekPeriod(transaction.occurred_on)
+        const weekKey = groupByMonth
+          ? `week:${monthKey}:${fullWeek.start}`
+          : `week:${fullWeek.start}`
+        const group = weeks.get(weekKey)
+        if (group) group.push(transaction)
+        else weeks.set(weekKey, [transaction])
+      }
+
+      const agendaWeeks = [...weeks.entries()]
+        .map(([weekKey, weekRows]) => {
+          const firstTransaction = weekRows[0]
+          if (!firstTransaction) return null
+          const fullWeekBounds = getWeekPeriod(firstTransaction.occurred_on)
+          const weekBounds = {
+            start: fullWeekBounds.start < bounds.start ? bounds.start : fullWeekBounds.start,
+            end: fullWeekBounds.end > bounds.end ? bounds.end : fullWeekBounds.end,
+          }
+          const days = new Map<string, Transaction[]>()
+          for (const transaction of weekRows) {
+            const group = days.get(transaction.occurred_on)
+            if (group) group.push(transaction)
+            else days.set(transaction.occurred_on, [transaction])
+          }
+
+          const agendaDays = [...days.entries()]
+            .map(([date, dayRows]) => ({
+              ...createGroup(
+                `day:${date}`,
+                formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' }),
+                getDayPeriod(date),
+                dayRows,
+              ),
+              date,
+            }))
+            .sort((left, right) => right.date.localeCompare(left.date))
+          const totals = createGroup(weekKey, '', weekBounds, weekRows)
+          return {
+            key: totals.key,
+            label:
+              options.currentDate &&
+              options.currentDate >= weekBounds.start &&
+              options.currentDate <= weekBounds.end
+                ? `Cette semaine · ${formatShortDate(weekBounds.start)} – ${formatShortDate(weekBounds.end)}`
+                : `${formatShortDate(weekBounds.start)} – ${formatShortDate(weekBounds.end)}`,
+            bounds: totals.bounds,
+            totalIncome: totals.totalIncome,
+            totalExpenses: totals.totalExpenses,
+            totalAdjustments: totals.totalAdjustments,
+            net: totals.net,
+            count: totals.count,
+            days: agendaDays,
+            categoryIds: [
+              ...new Set(weekRows.map((transaction) => transaction.category_id ?? 'uncategorized')),
+            ],
+          }
+        })
+        .filter((week): week is NonNullable<typeof week> => week !== null)
+        .sort((left, right) => right.bounds.start.localeCompare(left.bounds.start))
+
+      return {
+        key: groupByMonth ? `month:${monthKey}` : 'period',
+        label: formatShortMonth(bounds.start),
+        bounds,
+        weeks: agendaWeeks,
+      }
+    })
+    .sort((left, right) => right.bounds.start.localeCompare(left.bounds.start))
+}
+
+export function getTransactionAgendaExpandedKeys(
+  months: AgendaMonthGroup[],
+  filtersActive: boolean,
+  currentDate: string,
+): TransactionAgendaExpandedKeys {
+  const matchingWeeks = months.flatMap((month) =>
+    month.weeks.filter(
+      (week) =>
+        filtersActive || (currentDate >= week.bounds.start && currentDate <= week.bounds.end),
+    ),
+  )
+
+  return {
+    monthKeys: filtersActive ? months.map((month) => month.key) : [],
+    weekKeys: matchingWeeks.map((week) => week.key),
   }
 }
 

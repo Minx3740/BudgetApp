@@ -1,19 +1,128 @@
 # PROGRESS
 
-## État actuel — branche main, export CSV terminé
+## Mise à jour — export Excel, étapes 1 à 3
 
-- Dernière mise à jour : 2026-11-07. Les lots V2-0 à V2-6 ont été fusionnés dans `main`
-  et poussés sur `origin/main` avant cette évolution.
-- L’export CSV de l’historique exporte hors ligne les transactions
-  correspondantes à la période et aux filtres actifs, sur toutes les pages. Le fichier
-  utilise un séparateur point-virgule, UTF-8 avec BOM, des montants signés en ariary et
-  des libellés lisibles ; les identifiants techniques sont omis et les champs texte sont
-  protégés contre l’exécution de formules dans un tableur.
-- Aucune migration Supabase ni dépendance n’est nécessaire pour l’export CSV.
-- Vérifications : lint, typecheck, `npm test` (133 tests / 22 fichiers), build et Prettier
-  sur les nouveaux fichiers et la documentation réussis. L’avertissement Vite existant sur
-  le bundle principal de plus de 500 kB demeure. Cette évolution locale n’a pas encore été poussée.
-- Les lots V2-4, V2-5 et V2-6 restent documentés et validés plus bas dans ce fichier.
+- Correctif après le signalement Excel : l’avertissement ciblait `/xl/worksheets/sheet4.xml`
+  (« Par catégorie »). Le rendu de la barre de données passait une propriété `style`,
+  alors qu’ExcelJS sérialise sa couleur depuis `color`; le XML exporté pouvait donc
+  contenir une règle de barre sans couleur. Remplacé par `color: { argb: ... }` et ajouté
+  une assertion qui vérifie la balise XML `<color rgb="FF004E33"/>`. Le type public
+  ExcelJS omettant ce champ pourtant lu par son sérialiseur, la règle est typée comme
+  intersection avec `ExcelJS.DataBarRuleType`, sans cast non sûr. Les six tests du
+  classeur et le typecheck passent. L’original XLSX n’étant pas disponible, la
+  confirmation finale doit se faire en ouvrant un nouvel export dans Excel.
+
+- Étape 4 (en cours) : les tests du modèle couvrent déjà la période vide, les semaines
+  partielles, forfait sans catégorie, note absente, créateur identique/différent et la
+  somme des groupes. Nouveau test de rendu : `rejects empty periods instead of
+downloading a blank workbook`; les autres tests relisent déjà le classeur généré
+  avec ExcelJS et vérifient formules/résultats, valeurs numériques, styles, filtre,
+  ligne figée et ordre des feuilles. Les 11 tests ciblés passent.
+- Vérification navigateur tentée, mais Playwright ne peut pas démarrer : Chromium manque
+  (`C:\Users\Laro\AppData\Local\ms-playwright\chromium_headless_shell-1200\...`).
+  Node.js 22.14.0 est présent, mais aucun paquet Playwright n'est installé dans le
+  projet. Aucun téléchargement du navigateur ni ajout de dépendance n'a été lancé.
+  LibreOffice et le fichier local `.env` sont également absents; conversion PDF et test
+  réel de téléchargement avec les données authentifiées restent donc à valider.
+
+- Étape 3 : le classeur contient maintenant « Par jour » (semaines puis jours) et
+  « Par catégorie », après « Résumé » et « Transactions ». Les semaines utilisent les
+  groupes de l’écran, donc les semaines partielles restent coupées aux bornes de la
+  période/mois. Les dates des lignes jour sont de vraies dates Excel.
+- Dans « Par jour », les semaines et jours distinguent dépenses hors forfaits et forfaits,
+  avec leur nombre de transactions; les lignes jour sont en outline Excel, la semaine la
+  plus récente ouverte par défaut et les semaines plus anciennes repliées. Une ligne de
+  total clôt la feuille.
+- Dans « Par catégorie », les catégories sont triées par dépenses nettes hors forfaits,
+  « Sans catégorie » est en dernier, les remboursements réduisent les dépenses, les
+  forfaits sont séparés et une barre de données Excel est appliquée aux totaux.
+- Les formules comptent correctement les dépenses négatives et remboursements positifs
+  du fichier Transactions, et toutes les nouvelles formules sont écrites avec leur
+  résultat en cache. Les remboursements positifs sont soustraits des dépenses après
+  inversion du signe des dépenses, comme dans le calcul de l’écran.
+- Le test `exports grouped weeks and days plus category totals with outline and data bars`
+  relit le classeur, valide les totaux de semaine/jour/catégorie, les regroupements et la
+  barre de données; les sommes rejoignent le total de dépenses calculé par l’écran.
+- Vérifications étape 3 : lint, typecheck, 151 tests sur 24 fichiers et build réussis.
+  Le build conserve l’avertissement du bundle principal (>500 kB); le chunk Excel reste
+  dynamique et précaché. Aucun essai LibreOffice ou Playwright n’a été réalisé.
+
+- Correction/complétion de l’étape 2 (feuille « Résumé ») : les cellules A4:B9 sont
+  les lignes Dépenses totales, Dont forfaits, Dépenses hors forfaits, Revenus, Net et
+  Nombre de transactions. Chaque valeur en B est une formule avec son résultat mis en
+  cache, y compris les zéros; recalcul complet demandé à l’ouverture. La répartition par
+  membre apparaît dans les espaces partagés avec compte, dépenses totales, forfaits et
+  dépenses hors forfaits, tous calculés par formules avec résultats en cache.
+- Le titre de résumé est maintenant contextualisé avec le nom de l’espace et la période.
+  Le test `writes cached summary formulas matching screen totals for 39 expenses, one
+forfait, and two members` génère puis relit le classeur; il compare les résultats à la
+  logique de synthèse de l’écran, vérifie les deux membres et le forfait de 170 000 Ar.
+  Il vérifie aussi les valeurs en cache nulles directement dans le XML, car le lecteur
+  ExcelJS ne restitue pas son résultat `0` lors d’une relecture alors que le fichier
+  contient bien `<v>0</v>`.
+- ExcelJS 4.4.0 a été ajouté après validation. Le menu « … » propose maintenant
+  Excel (.xlsx) et CSV (données brutes) ; le CSV existant et sa génération restent
+  inchangés.
+- Le classeur de l’étape 1 contient la feuille « Transactions » : dates et montants
+  numériques, ordre décroissant par date puis création, colonnes conditionnelles
+  « Type » et « Saisi par », styles, filtre, ligne figée, sous-total SUBTOTAL et
+  paramètres d’impression A4 paysage.
+- Le modèle d’export pur réutilise les calculs existants et
+  `groupTransactionsForAgenda`. Le rendu Excel est chargé par import dynamique au clic
+  sur Excel ; aucune nouvelle option de période n’a été nécessaire : jour, semaine,
+  mois et plage personnalisée existaient déjà.
+- Le build confirme un chunk séparé `transaction-xlsx` (944,45 kB minifié, 261,11 kB
+  gzip), absent du bundle initial par import statique, et présent dans le précache du
+  service worker (35 entrées, 2006,38 KiB). L’export doit donc être disponible hors
+  ligne après la mise à jour du service worker.
+- Vérifications : lint, typecheck, 151 tests sur 24 fichiers et build réussis.
+  Aucun test Playwright réel en ligne/hors ligne ni rendu LibreOffice n’a été réalisé.
+  Le build conserve l’avertissement du chunk principal (>500 kB).
+- `npm audit` a encore signalé des avis de faible sévérité dans la chaîne Workbox et
+  `deepmerge@4.3.1` sans correctif compatible identifié ; aucun downgrade forcé de
+  `vite-plugin-pwa` n’a été appliqué.
+- Fichiers de cette étape : `package.json`, `package-lock.json`,
+  `src/components/budget/local-data-view.tsx`, et les nouveaux modules/tests
+  `src/data/transaction-export-model*` et `src/data/transaction-xlsx*`.
+- Étape 1 terminée. Le classeur exporte désormais une feuille « Transactions »
+  plus une première feuille « Résumé » pour la seconde couche d’export Excel.
+- Vérifications : lint, typecheck, 151 tests et build réussis. Le chunk Excel reste
+  séparé et précaché pour le mode hors ligne.
+
+## État actuel — branche v2, refonte Transactions, étape 2
+
+- Dernière mise à jour : 2026-11-07. Travail poursuivi sur `v2`, sans push, commit ni fusion.
+- Le commit local d’export CSV `ce00f32` a été repris sur `v2` sous le commit
+  `190362d`. L’export reste local/hors ligne et conserve la période et les filtres.
+- Étape 1 : barre mois + filtres, période et regroupement dans le panneau adaptatif,
+  résumé compact, retrait des titres redondants et du bouton Ajouter de la carte, export
+  dans « … ». Les deux seuls boutons Ajouter restent celui du bureau et celui de la barre
+  mobile. La validation faite alors était lint, typecheck, 133 tests et build ; la mesure
+  visuelle à 700 px n’a pas été réalisée.
+- Étape 2 : le regroupement par défaut est « Semaine ». L’historique par semaine est
+  présenté en accordéons accessibles semaine → jours ; seule la semaine courante est
+  ouverte par défaut. Les contenus fermés ne sont pas rendus dans le DOM. Les périodes
+  personnalisées longues (31 jours ou plus) couvrant plusieurs mois sont hiérarchisées
+  mois → semaines ; les filtres ouvrent les groupes contenant les résultats et les groupes
+  vides sont omis. Une période semaine traversant deux mois reste une seule semaine.
+- Dans la vue mensuelle, les semaines partielles sont coupées aux limites du mois ; leurs
+  totaux utilisent les remboursements comme réduction des dépenses nettes. Les en-têtes
+  montrent le nombre de transactions, jusqu’à cinq pastilles de catégories et le total
+  dépensé ; les jours montrent leur total et les lignes n’affichent pas la date une seconde
+  fois.
+- Les transactions ont `occurred_on` comme date seule `YYYY-MM-DD` (schéma Zod), pas
+  comme horodatage. Le regroupement utilise directement cette date civile et les helpers
+  lundi-dimanche, sans conversion UTC de l’heure de création. La date de référence
+  « aujourd’hui » pour l’accordéon est aussi explicitement calculée dans
+  `Indian/Antananarivo`. Un test couvre une saisie à 23 h 30 à Antananarivo. Les données
+  restent lues depuis Dexie ; les droits des menus d’action utilisent le contrôle existant.
+- Le sélecteur actuel n’a ni préréglage « 3 mois » ni option « Tout » ; aucun sens nouveau
+  n’a été inventé. Les plages personnalisées sur plusieurs mois sont prises en charge.
+- Vérifications étape 2 : lint, typecheck, 141 tests sur 22 fichiers et build réussis.
+  Vite conserve son avertissement connu de chunk principal supérieur à 500 kB (~863 kB).
+  Aucun essai visuel réel, test Playwright ni essai sur téléphone n’a été effectué.
+- Étapes 3 (rendu desktop dédié) et 4 (tests Playwright) non commencées. Attendre la
+  validation de Laro avant de poursuivre.
 - Migrations 001 à 010 exécutées manuellement dans le projet Supabase TEST
   `wkympekogzamodupmqwg`. La migration R1 destructive n’a été exécutée que sur le projet
   TEST qui avait été vérifié vide avant son initialisation.

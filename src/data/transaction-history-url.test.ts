@@ -13,10 +13,18 @@ describe('transaction history URL state', () => {
 
     expect(new URLSearchParams(search).get('mois')).toBe('2026-11')
     expect(new URLSearchParams(search).get('invite')).toBe('token')
+    expect(state.groupBy).toBe('week')
     expect(getHistoryPeriodBounds(state.period, '2026-11-01')).toEqual({
       start: '2026-11-01',
       end: '2026-11-30',
     })
+  })
+
+  it('defaults legacy URLs to weeks while preserving an explicit flat grouping', () => {
+    expect(parseTransactionHistoryUrlState('?histPeriod=month', '2026-11-01').groupBy).toBe('week')
+    expect(
+      parseTransactionHistoryUrlState('?histPeriod=month&histGroup=none', '2026-11-01').groupBy,
+    ).toBe('none')
   })
 
   it('round-trips period, grouping, filters, and page', () => {
