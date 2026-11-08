@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  ArrowLeft,
+  ArrowRight,
   Archive,
   CirclePlus,
+  ChevronDown,
+  ChevronRight,
   Download,
   Filter,
   MoreHorizontal,
@@ -42,20 +46,29 @@ import {
   type HistoryPeriodSelection,
   type TransactionHistoryUrlState,
 } from '@/data/transaction-history-url'
-import { isLocalDate } from '@/data/periods'
-import { groupTransactions, paginateTransactionGroups } from '@/data/transaction-grouping'
+import { getWeekPeriod, isLocalDate } from '@/data/periods'
+import {
+  getTransactionAgendaExpandedKeys,
+  groupTransactions,
+  groupTransactionsForAgenda,
+  paginateTransactionGroups,
+} from '@/data/transaction-grouping'
+import { monthKeyForDate, shiftMonth } from '@/data/calculations'
 import {
   buildTransactionCsv,
   downloadCsvFile,
   transactionCsvFilename,
 } from '@/data/transaction-export'
+import { buildExportModel } from '@/data/transaction-export-model'
 
 type DataTab = 'transactions' | 'categories'
 type TransactionKind = Transaction['kind']
 
 interface LocalDataViewProps {
   workspaceId: string | undefined
+  workspaceName: string
   month: string
+  onMonthChange: (month: string) => void
   userId: string
   canEdit: boolean
   isSharedWorkspace: boolean
@@ -98,10 +111,34 @@ function localDate(): string {
   return `${today.getFullYear()}-${month}-${day}`
 }
 
+function antananarivoDate(): string {
+  const parts = new Map(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Indian/Antananarivo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+      .formatToParts(new Date())
+      .map((part) => [part.type, part.value] as const),
+  )
+  const year = parts.get('year')
+  const month = parts.get('month')
+  const day = parts.get('day')
+  if (!year || !month || !day) {
+    throw new Error('Impossible de déterminer la date à Antananarivo.')
+  }
+  return `${year}-${month}-${day}`
+}
+
 function formatMoney(amount: number): string {
   return `${new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
   }).format(amount)} Ar`
+}
+
+function formatAccordionId(key: string): string {
+  return `transaction-group-${key.replace(/[^a-zA-Z0-9_-]/gu, '-')}`
 }
 
 function formatMonthLabel(month: string): string {
@@ -112,37 +149,26 @@ function formatMonthLabel(month: string): string {
   return `${value.charAt(0).toLocaleUpperCase('fr-FR')}${value.slice(1)}`
 }
 
-function formatHistoryPeriodLabel(
-  period: HistoryPeriodSelection,
-  bounds: { start: string; end: string },
-): string {
-  const formatDate = (value: string, options: Intl.DateTimeFormatOptions) =>
-    new Date(`${value}T00:00:00`).toLocaleDateString('fr-FR', options)
+function formatExportDate(date: string, options: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat('fr-FR', { ...options, timeZone: 'UTC' }).format(
+    new Date(`${date}T00:00:00.000Z`),
+  )
+}
 
-  switch (period.type) {
-    case 'day': {
-      const value = formatDate(period.date, {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
-      return `${value.charAt(0).toLocaleUpperCase('fr-FR')}${value.slice(1)}`
-    }
+function transactionExportTitle(
+  selection: HistoryPeriodSelection,
+  period: { start: string; end: string },
+  workspaceName: string,
+): string {
+  switch (selection.type) {
+    case 'day':
+      return `Journalier ${workspaceName} · ${formatExportDate(selection.date, { dateStyle: 'long' })}`
     case 'week':
-      return `Semaine du ${formatDate(bounds.start, { day: 'numeric', month: 'short' })} au ${formatDate(bounds.end, {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      })}`
+      return `Hebdomadaire ${workspaceName} · semaine du ${formatExportDate(period.start, { day: 'numeric', month: 'long' })} au ${formatExportDate(period.end, { day: 'numeric', month: 'long', year: 'numeric' })}`
     case 'month':
-      return formatMonthLabel(bounds.start.slice(0, 7))
+      return `Mensuel ${workspaceName} · ${formatExportDate(period.start, { month: 'long', year: 'numeric' })}`
     case 'custom':
-      return `Du ${formatDate(bounds.start, { day: 'numeric', month: 'short' })} au ${formatDate(bounds.end, {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      })}`
+      return `Période personnalisée ${workspaceName} · du ${formatExportDate(period.start, { dateStyle: 'long' })} au ${formatExportDate(period.end, { dateStyle: 'long' })}`
   }
 }
 
@@ -178,7 +204,9 @@ function transactionLabel(kind: TransactionKind): string {
 
 export function LocalDataView({
   workspaceId,
+  workspaceName,
   month,
+  onMonthChange,
   userId,
   canEdit,
   isSharedWorkspace,
@@ -206,9 +234,18 @@ export function LocalDataView({
       month,
     ),
   }))
+  const [openAgendaMonthKeys, setOpenAgendaMonthKeys] = useState<Set<string>>(() => new Set())
+  const [openAgendaWeekKeys, setOpenAgendaWeekKeys] = useState<Set<string>>(() => {
+    const today = antananarivoDate()
+    const weekStart = getWeekPeriod(today).start
+    return new Set([`week:${today.slice(0, 7)}:${weekStart}`, `week:${weekStart}`])
+  })
+  const [closedAgendaMonthKeys, setClosedAgendaMonthKeys] = useState<Set<string>>(() => new Set())
+  const [closedAgendaWeekKeys, setClosedAgendaWeekKeys] = useState<Set<string>>(() => new Set())
   const dialogRef = useRef<HTMLDialogElement>(null)
   const categoryDialogRef = useRef<HTMLDialogElement>(null)
   const filterDialogRef = useRef<HTMLDialogElement>(null)
+  const exportDialogRef = useRef<HTMLDialogElement>(null)
   const [draftFilters, setDraftFilters] = useState(createEmptyTransactionHistoryFilters)
   const categories = useCategories(workspaceId)
   const budgets = useLiveQuery(async () => {
@@ -331,6 +368,13 @@ export function LocalDataView({
   }
   const historyFilters = historyStateForWorkspace.filters
   const groupBy = historyStateForWorkspace.groupBy
+  const agendaDate = antananarivoDate()
+  const agendaGroupByMonth =
+    historyStateForWorkspace.period.type === 'month' ||
+    (historyStateForWorkspace.period.type === 'custom' &&
+      new Date(`${historyPeriodBounds.end}T00:00:00.000Z`).getTime() -
+        new Date(`${historyPeriodBounds.start}T00:00:00.000Z`).getTime() >=
+        31 * 24 * 60 * 60 * 1000)
   const historyNames = useMemo(
     () => ({
       categories: new Map(categories.map((category) => [category.id, category.name])),
@@ -355,6 +399,15 @@ export function LocalDataView({
   const transactionGroups = useMemo(
     () => groupTransactions(filteredTransactions, groupBy, { period: historyPeriodBounds }),
     [filteredTransactions, groupBy, historyPeriodBounds],
+  )
+  const agendaMonths = useMemo(
+    () =>
+      groupTransactionsForAgenda(filteredTransactions, {
+        period: historyPeriodBounds,
+        currentDate: agendaDate,
+        groupByMonth: agendaGroupByMonth,
+      }),
+    [agendaDate, agendaGroupByMonth, filteredTransactions, historyPeriodBounds],
   )
   const transactionPage = useMemo(
     () =>
@@ -390,8 +443,22 @@ export function LocalDataView({
     filterDialogRef.current?.showModal()
   }
 
+  function resetAgendaAccordionOverrides() {
+    setClosedAgendaMonthKeys(new Set())
+    setClosedAgendaWeekKeys(new Set())
+  }
+
+  function navigateMonth(offset: number) {
+    resetAgendaAccordionOverrides()
+    onMonthChange(shiftMonth(month, offset))
+    if (historyStateForWorkspace.period.type !== 'month') {
+      updateHistoryState({ period: { type: 'month' }, page: 1 })
+    }
+  }
+
   function applyHistoryFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    resetAgendaAccordionOverrides()
     updateHistoryState({
       filters: { ...draftFilters, memberId: isSharedWorkspace ? draftFilters.memberId : '' },
       page: 1,
@@ -400,6 +467,7 @@ export function LocalDataView({
   }
 
   function removeHistoryFilter(key: keyof TransactionHistoryFilters) {
+    resetAgendaAccordionOverrides()
     updateHistoryState({
       filters: {
         ...historyFilters,
@@ -410,6 +478,7 @@ export function LocalDataView({
   }
 
   function changeHistoryPeriodType(type: HistoryPeriodSelection['type']) {
+    resetAgendaAccordionOverrides()
     const currentPeriod = historyStateForWorkspace.period
     const date =
       currentPeriod.type === 'day' || currentPeriod.type === 'week'
@@ -428,6 +497,7 @@ export function LocalDataView({
 
   function changeHistoryAnchorDate(date: string) {
     if (!isLocalDate(date)) return
+    resetAgendaAccordionOverrides()
     const period = historyStateForWorkspace.period
     if (period.type === 'day' || period.type === 'week') {
       updateHistoryState({ period: { ...period, date }, page: 1 })
@@ -436,6 +506,7 @@ export function LocalDataView({
 
   function changeCustomPeriodDate(part: 'start' | 'end', date: string) {
     if (!isLocalDate(date) || historyStateForWorkspace.period.type !== 'custom') return
+    resetAgendaAccordionOverrides()
     const current = historyStateForWorkspace.period
     updateHistoryState({
       period:
@@ -454,6 +525,11 @@ export function LocalDataView({
     countAdvancedTransactionHistoryFilters(historyFilters, isSharedWorkspace) +
     Number(historyFilters.transactionType !== 'all') +
     Number(historyFilters.search.trim() !== '')
+  const autoExpandedAgendaKeys = getTransactionAgendaExpandedKeys(
+    agendaMonths,
+    activeFilterCount > 0,
+    agendaDate,
+  )
   const thresholdUsage = useMemo(() => {
     const periodType = historyStateForWorkspace.period.type
     if (activeFilterCount > 0 || (periodType !== 'day' && periodType !== 'week')) {
@@ -467,7 +543,13 @@ export function LocalDataView({
       historyPeriodBounds.end,
       periodType,
     )
-  }, [activeFilterCount, budgets, historyPeriodBounds, historyStateForWorkspace.period.type, transactions])
+  }, [
+    activeFilterCount,
+    budgets,
+    historyPeriodBounds,
+    historyStateForWorkspace.period.type,
+    transactions,
+  ])
   const firstVisibleTransaction =
     filteredTransactions.length === 0
       ? 0
@@ -477,14 +559,94 @@ export function LocalDataView({
     filteredTransactions.length,
   )
 
-  function openNewTransaction() {
-    if (!canEdit) return
-    setError(null)
-    setTransactionError(null)
-    setNotice(null)
-    setEditingTransactionId(null)
-    setTransactionDraft(newTransactionDraft(month, userId))
-    onQuickEntryOpenChange(true)
+  function renderAgendaTransaction(transaction: Transaction) {
+    const category = categories.find((item) => item.id === transaction.category_id)
+    const responsibleName = historyNames.members.get(transaction.paid_by) || 'Membre'
+    const initials = responsibleName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toLocaleUpperCase('fr-FR') ?? '')
+      .join('')
+    const amountPrefix =
+      transaction.kind === 'income' || transaction.kind === 'refund'
+        ? '+'
+        : transaction.kind === 'expense'
+          ? '−'
+          : ''
+    const amountTone =
+      transaction.kind === 'income' || transaction.kind === 'refund'
+        ? 'text-[var(--color-income)]'
+        : 'text-[var(--color-neutral)]'
+
+    return (
+      <article
+        className="flex min-h-11 items-center gap-2 border-b border-stone-100 px-1 py-1 last:border-b-0"
+        key={transaction.id}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10"
+            style={{ backgroundColor: category?.color ?? 'var(--category-uncategorized)' }}
+          />
+          <p className="min-w-0 truncate text-sm font-medium">
+            {category?.name ?? transactionLabel(transaction.kind)}
+            {transaction.note && (
+              <span className="ml-1 font-normal text-stone-500">· {transaction.note}</span>
+            )}
+          </p>
+        </div>
+        {isSharedWorkspace && (
+          <span
+            aria-label={`Payé par ${responsibleName}`}
+            className="flex max-w-28 shrink-0 items-center gap-1.5 text-xs text-stone-600"
+            role="img"
+            title={`Payé par ${responsibleName}`}
+          >
+            <span
+              aria-hidden="true"
+              className="flex size-6 shrink-0 items-center justify-center rounded-full bg-stone-200 text-[10px] font-semibold text-stone-700"
+            >
+              {initials || 'M'}
+            </span>
+            <span className="hidden truncate sm:inline">{responsibleName}</span>
+          </span>
+        )}
+        <span className={`shrink-0 tabular-nums text-right text-sm font-semibold ${amountTone}`}>
+          {amountPrefix}
+          {formatMoney(transaction.amount)}
+        </span>
+        {canEditTransactionRecord(transaction) && (
+          <details className="relative shrink-0">
+            <summary
+              aria-label={`Actions pour ${transactionLabel(transaction.kind).toLocaleLowerCase('fr-FR')}`}
+              className="flex size-8 cursor-pointer list-none items-center justify-center rounded-full text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-emerald-800 motion-reduce:transition-none"
+            >
+              <MoreHorizontal aria-hidden="true" size={16} />
+            </summary>
+            <div className="absolute right-0 top-full z-20 mt-2 min-w-36 rounded-xl border border-stone-200 bg-white p-1 shadow-lg">
+              <button
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-stone-100"
+                onClick={() => editTransaction(transaction)}
+                type="button"
+              >
+                <Pencil aria-hidden="true" size={15} />
+                Modifier
+              </button>
+              <button
+                className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-red-700 hover:bg-red-50"
+                onClick={() => void deleteTransaction(transaction)}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={15} />
+                Supprimer
+              </button>
+            </div>
+          </details>
+        )}
+      </article>
+    )
   }
 
   function openCategoryEditor(draft: CategoryDraft) {
@@ -816,17 +978,46 @@ export function LocalDataView({
     }
   }
 
+  async function exportTransactionsXlsx() {
+    if (filteredTransactions.length === 0) {
+      setError('Aucune transaction à exporter pour cette période et ces filtres.')
+      return
+    }
+
+    setError(null)
+    setNotice(null)
+    try {
+      const { buildTransactionXlsx, downloadXlsxFile, transactionXlsxFilename } =
+        await import('@/data/transaction-xlsx')
+      const model = buildExportModel(filteredTransactions, categories, historyNames.members, {
+        period: historyPeriodBounds,
+        groupByMonth: agendaGroupByMonth,
+      })
+      const file = await buildTransactionXlsx(model, {
+        title: transactionExportTitle(
+          historyStateForWorkspace.period,
+          historyPeriodBounds,
+          workspaceName,
+        ),
+        includeMemberBreakdown: isSharedWorkspace,
+      })
+      downloadXlsxFile(
+        file,
+        transactionXlsxFilename(historyPeriodBounds.start, historyPeriodBounds.end),
+      )
+      setNotice(
+        `${filteredTransactions.length} transaction${filteredTransactions.length > 1 ? 's' : ''} exportée${filteredTransactions.length > 1 ? 's' : ''} au format Excel.`,
+      )
+    } catch (failure) {
+      setError(`Impossible de créer le fichier Excel. ${errorMessage(failure)}`)
+    }
+  }
+
   return (
     <section aria-labelledby="section-title" className="page-shell">
-      <p className="mb-2 text-sm font-medium text-emerald-800">Données de l’espace actif</p>
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl" id="section-title">
-        Transactions et catégories
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl" id="section-title">
+        Transactions
       </h1>
-      <p className="mt-3 leading-7 text-stone-600">
-        {canEdit
-          ? 'Tes changements sont enregistrés, même sans connexion.'
-          : 'Les données de cet espace sont disponibles.'}
-      </p>
       {!canEdit && (
         <p className="mt-4 rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-700">
           Accès en lecture seule : tu peux consulter les données, mais pas les modifier.
@@ -845,7 +1036,11 @@ export function LocalDataView({
         >
           <span>{notice}</span>
           {pendingDeletionId && (
-            <Button className="min-h-10" onClick={() => void restoreTransaction()} variant="outline">
+            <Button
+              className="min-h-10"
+              onClick={() => void restoreTransaction()}
+              variant="outline"
+            >
               Annuler
             </Button>
           )}
@@ -889,118 +1084,53 @@ export function LocalDataView({
       {workspaceId && activeTab === 'transactions' && (
         <div className="mt-5 space-y-4">
           <Card className="rounded-2xl border-0 shadow-sm ring-stone-200">
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <CardHeader className="pb-2">
               <div>
                 <CardTitle>Historique</CardTitle>
                 <CardDescription>Les dernières transactions de ton espace.</CardDescription>
               </div>
-              {canEdit && (
-                <Button
-                  className="min-h-12 shrink-0 rounded-xl bg-emerald-800 px-4 text-white hover:bg-emerald-900"
-                  onClick={openNewTransaction}
-                >
-                  <CirclePlus aria-hidden="true" size={18} />
-                  Ajouter
-                </Button>
-              )}
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <label className="grid gap-1.5 text-sm font-medium">
-                  Période
-                  <select
-                    className="min-h-11 rounded-xl border border-stone-300 bg-white px-3"
-                    onChange={(event) => {
-                      const type = event.target.value
-                      if (
-                        type === 'day' ||
-                        type === 'week' ||
-                        type === 'month' ||
-                        type === 'custom'
-                      ) {
-                        changeHistoryPeriodType(type)
-                      }
-                    }}
-                    value={historyStateForWorkspace.period.type}
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <nav
+                  aria-label="Sélection du mois des transactions"
+                  className="flex min-w-0 items-center gap-2"
+                >
+                  <Button
+                    aria-label="Mois précédent"
+                    className="min-h-10 min-w-10"
+                    onClick={() => navigateMonth(-1)}
+                    size="icon"
+                    type="button"
+                    variant="outline"
                   >
-                    <option value="day">Un jour</option>
-                    <option value="week">Une semaine</option>
-                    <option value="month">Un mois</option>
-                    <option value="custom">Plage personnalisée</option>
-                  </select>
-                </label>
-                {historyStateForWorkspace.period.type === 'month' ? (
-                  <div className="grid content-end gap-1.5 text-sm">
-                    <span className="font-medium">Mois sélectionné</span>
-                    <span className="flex min-h-11 items-center rounded-xl bg-stone-50 px-3 capitalize">
-                      {formatMonthLabel(month)}
-                    </span>
-                  </div>
-                ) : historyStateForWorkspace.period.type === 'custom' ? (
-                  <>
-                    <label className="grid gap-1.5 text-sm font-medium">
-                      Du
-                      <input
-                        className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
-                        onChange={(event) => changeCustomPeriodDate('start', event.target.value)}
-                        type="date"
-                        value={historyStateForWorkspace.period.start}
-                      />
-                    </label>
-                    <label className="grid gap-1.5 text-sm font-medium">
-                      Au
-                      <input
-                        className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
-                        onChange={(event) => changeCustomPeriodDate('end', event.target.value)}
-                        type="date"
-                        value={historyStateForWorkspace.period.end}
-                      />
-                    </label>
-                  </>
-                ) : (
-                  <label className="grid gap-1.5 text-sm font-medium">
-                    Date
-                    <input
-                      className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
-                      onChange={(event) => changeHistoryAnchorDate(event.target.value)}
-                      type="date"
-                      value={historyStateForWorkspace.period.date}
-                    />
-                  </label>
-                )}
-                <label className="grid gap-1.5 text-sm font-medium">
-                  Regroupement
-                  <select
-                    className="min-h-11 rounded-xl border border-stone-300 bg-white px-3"
-                    onChange={(event) => {
-                      const group = event.target.value
-                      if (
-                        group === 'none' ||
-                        group === 'day' ||
-                        group === 'week' ||
-                        group === 'month'
-                      ) {
-                        updateHistoryState({ groupBy: group, page: 1 })
-                      }
-                    }}
-                    value={groupBy}
+                    <ArrowLeft aria-hidden="true" size={17} />
+                  </Button>
+                  <p aria-live="polite" className="min-w-0 truncate text-center font-semibold">
+                    {formatMonthLabel(month)}
+                  </p>
+                  <Button
+                    aria-label="Mois suivant"
+                    className="min-h-10 min-w-10"
+                    disabled={month >= monthKeyForDate(new Date())}
+                    onClick={() => navigateMonth(1)}
+                    size="icon"
+                    type="button"
+                    variant="outline"
                   >
-                    <option value="none">Aucun</option>
-                    <option value="day">Jour</option>
-                    <option value="week">Semaine</option>
-                    <option value="month">Mois</option>
-                  </select>
-                </label>
-                <div className="flex items-end">
+                    <ArrowRight aria-hidden="true" size={17} />
+                  </Button>
+                </nav>
+                <div className="flex shrink-0 items-center gap-2">
                   <Button
                     aria-label={`Filtres${activeFilterCount ? `, ${activeFilterCount} actif${activeFilterCount > 1 ? 's' : ''}` : ''}`}
-                    className="min-h-11 w-full justify-center gap-2"
+                    className="min-h-10 gap-2"
                     onClick={openHistoryFilterDialog}
                     type="button"
                     variant="outline"
                   >
-                    <Filter aria-hidden="true" size={17} />
-                    Filtres
+                    <Filter aria-hidden="true" size={16} />
+                    <span className="hidden sm:inline">Filtres</span>
                     {activeFilterCount > 0 && (
                       <span
                         aria-hidden="true"
@@ -1010,13 +1140,30 @@ export function LocalDataView({
                       </span>
                     )}
                   </Button>
+                  <details className="relative">
+                    <summary
+                      aria-label="Autres options de l’historique"
+                      className="flex size-10 cursor-pointer list-none items-center justify-center rounded-xl border border-stone-300 text-stone-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800"
+                    >
+                      <MoreHorizontal aria-hidden="true" size={18} />
+                    </summary>
+                    <div className="absolute right-0 top-full z-20 mt-2 min-w-44 rounded-xl border border-stone-200 bg-white p-1 shadow-lg">
+                      <button
+                        className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={filteredTransactions.length === 0}
+                        onClick={(event) => {
+                          event.currentTarget.closest('details')?.removeAttribute('open')
+                          exportDialogRef.current?.showModal()
+                        }}
+                        type="button"
+                      >
+                        <Download aria-hidden="true" size={16} />
+                        Exporter…
+                      </button>
+                    </div>
+                  </details>
                 </div>
               </div>
-              {historyStateForWorkspace.period.type === 'week' && (
-                <p className="text-xs text-stone-500">
-                  {historyPeriodBounds.start} – {historyPeriodBounds.end} (lundi à dimanche)
-                </p>
-              )}
               {(historyFilters.categoryId ||
                 (isSharedWorkspace && historyFilters.memberId) ||
                 historyFilters.transactionType !== 'all' ||
@@ -1069,54 +1216,17 @@ export function LocalDataView({
                 </div>
               )}
 
-              <div className="sticky top-0 z-10 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-sm backdrop-blur-sm">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">
-                      Période
-                    </p>
-                    <p className="truncate text-sm font-semibold text-stone-900">
-                      {formatHistoryPeriodLabel(historyStateForWorkspace.period, historyPeriodBounds)}
-                    </p>
-                  </div>
-                  {activeFilterCount > 0 && (
-                    <span className="inline-flex w-fit items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-medium text-amber-900">
-                      Filtres actifs
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-stone-600 sm:grid-cols-4">
-                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">
-                      Dépenses nettes
-                    </p>
-                    <p className="mt-1 font-semibold text-stone-900">
-                      {formatMoney(transactionSummary.netExpenses)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">
-                      Revenus
-                    </p>
-                    <p className="mt-1 font-semibold text-stone-900">
-                      {formatMoney(transactionSummary.income)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">Net</p>
-                    <p className="mt-1 font-semibold text-stone-900">{formatMoney(transactionSummary.net)}</p>
-                  </div>
-                  <div className="rounded-xl bg-stone-50 px-2.5 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-stone-500">
-                      Transactions
-                    </p>
-                    <p className="mt-1 font-semibold text-stone-900">
-                      {transactionSummary.count}
-                    </p>
-                  </div>
-                </div>
+              <div className="sticky top-16 z-10 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-y border-stone-200 bg-white/95 py-2 text-stone-700 backdrop-blur-sm">
+                <p className="text-sm font-bold text-stone-950">
+                  Net {formatMoney(transactionSummary.net)}
+                </p>
+                <p className="text-xs">Dépenses {formatMoney(transactionSummary.netExpenses)}</p>
+                <p className="text-xs">Revenus {formatMoney(transactionSummary.income)}</p>
+                {activeFilterCount > 0 && (
+                  <span className="text-xs font-medium text-amber-800">Filtres actifs</span>
+                )}
                 {thresholdUsage && (
-                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5">
+                  <div className="w-full rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5">
                     <div className="flex items-center justify-between gap-2 text-xs text-stone-700">
                       <span className="font-medium text-stone-800">
                         Comptées dans le seuil : {formatMoney(thresholdUsage.spentAmount)} sur{' '}
@@ -1154,29 +1264,16 @@ export function LocalDataView({
                 )}
               </div>
 
-              <div className="flex flex-col gap-2 border-t border-stone-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-stone-600">
                 <span aria-live="polite" className="text-sm text-stone-600" role="status">
                   {filteredTransactions.length === 0
                     ? transactions.length === 0
                       ? 'Aucune transaction sur cette période'
                       : 'Aucune transaction ne correspond aux filtres'
-                    : `Transactions ${firstVisibleTransaction} à ${lastVisibleTransaction} sur ${filteredTransactions.length}`}
+                    : groupBy === 'week'
+                      ? `${filteredTransactions.length} transaction${filteredTransactions.length > 1 ? 's' : ''} sur cette période`
+                      : `Transactions ${firstVisibleTransaction} à ${lastVisibleTransaction} sur ${filteredTransactions.length}`}
                 </span>
-                <div className="flex flex-col gap-1 sm:items-end">
-                  <Button
-                    className="min-h-11 w-full sm:w-auto"
-                    disabled={filteredTransactions.length === 0}
-                    onClick={exportTransactions}
-                    type="button"
-                    variant="outline"
-                  >
-                    <Download aria-hidden="true" size={17} />
-                    Exporter CSV ({filteredTransactions.length})
-                  </Button>
-                  <p className="text-xs text-stone-500">
-                    Toute la période filtrée, pas seulement cette page. Disponible hors ligne.
-                  </p>
-                </div>
               </div>
 
               {transactions.length === 0 ? (
@@ -1188,6 +1285,186 @@ export function LocalDataView({
                   <p className="text-sm text-stone-600">
                     Aucune transaction ne correspond à ces critères.
                   </p>
+                </div>
+              ) : groupBy === 'week' ? (
+                <div className="space-y-3">
+                  {agendaMonths.map((monthGroup) => {
+                    const multipleMonths = agendaGroupByMonth && agendaMonths.length > 1
+                    const monthExpanded =
+                      activeFilterCount > 0
+                        ? autoExpandedAgendaKeys.monthKeys.includes(monthGroup.key) &&
+                          !closedAgendaMonthKeys.has(monthGroup.key)
+                        : openAgendaMonthKeys.has(monthGroup.key)
+                    const monthContentId = formatAccordionId(monthGroup.key)
+
+                    return (
+                      <section className="space-y-2" key={monthGroup.key}>
+                        {multipleMonths && (
+                          <button
+                            aria-controls={monthContentId}
+                            aria-expanded={monthExpanded}
+                            aria-label={`${monthExpanded ? 'Replier' : 'Déplier'} ${formatMonthLabel(monthGroup.bounds.start)}, ${monthGroup.weeks.length} semaines`}
+                            className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-stone-100 px-3 text-left font-semibold transition-colors hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-emerald-800 motion-reduce:transition-none"
+                            onClick={() =>
+                              activeFilterCount > 0
+                                ? setClosedAgendaMonthKeys((current) => {
+                                    const next = new Set(current)
+                                    if (next.has(monthGroup.key)) next.delete(monthGroup.key)
+                                    else next.add(monthGroup.key)
+                                    return next
+                                  })
+                                : setOpenAgendaMonthKeys((current) => {
+                                    const next = new Set(current)
+                                    if (next.has(monthGroup.key)) next.delete(monthGroup.key)
+                                    else next.add(monthGroup.key)
+                                    return next
+                                  })
+                            }
+                            type="button"
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              {monthExpanded ? (
+                                <ChevronDown aria-hidden="true" size={18} />
+                              ) : (
+                                <ChevronRight aria-hidden="true" size={18} />
+                              )}
+                              <span className="truncate">
+                                {formatMonthLabel(monthGroup.bounds.start)}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-sm font-normal text-stone-600">
+                              {monthGroup.weeks.length} semaines
+                            </span>
+                          </button>
+                        )}
+                        {(!multipleMonths || monthExpanded) && (
+                          <div
+                            className="space-y-2"
+                            id={multipleMonths ? monthContentId : undefined}
+                          >
+                            {monthGroup.weeks.map((week) => {
+                              const weekExpanded =
+                                activeFilterCount > 0
+                                  ? autoExpandedAgendaKeys.weekKeys.includes(week.key) &&
+                                    !closedAgendaWeekKeys.has(week.key)
+                                  : openAgendaWeekKeys.has(week.key)
+                              const weekContentId = formatAccordionId(week.key)
+
+                              return (
+                                <section
+                                  className="overflow-visible rounded-xl border border-stone-200"
+                                  key={week.key}
+                                >
+                                  <button
+                                    aria-controls={weekContentId}
+                                    aria-expanded={weekExpanded}
+                                    aria-label={`${weekExpanded ? 'Replier' : 'Déplier'} ${week.label}, ${week.count} transactions, dépenses nettes ${formatMoney(week.totalExpenses)}`}
+                                    className="flex min-h-[4.25rem] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-800 motion-reduce:transition-none"
+                                    onClick={() =>
+                                      activeFilterCount > 0
+                                        ? setClosedAgendaWeekKeys((current) => {
+                                            const next = new Set(current)
+                                            if (next.has(week.key)) next.delete(week.key)
+                                            else next.add(week.key)
+                                            return next
+                                          })
+                                        : setOpenAgendaWeekKeys((current) => {
+                                            const next = new Set(current)
+                                            if (next.has(week.key)) next.delete(week.key)
+                                            else next.add(week.key)
+                                            return next
+                                          })
+                                    }
+                                    type="button"
+                                  >
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      {weekExpanded ? (
+                                        <ChevronDown
+                                          aria-hidden="true"
+                                          className="shrink-0"
+                                          size={18}
+                                        />
+                                      ) : (
+                                        <ChevronRight
+                                          aria-hidden="true"
+                                          className="shrink-0"
+                                          size={18}
+                                        />
+                                      )}
+                                      <span className="min-w-0">
+                                        <span className="block truncate font-semibold">
+                                          {week.label}
+                                        </span>
+                                        <span className="mt-1 flex items-center gap-1.5 text-xs font-normal text-stone-500">
+                                          <span>
+                                            {week.count} transaction{week.count > 1 ? 's' : ''}
+                                          </span>
+                                          <span aria-hidden="true">·</span>
+                                          <span
+                                            aria-hidden="true"
+                                            className="flex items-center gap-1"
+                                          >
+                                            {week.categoryIds.slice(0, 5).map((categoryId) => {
+                                              const category = categories.find(
+                                                (item) => item.id === categoryId,
+                                              )
+                                              return (
+                                                <span
+                                                  aria-hidden="true"
+                                                  className="size-2 rounded-full ring-1 ring-black/10"
+                                                  key={categoryId}
+                                                  style={{
+                                                    backgroundColor:
+                                                      category?.color ??
+                                                      'var(--category-uncategorized)',
+                                                  }}
+                                                  title={category?.name ?? 'Sans catégorie'}
+                                                />
+                                              )
+                                            })}
+                                            {week.categoryIds.length > 5 && (
+                                              <span>+{week.categoryIds.length - 5}</span>
+                                            )}
+                                          </span>
+                                        </span>
+                                      </span>
+                                    </span>
+                                    <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+                                      {formatMoney(week.totalExpenses)}
+                                    </span>
+                                  </button>
+                                  {weekExpanded && (
+                                    <div
+                                      className="border-t border-stone-200 px-2 py-1"
+                                      id={weekContentId}
+                                    >
+                                      {week.days.map((day) => (
+                                        <section
+                                          aria-label={day.label}
+                                          className="py-1"
+                                          key={day.key}
+                                        >
+                                          <div className="flex items-center justify-between gap-3 px-1 py-1.5 text-xs text-stone-600">
+                                            <h3 className="font-semibold capitalize">
+                                              {day.label}
+                                            </h3>
+                                            <span className="shrink-0 tabular-nums">
+                                              {formatMoney(day.totalExpenses)}
+                                            </span>
+                                          </div>
+                                          {day.transactions.map(renderAgendaTransaction)}
+                                        </section>
+                                      ))}
+                                    </div>
+                                  )}
+                                </section>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </section>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -1253,12 +1530,14 @@ export function LocalDataView({
                               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-stone-500">
                                 {groupBy !== 'day' && (
                                   <span className="tabular-nums">
-                                    {new Date(`${transaction.occurred_on}T00:00:00`).toLocaleDateString(
-                                      'fr-FR',
-                                    )}
+                                    {new Date(
+                                      `${transaction.occurred_on}T00:00:00`,
+                                    ).toLocaleDateString('fr-FR')}
                                   </span>
                                 )}
-                                {transaction.note && <span className="truncate">· {transaction.note}</span>}
+                                {transaction.note && (
+                                  <span className="truncate">· {transaction.note}</span>
+                                )}
                                 {isSharedWorkspace && (
                                   <span className="inline-flex items-center gap-1.5">
                                     <span
@@ -1275,7 +1554,9 @@ export function LocalDataView({
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
-                              <span className={`tabular-nums text-right text-base font-semibold ${amountTone}`}>
+                              <span
+                                className={`tabular-nums text-right text-base font-semibold ${amountTone}`}
+                              >
                                 {amountPrefix}
                                 {formatMoney(transaction.amount)}
                               </span>
@@ -1315,7 +1596,7 @@ export function LocalDataView({
                   ))}
                 </div>
               )}
-              {transactionPage.pageCount > 1 && (
+              {groupBy !== 'week' && transactionPage.pageCount > 1 && (
                 <nav
                   aria-label="Pagination de l’historique"
                   className="flex items-center justify-between gap-3 border-t border-stone-200 pt-4"
@@ -1577,10 +1858,10 @@ export function LocalDataView({
 
       <dialog
         aria-labelledby="transaction-filters-title"
-        className="fixed inset-x-0 bottom-0 m-0 max-h-[85svh] w-full max-w-none overflow-y-auto rounded-t-3xl border-0 bg-white p-0 shadow-2xl backdrop:bg-stone-950/45 sm:inset-0 sm:m-auto sm:max-w-lg sm:rounded-3xl"
+        className="fixed inset-x-0 bottom-0 m-0 max-h-[85svh] w-full max-w-none overflow-y-auto rounded-t-3xl border-0 bg-white p-0 shadow-2xl backdrop:bg-stone-950/45 md:inset-y-0 md:right-0 md:left-auto md:m-0 md:h-full md:max-h-full md:max-w-lg md:rounded-none"
         ref={filterDialogRef}
       >
-        <form className="space-y-5 p-5 sm:p-7" onSubmit={applyHistoryFilters}>
+        <form className="space-y-4 p-5 sm:p-7" onSubmit={applyHistoryFilters}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-emerald-800">Historique</p>
@@ -1598,6 +1879,92 @@ export function LocalDataView({
             >
               ×
             </Button>
+          </div>
+
+          <div className="grid gap-3 border-y border-stone-200 py-4">
+            <label className="grid gap-2 text-sm font-medium">
+              Période
+              <select
+                className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 font-normal"
+                onChange={(event) => {
+                  const type = event.target.value
+                  if (type === 'day' || type === 'week' || type === 'month' || type === 'custom') {
+                    changeHistoryPeriodType(type)
+                  }
+                }}
+                value={historyStateForWorkspace.period.type}
+              >
+                <option value="day">Un jour</option>
+                <option value="week">Une semaine</option>
+                <option value="month">Un mois</option>
+                <option value="custom">Plage personnalisée</option>
+              </select>
+            </label>
+            {historyStateForWorkspace.period.type === 'day' ||
+            historyStateForWorkspace.period.type === 'week' ? (
+              <label className="grid gap-2 text-sm font-medium">
+                Date
+                <input
+                  className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                  onChange={(event) => changeHistoryAnchorDate(event.target.value)}
+                  type="date"
+                  value={historyStateForWorkspace.period.date}
+                />
+              </label>
+            ) : null}
+            {historyStateForWorkspace.period.type === 'custom' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium">
+                  Du
+                  <input
+                    className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                    onChange={(event) => changeCustomPeriodDate('start', event.target.value)}
+                    type="date"
+                    value={historyStateForWorkspace.period.start}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Au
+                  <input
+                    className="min-h-11 rounded-xl border border-stone-300 px-3 font-normal"
+                    onChange={(event) => changeCustomPeriodDate('end', event.target.value)}
+                    type="date"
+                    value={historyStateForWorkspace.period.end}
+                  />
+                </label>
+              </div>
+            )}
+            {historyStateForWorkspace.period.type === 'month' && (
+              <p className="text-sm text-stone-600">Mois sélectionné : {formatMonthLabel(month)}</p>
+            )}
+            {historyStateForWorkspace.period.type === 'week' && (
+              <p className="text-xs text-stone-500">
+                {historyPeriodBounds.start} – {historyPeriodBounds.end} (lundi à dimanche)
+              </p>
+            )}
+            <label className="grid gap-2 text-sm font-medium">
+              Regroupement
+              <select
+                className="min-h-11 rounded-xl border border-stone-300 bg-white px-3 font-normal"
+                onChange={(event) => {
+                  const group = event.target.value
+                  if (
+                    group === 'none' ||
+                    group === 'day' ||
+                    group === 'week' ||
+                    group === 'month'
+                  ) {
+                    updateHistoryState({ groupBy: group, page: 1 })
+                  }
+                }}
+                value={groupBy}
+              >
+                <option value="none">Aucun</option>
+                <option value="day">Jour</option>
+                <option value="week">Semaine</option>
+                <option value="month">Mois</option>
+              </select>
+            </label>
           </div>
 
           <label className="grid gap-2 text-sm font-medium">
@@ -1689,9 +2056,67 @@ export function LocalDataView({
       </dialog>
 
       <dialog
+        aria-labelledby="transaction-export-title"
+        className="fixed inset-x-4 top-1/2 m-0 w-auto max-w-md -translate-y-1/2 rounded-2xl border border-stone-200 bg-white p-0 shadow-2xl backdrop:bg-stone-950/45 sm:inset-x-auto sm:left-1/2 sm:w-full sm:-translate-x-1/2"
+        ref={exportDialogRef}
+      >
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold" id="transaction-export-title">
+                Exporter les transactions
+              </h2>
+              <p className="mt-1 text-sm text-stone-600">
+                La période et les filtres actuellement affichés seront exportés.
+              </p>
+            </div>
+            <Button
+              aria-label="Fermer le choix d’export"
+              className="min-h-10 min-w-10"
+              onClick={() => exportDialogRef.current?.close()}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <X aria-hidden="true" size={18} />
+            </Button>
+          </div>
+          <div className="grid gap-2">
+            <Button
+              className="min-h-12 justify-start"
+              disabled={filteredTransactions.length === 0}
+              onClick={() => {
+                exportDialogRef.current?.close()
+                void exportTransactionsXlsx()
+              }}
+              type="button"
+            >
+              Excel (.xlsx) — recommandé
+            </Button>
+            <Button
+              className="min-h-12 justify-start"
+              disabled={filteredTransactions.length === 0}
+              onClick={() => {
+                exportDialogRef.current?.close()
+                exportTransactions()
+              }}
+              type="button"
+              variant="outline"
+            >
+              CSV — données brutes
+            </Button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog
         aria-labelledby="quick-entry-title"
         className="fixed inset-x-0 bottom-0 m-0 max-h-[92svh] w-full max-w-none overflow-y-auto rounded-t-3xl border-0 bg-white p-0 shadow-2xl backdrop:bg-stone-950/45 sm:inset-0 sm:m-auto sm:max-w-xl sm:rounded-3xl"
-        onClose={() => onQuickEntryOpenChange(false)}
+        onClose={() => {
+          onQuickEntryOpenChange(false)
+          setEditingTransactionId(null)
+          setTransactionDraft(newTransactionDraft(month, userId))
+        }}
         ref={dialogRef}
       >
         <form className="space-y-5 p-5 sm:p-7" onSubmit={(event) => void saveTransaction(event)}>

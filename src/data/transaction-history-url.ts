@@ -42,7 +42,7 @@ export function createDefaultTransactionHistoryUrlState(month: string): Transact
   getMonthPeriod(month)
   return {
     period: { type: 'month' },
-    groupBy: 'none',
+    groupBy: 'week',
     filters: createEmptyTransactionHistoryFilters(),
     page: 1,
   }
@@ -88,7 +88,7 @@ export function parseTransactionHistoryUrlState(
 
   const group = params.get('histGroup')
   const groupBy: TransactionGroupBy =
-    group === 'day' || group === 'week' || group === 'month' ? group : 'none'
+    group === 'none' || group === 'day' || group === 'week' || group === 'month' ? group : 'week'
   const transactionType = params.get('histType')
   const filters = createEmptyTransactionHistoryFilters()
   filters.transactionType =
